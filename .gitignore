@@ -1,0 +1,32 @@
+.ai/
+.claude/
+
+# Build directories
+build/
+cmake-build-*/
+
+# Third-party libraries installation
+libs/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Compiled files
+*.o
+*.so
+*.a
+*.exe
+
+# CMake cache
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+
+# Logs
+*.log
+logs/

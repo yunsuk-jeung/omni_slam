@@ -1,0 +1,229 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 20,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "Eigen3_DIR": "${sourceDir}/libs/debug/share/eigen3/cmake"
+      }
+    },
+    {
+      "name": "vo_debug",
+      "inherits": "base",
+      "displayName": "Visual Odometry (Debug)",
+      "description": "Build VO pipeline in Debug mode",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "OMNI_BUILD_VO": "ON",
+        "OMNI_BUILD_VIO": "OFF",
+        "OMNI_BUILD_LIO": "OFF",
+        "OMNI_BUILD_LOOP": "OFF",
+        "OMNI_BUILD_TESTS": "OFF"
+      }
+    },
+    {
+      "name": "vo_release",
+      "inherits": "base",
+      "displayName": "Visual Odometry (Release)",
+      "description": "Build VO pipeline in Release mode",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "OMNI_BUILD_VO": "ON",
+        "OMNI_BUILD_VIO": "OFF",
+        "OMNI_BUILD_LIO": "OFF",
+        "OMNI_BUILD_LOOP": "OFF",
+        "OMNI_BUILD_TESTS": "OFF"
+      }
+    },
+    {
+      "name": "vo",
+      "inherits": "base",
+      "displayName": "Visual Odometry (RelWithDebInfo)",
+      "description": "Build VO pipeline in RelWithDebInfo mode",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "OMNI_BUILD_VO": "ON",
+        "OMNI_BUILD_VIO": "OFF",
+        "OMNI_BUILD_LIO": "OFF",
+        "OMNI_BUILD_LOOP": "OFF",
+        "OMNI_BUILD_TESTS": "OFF"
+      }
+    },
+    {
+      "name": "vio_debug",
+      "inherits": "base",
+      "displayName": "Visual-Inertial Odometry (Debug)",
+      "description": "Build VIO pipeline in Debug mode",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "OMNI_BUILD_VO": "OFF",
+        "OMNI_BUILD_VIO": "ON",
+        "OMNI_BUILD_LIO": "OFF",
+        "OMNI_BUILD_LOOP": "ON"
+      }
+    },
+    {
+      "name": "vio_release",
+      "inherits": "base",
+      "displayName": "Visual-Inertial Odometry (Release)",
+      "description": "Build VIO pipeline in Release mode",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "OMNI_BUILD_VO": "OFF",
+        "OMNI_BUILD_VIO": "ON",
+        "OMNI_BUILD_LIO": "OFF",
+        "OMNI_BUILD_LOOP": "ON"
+      }
+    },
+    {
+      "name": "vio",
+      "inherits": "base",
+      "displayName": "Visual-Inertial Odometry (RelWithDebInfo)",
+      "description": "Build VIO pipeline in RelWithDebInfo mode",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "OMNI_BUILD_VO": "OFF",
+        "OMNI_BUILD_VIO": "ON",
+        "OMNI_BUILD_LIO": "OFF",
+        "OMNI_BUILD_LOOP": "ON"
+      }
+    },
+    {
+      "name": "lio_debug",
+      "inherits": "base",
+      "displayName": "LiDAR-Inertial Odometry (Debug)",
+      "description": "Build LIO pipeline in Debug mode",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "OMNI_BUILD_VO": "OFF",
+        "OMNI_BUILD_VIO": "OFF",
+        "OMNI_BUILD_LIO": "ON",
+        "OMNI_BUILD_LOOP": "ON"
+      }
+    },
+    {
+      "name": "lio_release",
+      "inherits": "base",
+      "displayName": "LiDAR-Inertial Odometry (Release)",
+      "description": "Build LIO pipeline in Release mode",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "OMNI_BUILD_VO": "OFF",
+        "OMNI_BUILD_VIO": "OFF",
+        "OMNI_BUILD_LIO": "ON",
+        "OMNI_BUILD_LOOP": "ON"
+      }
+    },
+    {
+      "name": "lio",
+      "inherits": "base",
+      "displayName": "LiDAR-Inertial Odometry (RelWithDebInfo)",
+      "description": "Build LIO pipeline in RelWithDebInfo mode",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "OMNI_BUILD_VO": "OFF",
+        "OMNI_BUILD_VIO": "OFF",
+        "OMNI_BUILD_LIO": "ON",
+        "OMNI_BUILD_LOOP": "ON"
+      }
+    },
+    {
+      "name": "omni_debug",
+      "inherits": "base",
+      "displayName": "All Pipelines (Debug)",
+      "description": "Build all VO/VIO/LIO/LVIO pipelines in Debug mode",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "OMNI_BUILD_VO": "ON",
+        "OMNI_BUILD_VIO": "ON",
+        "OMNI_BUILD_LIO": "ON",
+        "OMNI_BUILD_LOOP": "ON"
+      }
+    },
+    {
+      "name": "omni_release",
+      "inherits": "base",
+      "displayName": "All Pipelines (Release)",
+      "description": "Build all VO/VIO/LIO/LVIO pipelines in Release mode",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "OMNI_BUILD_VO": "ON",
+        "OMNI_BUILD_VIO": "ON",
+        "OMNI_BUILD_LIO": "ON",
+        "OMNI_BUILD_LOOP": "ON"
+      }
+    },
+    {
+      "name": "omni",
+      "inherits": "base",
+      "displayName": "All Pipelines (RelWithDebInfo)",
+      "description": "Build all VO/VIO/LIO/LVIO pipelines in RelWithDebInfo mode",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "OMNI_BUILD_VO": "ON",
+        "OMNI_BUILD_VIO": "ON",
+        "OMNI_BUILD_LIO": "ON",
+        "OMNI_BUILD_LOOP": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "vo_debug",
+      "configurePreset": "vo_debug"
+    },
+    {
+      "name": "vo_release",
+      "configurePreset": "vo_release"
+    },
+    {
+      "name": "vo",
+      "configurePreset": "vo"
+    },
+    {
+      "name": "vio_debug",
+      "configurePreset": "vio_debug"
+    },
+    {
+      "name": "vio_release",
+      "configurePreset": "vio_release"
+    },
+    {
+      "name": "vio",
+      "configurePreset": "vio"
+    },
+    {
+      "name": "lio_debug",
+      "configurePreset": "lio_debug"
+    },
+    {
+      "name": "lio_release",
+      "configurePreset": "lio_release"
+    },
+    {
+      "name": "lio",
+      "configurePreset": "lio"
+    },
+    {
+      "name": "omni_debug",
+      "configurePreset": "omni_debug"
+    },
+    {
+      "name": "omni_release",
+      "configurePreset": "omni_release"
+    },
+    {
+      "name": "omni",
+      "configurePreset": "omni"
+    }
+  ]
+}
