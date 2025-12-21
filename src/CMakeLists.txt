@@ -23,6 +23,18 @@ target_compile_features(omni_core INTERFACE cxx_std_20)
 #   ${CMAKE_CURRENT_SOURCE_DIR}/core/utils/config.hpp
 # )
 
+# Dataset loader library
+add_library(omni_dataset_loader
+  dataset_loader/euroc_loader.cpp
+  dataset_loader/vio_loader.cpp
+)
+
+target_link_libraries(omni_dataset_loader PUBLIC
+  omni_core
+)
+
+target_compile_features(omni_dataset_loader PUBLIC cxx_std_20)
+
 
 if(OMNI_BUILD_VO)
   set(VO_SOURCES
@@ -30,7 +42,7 @@ if(OMNI_BUILD_VO)
   )
 
   add_executable(vo app/run_vo.cpp ${VO_SOURCES})
-  target_link_libraries(vo omni_core)
+  target_link_libraries(vo omni_core omni_dataset_loader)
 endif()
 
 

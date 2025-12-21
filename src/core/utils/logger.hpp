@@ -1,14 +1,10 @@
 #pragma once
 
-#include <chrono>
 #include <filesystem>
-#include <iomanip>
-#include <memory>
+
 #include <spdlog/sinks/basic_file_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
-#include <sstream>
-#include <vector>
 
 namespace omni_slam {
 
@@ -17,10 +13,10 @@ public:
   static void Init(bool enable_file_logging = false) {
     if (!logger_) {
       if (enable_file_logging) {
-        //Create logs directory if it doesn't exist
+        // Create logs directory if it doesn't exist
         std::filesystem::create_directories("logs");
 
-        //Generate filename with current timestamp
+        // Generate filename with current timestamp
         auto              now  = std::chrono::system_clock::now();
         auto              time = std::chrono::system_clock::to_time_t(now);
         std::stringstream ss;
@@ -28,7 +24,7 @@ public:
            << ".log";
         std::string log_file = ss.str();
 
-        //Create sinks for both console and file output
+        // Create sinks for both console and file output
         auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
         auto file_sink    = std::make_shared<spdlog::sinks::basic_file_sink_mt>(log_file,
                                                                              true);
@@ -72,4 +68,4 @@ private:
   static inline std::shared_ptr<spdlog::logger> logger_;
 };
 
-}  //namespace omni_slam
+}  // namespace omni_slam
