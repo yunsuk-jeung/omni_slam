@@ -8,9 +8,9 @@ class VOPipeline : public OdometryPipeline {
 public:
   VOPipeline() = default;
 
-  bool initialize() override;
-  void run() override;
-  void shutdown() override;
+  bool Initialize() override;
+  void Run() override;
+  void Shutdown() override;
 };
 
 }  //namespace omni_slam

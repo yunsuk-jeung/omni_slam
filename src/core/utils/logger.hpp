@@ -14,7 +14,7 @@ namespace omni_slam {
 
 class Logger {
 public:
-  static void init(bool enable_file_logging = false) {
+  static void Init(bool enable_file_logging = false) {
     if (!logger_) {
       if (enable_file_logging) {
         //Create logs directory if it doesn't exist
@@ -48,23 +48,23 @@ public:
     }
   }
 
-  static void debug(const std::string& message) {
-    init();
+  static void Debug(const std::string& message) {
+    Init();
     logger_->debug(message);
   }
 
-  static void info(const std::string& message) {
-    init();
+  static void Info(const std::string& message) {
+    Init();
     logger_->info(message);
   }
 
-  static void warn(const std::string& message) {
-    init();
+  static void Warn(const std::string& message) {
+    Init();
     logger_->warn(message);
   }
 
-  static void error(const std::string& message) {
-    init();
+  static void Error(const std::string& message) {
+    Init();
     logger_->error(message);
   }
 

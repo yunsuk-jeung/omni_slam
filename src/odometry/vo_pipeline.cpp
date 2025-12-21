@@ -4,17 +4,17 @@
 
 namespace omni_slam {
 
-bool VOPipeline::initialize() {
-  Logger::info("Initializing VO Pipeline");
+bool VOPipeline::Initialize() {
+  Logger::Info("Initializing VO Pipeline");
   return true;
 }
 
-void VOPipeline::run() {
-  Logger::info("Running VO Pipeline");
+void VOPipeline::Run() {
+  Logger::Info("Running VO Pipeline");
 }
 
-void VOPipeline::shutdown() {
-  Logger::info("Shutting down VO Pipeline");
+void VOPipeline::Shutdown() {
+  Logger::Info("Shutting down VO Pipeline");
 }
 
 }  //namespace omni_slam
