@@ -57,14 +57,14 @@ MaxEmptyLinesToKeep: 1
 NamespaceIndentation: None
 ObjCBlockIndentWidth: 2
 ObjCSpaceAfterProperty: false
-ObjCSpaceBeforeProtocolList: false
+ObjCSpaceBeforeProtocolList: falseㅇ
 PenaltyBreakAssignment: 400
 PenaltyBreakBeforeFirstCallParameter: 400
 PenaltyReturnTypeOnItsOwnLine: 400
 PointerAlignment: Left
 SpacesInLineCommentPrefix: 
-  Minimum: 0
-  Maximum: 0
+  Minimum: 1
+  Maximum: 1
 SpaceAfterCStyleCast: false
 SpaceBeforeAssignmentOperators: true
 SpaceBeforeParens: ControlStatements
