@@ -179,6 +179,9 @@ bool EurocLoader::ParseCameraCsv(const std::string& csv_path, int cam_id) {
   // Read lines
   while (std::getline(file, line)) {
     line_number++;
+    if (!line.empty() && line.back() == '\r') {
+      line.pop_back();
+    }
 
     // Skip header lines (start with '#')
     if (line.empty() || line[0] == '#') {
@@ -253,6 +256,9 @@ bool EurocLoader::ParseImuCsv(const std::string& csv_path) {
   // Read lines
   while (std::getline(file, line)) {
     line_number++;
+    if (!line.empty() && line.back() == '\r') {
+      line.pop_back();
+    }
 
     // Skip header lines (start with '#')
     if (line.empty() || line[0] == '#') {
@@ -315,6 +321,9 @@ bool EurocLoader::ParseGroundTruthCsv(const std::string& csv_path) {
   // Read lines
   while (std::getline(file, line)) {
     line_number++;
+    if (!line.empty() && line.back() == '\r') {
+      line.pop_back();
+    }
 
     // Skip header lines (start with '#')
     if (line.empty() || line[0] == '#') {
