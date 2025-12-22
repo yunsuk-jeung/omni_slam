@@ -4,7 +4,7 @@
 namespace omni_slam {
 
 TEST(LoggerTest, BasicLogging) {
-  //Test that logger doesn't crash
+  // Test that logger doesn't crash
   Logger::info("Test info message");
   Logger::debug("Test debug message");
   Logger::warn("Test warning message");
@@ -20,4 +20,4 @@ TEST(LoggerTest, Initialization) {
   SUCCEED();
 }
 
-}  //namespace omni_slam
+}  // namespace omni_slam

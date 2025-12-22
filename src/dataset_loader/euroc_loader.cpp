@@ -138,8 +138,7 @@ bool EurocLoader::HasGroundTruthData() const {
 
 GroundTruthPose EurocLoader::GetNextGroundTruthPose() {
   if (!HasGroundTruthData()) {
-    LogE(
-      "getNextGroundTruthPose() called but no more ground truth data available");
+    LogE("getNextGroundTruthPose() called but no more ground truth data available");
     return GroundTruthPose{};
   }
 
