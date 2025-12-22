@@ -1,6 +1,6 @@
 #include <fstream>
 
-#include "dataset_loader/euroc_loader.hpp"
+#include "device/euroc_loader.hpp"
 #include "core/utils/logger.hpp"
 
 namespace omni_slam {
@@ -100,7 +100,7 @@ CameraFrame EurocLoader::GetNextCameraFrame() {
   }
 
   CameraFrame frame;
-  frame.timestamp_ns    = cam0_data_[camera_index_].first;
+  frame.t_ns            = cam0_data_[camera_index_].first;
   frame.cam0_image_path = cam0_data_[camera_index_].second;
 
   if (is_stereo_ && camera_index_ < cam1_data_.size()) {
@@ -119,10 +119,10 @@ bool EurocLoader::HasImuData() const {
   return imu_index_ < imu_data_.size();
 }
 
-ImuMeasurement EurocLoader::GetNextImuMeasurement() {
+ImuData EurocLoader::GetNextImuMeasurement() {
   if (!HasImuData()) {
     LogE("getNextImuMeasurement() called but no more IMU data available");
-    return ImuMeasurement{};
+    return ImuData{};
   }
 
   return imu_data_[imu_index_++];
@@ -197,7 +197,7 @@ bool EurocLoader::ParseCameraCsv(const std::string& csv_path, int cam_id) {
     }
 
     try {
-      int64_t timestamp_ns = std::stoll(timestamp_str);
+      int64_t t_ns = std::stoll(timestamp_str);
 
       // Construct full path
       std::string full_path = dataset_path_ + "/mav0/cam" + std::to_string(cam_id)
@@ -205,10 +205,10 @@ bool EurocLoader::ParseCameraCsv(const std::string& csv_path, int cam_id) {
 
       // Store in appropriate vector
       if (cam_id == 0) {
-        cam0_data_.emplace_back(timestamp_ns, full_path);
+        cam0_data_.emplace_back(t_ns, full_path);
       }
       else if (cam_id == 1) {
-        cam1_data_.emplace_back(timestamp_ns, full_path);
+        cam1_data_.emplace_back(t_ns, full_path);
       }
     } catch (const std::exception& e) {
       Logger::Warn("Failed to parse camera CSV line {}: {}", line_number, e.what());
@@ -277,14 +277,14 @@ bool EurocLoader::ParseImuCsv(const std::string& csv_path) {
     }
 
     try {
-      ImuMeasurement imu;
-      imu.timestamp_ns  = std::stoll(tokens[0]);
-      imu.gyroscope     = Eigen::Vector3d(std::stod(tokens[1]),
-                                      std::stod(tokens[2]),
-                                      std::stod(tokens[3]));
-      imu.accelerometer = Eigen::Vector3d(std::stod(tokens[4]),
-                                          std::stod(tokens[5]),
-                                          std::stod(tokens[6]));
+      ImuData imu;
+      imu.t_ns = std::stoll(tokens[0]);
+      imu.acc  = Eigen::Vector3d(std::stod(tokens[1]),
+                                std::stod(tokens[2]),
+                                std::stod(tokens[3]));
+      imu.gyr  = Eigen::Vector3d(std::stod(tokens[4]),
+                                std::stod(tokens[5]),
+                                std::stod(tokens[6]));
 
       imu_data_.push_back(imu);
     } catch (const std::exception& e) {
@@ -341,11 +341,11 @@ bool EurocLoader::ParseGroundTruthCsv(const std::string& csv_path) {
 
     try {
       GroundTruthPose gt;
-      gt.timestamp_ns = std::stoll(tokens[0]);
-      gt.position     = Eigen::Vector3d(std::stod(tokens[1]),
+      gt.t_ns        = std::stoll(tokens[0]);
+      gt.position    = Eigen::Vector3d(std::stod(tokens[1]),
                                     std::stod(tokens[2]),
                                     std::stod(tokens[3]));
-      gt.orientation  = Eigen::Quaterniond(std::stod(tokens[4]),
+      gt.orientation = Eigen::Quaterniond(std::stod(tokens[4]),
                                           std::stod(tokens[5]),
                                           std::stod(tokens[6]),
                                           std::stod(tokens[7]));
@@ -379,14 +379,14 @@ void EurocLoader::ComputeTimestampRange() {
 
   // Check IMU data
   if (!imu_data_.empty()) {
-    min_ts = std::min(min_ts, imu_data_.front().timestamp_ns);
-    max_ts = std::max(max_ts, imu_data_.back().timestamp_ns);
+    min_ts = std::min(min_ts, imu_data_.front().t_ns);
+    max_ts = std::max(max_ts, imu_data_.back().t_ns);
   }
 
   // Check ground truth data
   if (!ground_truth_data_.empty()) {
-    min_ts = std::min(min_ts, ground_truth_data_.front().timestamp_ns);
-    max_ts = std::max(max_ts, ground_truth_data_.back().timestamp_ns);
+    min_ts = std::min(min_ts, ground_truth_data_.front().t_ns);
+    max_ts = std::max(max_ts, ground_truth_data_.back().t_ns);
   }
 
   start_timestamp_ns_ = min_ts;

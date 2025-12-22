@@ -14,36 +14,36 @@ target_link_libraries(omni_core INTERFACE
 
 target_compile_features(omni_core INTERFACE cxx_std_20)
 
-# target_sources(omni_core INTERFACE
-#   ${CMAKE_CURRENT_SOURCE_DIR}/core/types/measurement.hpp
-#   ${CMAKE_CURRENT_SOURCE_DIR}/core/types/state.hpp
-#   ${CMAKE_CURRENT_SOURCE_DIR}/core/types/feature.hpp
-#   ${CMAKE_CURRENT_SOURCE_DIR}/core/time/timestamp.hpp
-#   ${CMAKE_CURRENT_SOURCE_DIR}/core/utils/logger.hpp
-#   ${CMAKE_CURRENT_SOURCE_DIR}/core/utils/config.hpp
-# )
+target_sources(omni_core INTERFACE
+  ${CMAKE_CURRENT_SOURCE_DIR}/core/utils/logger.hpp
 
-# Dataset loader library
-add_library(omni_dataset_loader
-  dataset_loader/euroc_loader.cpp
-  dataset_loader/vio_loader.cpp
 )
 
-target_link_libraries(omni_dataset_loader PUBLIC
+# Dataset loader library
+add_library(device INTERFACE
+
+)
+
+target_sources(device INTERFACE
+  ${CMAKE_CURRENT_SOURCE_DIR}/device/vio_loader.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/device/euroc_loader.cpp
+)
+
+target_link_libraries(device INTERFACE
   omni_core
 )
 
-target_compile_features(omni_dataset_loader PUBLIC cxx_std_20)
+target_compile_features(device INTERFACE cxx_std_20)
 
 
-if(OMNI_BUILD_VO)
+if(OMNI_BUILD_STEREO_VO)
   set(VO_SOURCES
     odometry/stereo_vo.cpp
   )
 
-  add_executable(vo app/run_vo.cpp ${VO_SOURCES})
-  target_include_directories(vo PRIVATE ${OpenCV_INCLUDE_DIRS})
-  target_link_libraries(vo omni_core omni_dataset_loader ${OpenCV_LIBS})
+  add_executable(stereo_vo app/run_vo.cpp ${VO_SOURCES})
+  target_include_directories(stereo_vo PRIVATE ${OpenCV_INCLUDE_DIRS})
+  target_link_libraries(stereo_vo omni_core device ${OpenCV_LIBS})
 endif()
 
 

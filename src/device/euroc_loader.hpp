@@ -6,8 +6,8 @@
 #include <utility>
 #include <vector>
 
-#include "dataset_loader/dataset_types.hpp"
-#include "dataset_loader/vio_loader.hpp"
+#include "device/dataset_types.hpp"
+#include "device/vio_loader.hpp"
 
 namespace omni_slam {
 
@@ -24,9 +24,9 @@ public:
   CameraFrame GetNextCameraFrame() override;
   size_t      GetCameraFrameCount() const override;
 
-  bool           HasImuData() const override;
-  ImuMeasurement GetNextImuMeasurement() override;
-  size_t         GetImuMeasurementCount() const override;
+  bool    HasImuData() const override;
+  ImuData GetNextImuMeasurement() override;
+  size_t  GetImuMeasurementCount() const override;
 
   bool            HasGroundTruthData() const override;
   GroundTruthPose GetNextGroundTruthPose() override;
@@ -57,8 +57,8 @@ private:
   size_t                                       camera_index_ = 0;
 
   // IMU data
-  std::vector<ImuMeasurement> imu_data_;
-  size_t                      imu_index_ = 0;
+  std::vector<ImuData> imu_data_;
+  size_t               imu_index_ = 0;
 
   // Ground truth data
   std::vector<GroundTruthPose> ground_truth_data_;

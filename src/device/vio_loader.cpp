@@ -1,8 +1,8 @@
 #include <filesystem>
 
 #include "core/utils/logger.hpp"
-#include "dataset_loader/vio_loader.hpp"
-#include "dataset_loader/euroc_loader.hpp"
+#include "device/vio_loader.hpp"
+#include "device/euroc_loader.hpp"
 
 namespace omni_slam {
 

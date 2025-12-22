@@ -6,8 +6,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Build options
-option(OMNI_BUILD_VO "Build Visual Odometry pipeline" ON)
-option(OMNI_BUILD_VIO "Build Visual-Inertial Odometry pipeline" OFF)
+option(OMNI_BUILD_STEREO_VO "Build Stereo Visual Odometry pipeline" ON)
+option(OMNI_BUILD_STEREO_VIO "Build Stereo Visual-Inertial Odometry pipeline" OFF)
 option(OMNI_BUILD_LIO "Build LiDAR-Inertial Odometry pipeline" OFF)
 option(OMNI_BUILD_LOOP "Build Loop Closure module" ON)
 option(OMNI_BUILD_TESTS "Build tests" OFF)

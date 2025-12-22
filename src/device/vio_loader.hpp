@@ -1,8 +1,8 @@
 #pragma once
 
 #include <memory>
-
-#include "dataset_loader/dataset_types.hpp"
+#include "core/types.hpp"
+#include "device/dataset_types.hpp"
 
 namespace omni_slam {
 
@@ -23,9 +23,9 @@ public:
   virtual size_t      GetCameraFrameCount() const = 0;
 
   // IMU data access
-  virtual bool           HasImuData() const             = 0;
-  virtual ImuMeasurement GetNextImuMeasurement()        = 0;
-  virtual size_t         GetImuMeasurementCount() const = 0;
+  virtual bool    HasImuData() const             = 0;
+  virtual ImuData GetNextImuMeasurement()        = 0;
+  virtual size_t  GetImuMeasurementCount() const = 0;
 
   // Ground truth data access (optional - may not exist in all datasets)
   virtual bool            HasGroundTruthData() const      = 0;

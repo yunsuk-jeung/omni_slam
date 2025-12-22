@@ -17,24 +17,24 @@
       }
     },
     {
-      "name": "vo_debug",
+      "name": "stereo_vo_debug",
       "inherits": "base",
-      "displayName": "Visual Odometry (Debug)",
-      "description": "Build VO pipeline in Debug mode",
+      "displayName": "Stereo Visual Odometry (Debug)",
+      "description": "Build Stereo VO pipeline in Debug mode",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "OMNI_BUILD_VO": "ON",
-        "OMNI_BUILD_VIO": "OFF",
+        "OMNI_BUILD_STEREO_VO": "ON",
+        "OMNI_BUILD_STEREO_VIO": "OFF",
         "OMNI_BUILD_LIO": "OFF",
         "OMNI_BUILD_LOOP": "OFF",
         "OMNI_BUILD_TESTS": "OFF"
       }
     },
     {
-      "name": "vo_release",
+      "name": "stereo_vo_release",
       "inherits": "base",
-      "displayName": "Visual Odometry (Release)",
-      "description": "Build VO pipeline in Release mode",
+      "displayName": "Stereo Visual Odometry (Release)",
+      "description": "Build Stereo VO pipeline in Release mode",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "OMNI_BUILD_VO": "ON",
@@ -45,10 +45,10 @@
       }
     },
     {
-      "name": "vo",
+      "name": "stereo_vo",
       "inherits": "base",
-      "displayName": "Visual Odometry (RelWithDebInfo)",
-      "description": "Build VO pipeline in RelWithDebInfo mode",
+      "displayName": "Stereo Visual Odometry (RelWithDebInfo)",
+      "description": "Build Stereo VO pipeline in RelWithDebInfo mode",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "RelWithDebInfo",
         "OMNI_BUILD_VO": "ON",
@@ -59,10 +59,10 @@
       }
     },
     {
-      "name": "vio_debug",
+      "name": "stereo_vio_debug",
       "inherits": "base",
-      "displayName": "Visual-Inertial Odometry (Debug)",
-      "description": "Build VIO pipeline in Debug mode",
+      "displayName": "Stereo Visual-Inertial Odometry (Debug)",
+      "description": "Build Stereo VIO pipeline in Debug mode",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "OMNI_BUILD_VO": "OFF",
@@ -72,10 +72,10 @@
       }
     },
     {
-      "name": "vio_release",
+      "name": "stereo_vio_release",
       "inherits": "base",
-      "displayName": "Visual-Inertial Odometry (Release)",
-      "description": "Build VIO pipeline in Release mode",
+      "displayName": "Stereo Visual-Inertial Odometry (Release)",
+      "description": "Build Stereo VIO pipeline in Release mode",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "OMNI_BUILD_VO": "OFF",
@@ -85,10 +85,10 @@
       }
     },
     {
-      "name": "vio",
+      "name": "stereo_vio",
       "inherits": "base",
-      "displayName": "Visual-Inertial Odometry (RelWithDebInfo)",
-      "description": "Build VIO pipeline in RelWithDebInfo mode",
+      "displayName": "Stereo Visual-Inertial Odometry (RelWithDebInfo)",
+      "description": "Build Stereo VIO pipeline in RelWithDebInfo mode",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "RelWithDebInfo",
         "OMNI_BUILD_VO": "OFF",
@@ -178,28 +178,28 @@
   ],
   "buildPresets": [
     {
-      "name": "vo_debug",
-      "configurePreset": "vo_debug"
+      "name": "stereo_vo_debug",
+      "configurePreset": "stereo_vo_debug"
     },
     {
-      "name": "vo_release",
-      "configurePreset": "vo_release"
+      "name": "stereo_vo_release",
+      "configurePreset": "stereo_vo_release"
     },
     {
-      "name": "vo",
-      "configurePreset": "vo"
+      "name": "stereo_vo",
+      "configurePreset": "stereo_vo"
     },
     {
-      "name": "vio_debug",
-      "configurePreset": "vio_debug"
+      "name": "stereo_vio_debug",
+      "configurePreset": "stereo_vio_debug"
     },
     {
-      "name": "vio_release",
-      "configurePreset": "vio_release"
+      "name": "stereo_vio_release",
+      "configurePreset": "stereo_vio_release"
     },
     {
-      "name": "vio",
-      "configurePreset": "vio"
+      "name": "stereo_vio",
+      "configurePreset": "stereo_vio"
     },
     {
       "name": "lio_debug",
