@@ -10,11 +10,11 @@ std::unique_ptr<VioLoader> VIOLoaderFactory::CreateLoader(const std::string& dat
                                                           DatasetType        type) {
   // Auto-detect if requested
   if (type == DatasetType::AUTO) {
-    Logger::Info("Auto-detecting dataset type for: " + dataset_path);
+    LogD("Auto-detecting dataset type for: {}", dataset_path);
     type = DetectDatasetType(dataset_path);
 
     if (type == DatasetType::AUTO) {
-      Logger::Error("Could not auto-detect dataset type for: " + dataset_path);
+      LogE("Could not auto-detect dataset type for: {}", dataset_path);
       return nullptr;
     }
   }
@@ -29,13 +29,13 @@ std::unique_ptr<VioLoader> VIOLoaderFactory::CreateLoader(const std::string& dat
     break;
 
   default:
-    Logger::Error("Unsupported dataset type");
+    LogE("Unsupported dataset type");
     return nullptr;
   }
 
   // Initialize the loader
   if (loader && !loader->Initialize(dataset_path)) {
-    Logger::Error("Failed to initialize dataset loader");
+    LogE("Failed to initialize dataset loader");
     return nullptr;
   }
 
@@ -46,7 +46,7 @@ DatasetType VIOLoaderFactory::DetectDatasetType(const std::string& dataset_path)
   namespace fs = std::filesystem;
 
   if (!fs::exists(dataset_path)) {
-    Logger::Error("Dataset path does not exist: " + dataset_path);
+    LogE("Dataset path does not exist: {}", dataset_path);
     return DatasetType::AUTO;
   }
 
@@ -62,7 +62,7 @@ DatasetType VIOLoaderFactory::DetectDatasetType(const std::string& dataset_path)
   //   return DatasetType::KITTI;
   // }
 
-  Logger::Warn("Unknown dataset type at: " + dataset_path);
+  Logger::Warn("Unknown dataset type at: {}", dataset_path);
   return DatasetType::AUTO;
 }
 

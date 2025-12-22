@@ -95,10 +95,11 @@ build_library() {
 #     "-DBUILD_SOPHUS_TESTS=OFF \
 #      -DBUILD_SOPHUS_EXAMPLES=OFF"
 
-# # 3. spdlog
-# build_library "spdlog" "$THIRD_PARTY_DIR/spdlog" \
-#     "-DSPDLOG_BUILD_EXAMPLE=OFF \
-#      -DSPDLOG_BUILD_TESTS=OFF"
+# 3. spdlog
+build_library "spdlog" "$THIRD_PARTY_DIR/spdlog" \
+    "-DSPDLOG_BUILD_EXAMPLE=OFF \
+     -DSPDLOG_USE_STD_FORMAT=ON \
+     -DSPDLOG_BUILD_TESTS=OFF"
 
 # # 4. TBB
 # build_library "tbb" "$THIRD_PARTY_DIR/tbb" \
@@ -122,18 +123,18 @@ sudo apt install -y \
   libgtk-3-dev \
   pkg-config
 
-# 7. OpenCV
-build_library "opencv" "$THIRD_PARTY_DIR/opencv" \
-    "-DBUILD_TESTS=OFF \
-     -DBUILD_PERF_TESTS=OFF \
-     -DBUILD_EXAMPLES=OFF \
-     -DBUILD_opencv_apps=OFF \
-     -DBUILD_DOCS=OFF \
-     -DWITH_GTK=ON \
-     -DWITH_QT=OFF \
-     -DWITH_TBB=ON \
-     -DWITH_CUDA=OFF \
-     -DBUILD_opencv_world=ON"
+# # 7. OpenCV
+# build_library "opencv" "$THIRD_PARTY_DIR/opencv" \
+#     "-DBUILD_TESTS=OFF \
+#      -DBUILD_PERF_TESTS=OFF \
+#      -DBUILD_EXAMPLES=OFF \
+#      -DBUILD_opencv_apps=OFF \
+#      -DBUILD_DOCS=OFF \
+#      -DWITH_GTK=ON \
+#      -DWITH_QT=OFF \
+#      -DWITH_TBB=ON \
+#      -DWITH_CUDA=OFF \
+#      -DBUILD_opencv_world=ON"
 
 echo ""
 echo "=================================================="

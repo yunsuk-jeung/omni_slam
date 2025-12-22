@@ -1,20 +1,20 @@
-#include "odometry/vo_pipeline.hpp"
+#include "odometry/stereo_vo.hpp"
 
 #include "core/utils/logger.hpp"
 
 namespace omni_slam {
 
-bool VOPipeline::Initialize() {
+bool StereoVO::Initialize() {
   Logger::Info("Initializing VO Pipeline");
   return true;
 }
 
-void VOPipeline::Run() {
+void StereoVO::Run() {
   Logger::Info("Running VO Pipeline");
 }
 
-void VOPipeline::Shutdown() {
+void StereoVO::Shutdown() {
   Logger::Info("Shutting down VO Pipeline");
 }
 
-}  //namespace omni_slam
+}  // namespace omni_slam

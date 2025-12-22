@@ -38,7 +38,7 @@ target_compile_features(omni_dataset_loader PUBLIC cxx_std_20)
 
 if(OMNI_BUILD_VO)
   set(VO_SOURCES
-    odometry/vo_pipeline.cpp
+    odometry/stereo_vo.cpp
   )
 
   add_executable(vo app/run_vo.cpp ${VO_SOURCES})

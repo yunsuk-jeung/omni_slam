@@ -2,13 +2,13 @@
 
 namespace omni_slam {
 
-class OdometryPipeline {
+class Odometry {
 public:
-  virtual ~OdometryPipeline() = default;
+  virtual ~Odometry() = default;
 
   virtual bool Initialize() = 0;
   virtual void Run()        = 0;
   virtual void Shutdown()   = 0;
 };
 
-}  //namespace omni_slam
+}  // namespace omni_slam

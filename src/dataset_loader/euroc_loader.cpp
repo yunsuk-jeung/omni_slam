@@ -12,18 +12,18 @@ bool EurocLoader::Initialize(const std::string& dataset_path) {
   std::filesystem::path path(dataset_path);
   dataset_name_ = path.filename().string();
 
-  Logger::Info("Initializing EuRoC loader for dataset: " + dataset_name_);
+  Logger::Info("Initializing EuRoC loader for dataset: {}", dataset_name_);
 
   // Validate dataset structure
   if (!ValidateDatasetStructure()) {
-    Logger::Error("Invalid EuRoC dataset structure at: " + dataset_path_);
+    LogE("Invalid EuRoC dataset structure at: {}", dataset_path_);
     return false;
   }
 
   // Parse camera data (cam0 required, cam1 optional for stereo)
   std::string cam0_csv = dataset_path_ + "/mav0/cam0/data.csv";
   if (!ParseCameraCsv(cam0_csv, 0)) {
-    Logger::Error("Failed to parse cam0 data");
+    LogE("Failed to parse cam0 data");
     return false;
   }
 
@@ -47,7 +47,7 @@ bool EurocLoader::Initialize(const std::string& dataset_path) {
   // Parse IMU data (required)
   std::string imu_csv = dataset_path_ + "/mav0/imu0/data.csv";
   if (!ParseImuCsv(imu_csv)) {
-    Logger::Error("Failed to parse IMU data");
+    LogE("Failed to parse IMU data");
     return false;
   }
 
@@ -75,10 +75,10 @@ bool EurocLoader::Initialize(const std::string& dataset_path) {
   initialized_ = true;
 
   Logger::Info("EuRoC dataset loaded successfully:");
-  Logger::Info("  Camera frames: " + std::to_string(GetCameraFrameCount()));
-  Logger::Info("  IMU measurements: " + std::to_string(GetImuMeasurementCount()));
-  Logger::Info("  Ground truth poses: " + std::to_string(GetGroundTruthPoseCount()));
-  Logger::Info("  Stereo: " + std::string(is_stereo_ ? "Yes" : "No"));
+  Logger::Info("  Camera frames: {}", GetCameraFrameCount());
+  Logger::Info("  IMU measurements: {}", GetImuMeasurementCount());
+  Logger::Info("  Ground truth poses: {}", GetGroundTruthPoseCount());
+  Logger::Info("  Stereo: {}", is_stereo_ ? "Yes" : "No");
 
   return true;
 }
@@ -95,7 +95,7 @@ bool EurocLoader::HasCameraData() const {
 
 CameraFrame EurocLoader::GetNextCameraFrame() {
   if (!HasCameraData()) {
-    Logger::Error("getNextCameraFrame() called but no more camera data available");
+    LogE("getNextCameraFrame() called but no more camera data available");
     return CameraFrame{};
   }
 
@@ -121,7 +121,7 @@ bool EurocLoader::HasImuData() const {
 
 ImuMeasurement EurocLoader::GetNextImuMeasurement() {
   if (!HasImuData()) {
-    Logger::Error("getNextImuMeasurement() called but no more IMU data available");
+    LogE("getNextImuMeasurement() called but no more IMU data available");
     return ImuMeasurement{};
   }
 
@@ -138,7 +138,7 @@ bool EurocLoader::HasGroundTruthData() const {
 
 GroundTruthPose EurocLoader::GetNextGroundTruthPose() {
   if (!HasGroundTruthData()) {
-    Logger::Error(
+    LogE(
       "getNextGroundTruthPose() called but no more ground truth data available");
     return GroundTruthPose{};
   }
@@ -169,7 +169,7 @@ bool EurocLoader::IsStereo() const {
 bool EurocLoader::ParseCameraCsv(const std::string& csv_path, int cam_id) {
   std::ifstream file(csv_path);
   if (!file.is_open()) {
-    Logger::Error("Failed to open camera CSV: " + csv_path);
+    LogE("Failed to open camera CSV: {}", csv_path);
     return false;
   }
 
@@ -193,8 +193,7 @@ bool EurocLoader::ParseCameraCsv(const std::string& csv_path, int cam_id) {
     std::string       timestamp_str, filename;
 
     if (!std::getline(ss, timestamp_str, ',') || !std::getline(ss, filename)) {
-      Logger::Warn("Malformed camera CSV line " + std::to_string(line_number) + " in "
-                   + csv_path);
+      Logger::Warn("Malformed camera CSV line {} in {}", line_number, csv_path);
       continue;
     }
 
@@ -213,8 +212,7 @@ bool EurocLoader::ParseCameraCsv(const std::string& csv_path, int cam_id) {
         cam1_data_.emplace_back(timestamp_ns, full_path);
       }
     } catch (const std::exception& e) {
-      Logger::Warn("Failed to parse camera CSV line " + std::to_string(line_number) + ": "
-                   + e.what());
+      Logger::Warn("Failed to parse camera CSV line {}: {}", line_number, e.what());
       continue;
     }
   }
@@ -222,21 +220,21 @@ bool EurocLoader::ParseCameraCsv(const std::string& csv_path, int cam_id) {
   file.close();
 
   if (cam_id == 0 && cam0_data_.empty()) {
-    Logger::Error("No camera data loaded from " + csv_path);
+    LogE("No camera data loaded from {}", csv_path);
     return false;
   }
 
   if (cam_id == 1 && cam1_data_.empty()) {
-    Logger::Error("No camera data loaded from " + csv_path);
+    LogE("No camera data loaded from {}", csv_path);
     return false;
   }
 
   // Verify stereo timestamp alignment if both cameras loaded
   if (cam_id == 1 && !cam0_data_.empty() && !cam1_data_.empty()) {
     if (cam0_data_.size() != cam1_data_.size()) {
-      Logger::Warn("Stereo cameras have different frame counts: cam0="
-                   + std::to_string(cam0_data_.size())
-                   + ", cam1=" + std::to_string(cam1_data_.size()));
+      Logger::Warn("Stereo cameras have different frame counts: cam0={}, cam1={}",
+                   cam0_data_.size(),
+                   cam1_data_.size());
     }
   }
 
@@ -246,7 +244,7 @@ bool EurocLoader::ParseCameraCsv(const std::string& csv_path, int cam_id) {
 bool EurocLoader::ParseImuCsv(const std::string& csv_path) {
   std::ifstream file(csv_path);
   if (!file.is_open()) {
-    Logger::Error("Failed to open IMU CSV: " + csv_path);
+    LogE("Failed to open IMU CSV: {}", csv_path);
     return false;
   }
 
@@ -275,8 +273,7 @@ bool EurocLoader::ParseImuCsv(const std::string& csv_path) {
     }
 
     if (tokens.size() < 7) {
-      Logger::Warn("Malformed IMU CSV line " + std::to_string(line_number) + " in "
-                   + csv_path);
+      Logger::Warn("Malformed IMU CSV line {} in {}", line_number, csv_path);
       continue;
     }
 
@@ -292,8 +289,7 @@ bool EurocLoader::ParseImuCsv(const std::string& csv_path) {
 
       imu_data_.push_back(imu);
     } catch (const std::exception& e) {
-      Logger::Warn("Failed to parse IMU CSV line " + std::to_string(line_number) + ": "
-                   + e.what());
+      Logger::Warn("Failed to parse IMU CSV line {}: {}", line_number, e.what());
       continue;
     }
   }
@@ -301,7 +297,7 @@ bool EurocLoader::ParseImuCsv(const std::string& csv_path) {
   file.close();
 
   if (imu_data_.empty()) {
-    Logger::Error("No IMU data loaded from " + csv_path);
+    LogE("No IMU data loaded from {}", csv_path);
     return false;
   }
 
@@ -311,7 +307,7 @@ bool EurocLoader::ParseImuCsv(const std::string& csv_path) {
 bool EurocLoader::ParseGroundTruthCsv(const std::string& csv_path) {
   std::ifstream file(csv_path);
   if (!file.is_open()) {
-    Logger::Error("Failed to open ground truth CSV: " + csv_path);
+    LogE("Failed to open ground truth CSV: {}", csv_path);
     return false;
   }
 
@@ -340,8 +336,7 @@ bool EurocLoader::ParseGroundTruthCsv(const std::string& csv_path) {
     }
 
     if (tokens.size() < 8) {
-      Logger::Warn("Malformed ground truth CSV line " + std::to_string(line_number)
-                   + " in " + csv_path);
+      Logger::Warn("Malformed ground truth CSV line {} in {}", line_number, csv_path);
       continue;
     }
 
@@ -358,8 +353,7 @@ bool EurocLoader::ParseGroundTruthCsv(const std::string& csv_path) {
 
       ground_truth_data_.push_back(gt);
     } catch (const std::exception& e) {
-      Logger::Warn("Failed to parse ground truth CSV line " + std::to_string(line_number)
-                   + ": " + e.what());
+      Logger::Warn("Failed to parse ground truth CSV line {}: {}", line_number, e.what());
       continue;
     }
   }
@@ -367,7 +361,7 @@ bool EurocLoader::ParseGroundTruthCsv(const std::string& csv_path) {
   file.close();
 
   if (ground_truth_data_.empty()) {
-    Logger::Warn("No ground truth data loaded from " + csv_path);
+    Logger::Warn("No ground truth data loaded from {}", csv_path);
     return false;
   }
 
@@ -405,28 +399,28 @@ bool EurocLoader::ValidateDatasetStructure() {
 
   // Check if dataset path exists
   if (!fs::exists(dataset_path_)) {
-    Logger::Error("Dataset path does not exist: " + dataset_path_);
+    LogE("Dataset path does not exist: {}", dataset_path_);
     return false;
   }
 
   // Check if mav0 directory exists
   std::string mav0_path = dataset_path_ + "/mav0";
   if (!fs::exists(mav0_path)) {
-    Logger::Error("mav0 directory not found: " + mav0_path);
+    LogE("mav0 directory not found: {}", mav0_path);
     return false;
   }
 
   // Check if cam0 data exists (required)
   std::string cam0_csv = mav0_path + "/cam0/data.csv";
   if (!fs::exists(cam0_csv)) {
-    Logger::Error("cam0 data.csv not found: " + cam0_csv);
+    LogE("cam0 data.csv not found: {}", cam0_csv);
     return false;
   }
 
   // Check if imu0 data exists (required)
   std::string imu_csv = mav0_path + "/imu0/data.csv";
   if (!fs::exists(imu_csv)) {
-    Logger::Error("imu0 data.csv not found: " + imu_csv);
+    LogE("imu0 data.csv not found: {}", imu_csv);
     return false;
   }
 

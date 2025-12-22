@@ -1,16 +1,16 @@
 #pragma once
 
-#include "odometry/pipeline.hpp"
+#include "odometry/odometry.hpp"
 
 namespace omni_slam {
 
-class VOPipeline : public OdometryPipeline {
+class StereoVO : public Odometry {
 public:
-  VOPipeline() = default;
+  StereoVO() = default;
 
   bool Initialize() override;
   void Run() override;
   void Shutdown() override;
 };
 
-}  //namespace omni_slam
+}  // namespace omni_slam
