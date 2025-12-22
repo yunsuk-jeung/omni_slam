@@ -42,7 +42,8 @@ if(OMNI_BUILD_VO)
   )
 
   add_executable(vo app/run_vo.cpp ${VO_SOURCES})
-  target_link_libraries(vo omni_core omni_dataset_loader)
+  target_include_directories(vo PRIVATE ${OpenCV_INCLUDE_DIRS})
+  target_link_libraries(vo omni_core omni_dataset_loader ${OpenCV_LIBS})
 endif()
 
 

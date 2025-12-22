@@ -118,6 +118,10 @@ build_library() {
 #      -DBUILD_BENCHMARKS=OFF \
 #      -DPROVIDE_UNINSTALL_TARGET=OFF"
 
+sudo apt install -y \
+  libgtk-3-dev \
+  pkg-config
+
 # 7. OpenCV
 build_library "opencv" "$THIRD_PARTY_DIR/opencv" \
     "-DBUILD_TESTS=OFF \
@@ -129,7 +133,7 @@ build_library "opencv" "$THIRD_PARTY_DIR/opencv" \
      -DWITH_QT=OFF \
      -DWITH_TBB=ON \
      -DWITH_CUDA=OFF \
-     -DBUILD_LIST=core,imgproc,imgcodecs,features2d,calib3d,highgui"
+     -DBUILD_opencv_world=ON"
 
 echo ""
 echo "=================================================="
