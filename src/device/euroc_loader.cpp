@@ -1,7 +1,7 @@
 #include <fstream>
 
 #include "device/euroc_loader.hpp"
-#include "core/utils/logger.hpp"
+#include "utils/logger.hpp"
 
 namespace omni_slam {
 

@@ -3,7 +3,7 @@
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgcodecs.hpp>
 
-#include "core/utils/logger.hpp"
+#include "utils/logger.hpp"
 #include "device/euroc_loader.hpp"
 #include "odometry/stereo_vo.hpp"
 

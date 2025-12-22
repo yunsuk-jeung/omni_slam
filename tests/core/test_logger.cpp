@@ -1,4 +1,4 @@
-#include "core/utils/logger.hpp"
+#include "utils/logger.hpp"
 #include <gtest/gtest.h>
 
 namespace omni_slam {

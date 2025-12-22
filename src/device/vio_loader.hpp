@@ -1,7 +1,7 @@
 #pragma once
 
 #include <memory>
-#include "core/types.hpp"
+#include "utils/types.hpp"
 #include "device/dataset_types.hpp"
 
 namespace omni_slam {

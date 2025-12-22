@@ -1,6 +1,6 @@
 #include <filesystem>
 
-#include "core/utils/logger.hpp"
+#include "utils/logger.hpp"
 #include "device/vio_loader.hpp"
 #include "device/euroc_loader.hpp"
 

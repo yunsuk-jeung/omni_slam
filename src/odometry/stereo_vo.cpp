@@ -1,6 +1,6 @@
 #include "odometry/stereo_vo.hpp"
 
-#include "core/utils/logger.hpp"
+#include "utils/logger.hpp"
 
 namespace omni_slam {
 
