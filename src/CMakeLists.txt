@@ -32,7 +32,7 @@ target_compile_features(omni_device INTERFACE cxx_std_20)
 if(OMNI_BUILD_STEREO_VO)
 
   add_library(svo SHARED
-    ${CMAKE_CURRENT_SOURCE_DIR}/optical_flow/optical_flow.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/optical_flow/stereo_optical_flow.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/config/svo_config.cpp
   )
   target_include_directories(svo PRIVATE ${OpenCV_INCLUDE_DIRS})

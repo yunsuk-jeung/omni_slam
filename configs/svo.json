@@ -1,6 +1,9 @@
 {
-  "debug": false,
+  "debug": true,
   "tbb": true,
-  "equalize_histogram": false,
+  "equalize_histogram": true,
+  "clahe_clip_limit": 3.0,
+  "clahe_tile_size": 8,
+  "optical_flow_patch_size": 21,
   "max_pyramid_level": 3
 }
