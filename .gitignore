@@ -1,5 +1,6 @@
 .ai/
 .claude/
+.keep/
 
 # Build directories
 build/

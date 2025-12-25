@@ -1,8 +1,11 @@
 #pragma once
 
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <thread>
+
+#include <opencv2/imgcodecs.hpp>
 
 #include "device/vio_loader.hpp"
 #include "device/device_interface.hpp"
@@ -75,7 +78,16 @@ private:
       if (terminate_) {
         break;
       }
-      camera_callback_(frame);
+
+      std::array<cv::Mat, 2> images;
+      if (!frame.cam0_image_path.empty()) {
+        images[0] = cv::imread(frame.cam0_image_path, cv::IMREAD_COLOR);
+      }
+      if (!frame.cam1_image_path.empty()) {
+        images[1] = cv::imread(frame.cam1_image_path, cv::IMREAD_COLOR);
+      }
+
+      camera_callback_(images);
     }
   }
 

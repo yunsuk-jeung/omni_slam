@@ -28,6 +28,18 @@ target_link_libraries(omni_device INTERFACE
 
 target_compile_features(omni_device INTERFACE cxx_std_20)
 
+# Dataset loader library
+add_library(omni_optical_flow INTERFACE)
+
+target_sources(omni_optical_flow INTERFACE
+  ${CMAKE_CURRENT_SOURCE_DIR}/optical_flow/optical_flow.cpp
+)
+
+target_link_libraries(omni_optical_flow INTERFACE
+  omni_utils
+)
+
+target_compile_features(omni_optical_flow INTERFACE cxx_std_20)
 
 if(OMNI_BUILD_STEREO_VO)
   set(VO_SOURCES
@@ -36,7 +48,7 @@ if(OMNI_BUILD_STEREO_VO)
 
   add_executable(stereo_vo app/run_svo.cpp ${VO_SOURCES})
   target_include_directories(stereo_vo PRIVATE ${OpenCV_INCLUDE_DIRS})
-  target_link_libraries(stereo_vo omni_utils omni_device ${OpenCV_LIBS})
+  target_link_libraries(stereo_vo omni_utils omni_device omni_optical_flow ${OpenCV_LIBS})
 endif()
 
 

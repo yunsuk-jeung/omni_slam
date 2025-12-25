@@ -1,15 +1,18 @@
 #pragma once
 
+#include <array>
 #include <functional>
 
-#include "core/types.hpp"
+#include <opencv2/core.hpp>
+
+#include "utils/types.hpp"
 #include "device/dataset_types.hpp"
 
 namespace omni_slam {
 
 class DeviceInterface {
 public:
-  using CameraCallback = std::function<void(const CameraFrame&)>;
+  using CameraCallback = std::function<void(const std::array<cv::Mat, 2>&)>;
   using ImuCallback    = std::function<void(const ImuData&)>;
 
   virtual ~DeviceInterface() = default;

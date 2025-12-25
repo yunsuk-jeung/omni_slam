@@ -1,9 +1,12 @@
+#include <array>
+#include <chrono>
 #include <filesystem>
+#include <thread>
 
-#include <opencv2/highgui.hpp>
-#include <opencv2/imgcodecs.hpp>
+#include <opencv2/core.hpp>
 
 #include "utils/logger.hpp"
+#include "device/dataset_simulator.hpp"
 #include "device/euroc_loader.hpp"
 #include "odometry/stereo_vo.hpp"
 
@@ -36,11 +39,19 @@ int main(int argc, char** argv) {
     return -1;
   }
 
-  while (true) {
-    stereo_vo.Run();
-    // Process state...
-    break;  // Remove this in actual implementation
+  omni_slam::DatasetSimulator simulator(loader);
+  simulator.SetCameraCallback([&stereo_vo](const std::array<cv::Mat, 2>& images) {
+    stereo_vo.OnCameraFrame(images);
+  });
+
+  simulator.Start();
+  stereo_vo.Run();
+
+  while (loader.HasCameraData()) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
+
+  simulator.Stop();
 
   stereo_vo.Shutdown();
   LogI("VO application finished");
