@@ -99,6 +99,7 @@ build_library() {
 build_library "spdlog" "$THIRD_PARTY_DIR/spdlog" \
     "-DSPDLOG_BUILD_EXAMPLE=OFF \
      -DSPDLOG_USE_STD_FORMAT=ON \
+     -DSPDLOG_BUILD_SHARED=ON \
      -DSPDLOG_BUILD_TESTS=OFF"
 
 # # 4. TBB
@@ -119,9 +120,9 @@ build_library "spdlog" "$THIRD_PARTY_DIR/spdlog" \
 #      -DBUILD_BENCHMARKS=OFF \
 #      -DPROVIDE_UNINSTALL_TARGET=OFF"
 
-sudo apt install -y \
-  libgtk-3-dev \
-  pkg-config
+# sudo apt install -y \
+#   libgtk-3-dev \
+#   pkg-config
 
 # # 7. OpenCV
 # build_library "opencv" "$THIRD_PARTY_DIR/opencv" \

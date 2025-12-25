@@ -1,0 +1,6 @@
+{
+  "debug": false,
+  "tbb": true,
+  "equalize_histogram": false,
+  "max_pyramid_level": 3
+}

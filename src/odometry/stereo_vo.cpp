@@ -2,12 +2,20 @@
 
 #include <chrono>
 
+#include "config/svo_config.hpp"
 #include "utils/logger.hpp"
 
 namespace omni_slam {
 
-bool StereoVO::Initialize() {
+bool StereoVO::Initialize(const std::string& config_path) {
   Logger::Info("Initializing VO Pipeline");
+  if (config_path.empty()) {
+    Logger::Warn("Empty config path for VO pipeline");
+    return false;
+  }
+
+  SVOConfig::ParseConfig(config_path);
+  Logger::Info("Loaded VO config: {}", config_path.c_str());
   return true;
 }
 

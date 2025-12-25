@@ -3,6 +3,7 @@
 #include <chrono>
 #include <filesystem>
 #include <iomanip>
+#include <format>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -10,7 +11,6 @@
 #include <utility>
 #include <vector>
 
-#include <spdlog/fmt/fmt.h>
 #include <spdlog/sinks/basic_file_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
@@ -56,32 +56,20 @@ public:
   template <typename... Args>
   static void Debug(const char* fmt, Args&&... args) {
     Init();
-    logger_->debug(fmt::runtime(fmt), std::forward<Args>(args)...);
+    logger_->debug(fmt, args...);
   }
-  // static void Debug(std::string_view message) {
-  //   Init();
-  //   logger_->debug("{}", message);
-  // }
 
   template <typename... Args>
   static void Info(const char* fmt, Args&&... args) {
     Init();
-    logger_->info(fmt::runtime(fmt), std::forward<Args>(args)...);
+    logger_->info(fmt, args...);
   }
-  // static void Info(std::string_view message) {
-  //   Init();
-  //   logger_->info("{}", message);
-  // }
 
   template <typename... Args>
   static void Warn(const char* fmt, Args&&... args) {
     Init();
-    logger_->warn(fmt::runtime(fmt), std::forward<Args>(args)...);
+    logger_->warn(fmt, args...);
   }
-  // static void Warn(std::string_view message) {
-  //   Init();
-  //   logger_->warn("{}", message);
-  // }
 
   template <typename T, typename... Args>
   static void Error(const char* file, int line, const T& fmt, Args&&... args) {
@@ -93,7 +81,7 @@ public:
       logger_->error("[{}:{}] {}",
                      file,
                      line,
-                     fmt::format(fmt::runtime(fmt), std::forward<Args>(args)...));
+                     std::vformat(fmt, std::make_format_args(std::forward<Args>(args)...)));
     }
   }
 

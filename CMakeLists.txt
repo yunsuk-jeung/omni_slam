@@ -33,5 +33,8 @@ find_package(Ceres REQUIRED)
 find_package(OpenCV REQUIRED COMPONENTS core imgproc imgcodecs features2d calib3d highgui)
 find_package(Sophus REQUIRED)
 
+# Third-party submodules
+add_subdirectory(third_party/nlohmann_json)
+
 # Source tree (build options live in src/CMakeLists.txt)
 add_subdirectory(src)

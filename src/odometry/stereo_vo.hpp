@@ -2,6 +2,7 @@
 
 #include <array>
 #include <atomic>
+#include <string>
 #include <thread>
 #include <tbb/concurrent_queue.h>
 #include <opencv2/core.hpp>
@@ -14,7 +15,7 @@ class StereoVO : public Odometry {
 public:
   StereoVO() = default;
 
-  bool Initialize() override;
+  bool Initialize(const std::string& config_path) override;
   void Run() override;
   void Shutdown() override;
   void OnCameraFrame(const std::array<cv::Mat, 2>& images);

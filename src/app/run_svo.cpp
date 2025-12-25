@@ -33,8 +33,9 @@ int main(int argc, char** argv) {
   }
 
   omni_slam::StereoVO stereo_vo;
+  std::filesystem::path config_path = project_root / "configs/svo.json";
 
-  if (!stereo_vo.Initialize()) {
+  if (!stereo_vo.Initialize(config_path.string())) {
     LogE("Failed to initialize VO pipeline");
     return -1;
   }
