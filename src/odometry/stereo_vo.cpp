@@ -6,9 +6,14 @@
 #include <opencv2/imgproc.hpp>
 
 #include "config/svo_config.hpp"
+#include "optical_flow/stereo_optical_flow.hpp"
 #include "utils/logger.hpp"
+#include "stereo_vo.hpp"
 
 namespace omni_slam {
+StereoVO::StereoVO() {}
+
+StereoVO::~StereoVO() {}
 
 bool StereoVO::Initialize(const std::string& config_path) {
   Logger::Info("Initializing VO Pipeline");
@@ -19,6 +24,9 @@ bool StereoVO::Initialize(const std::string& config_path) {
 
   SVOConfig::ParseConfig(config_path);
   Logger::Info("Loaded VO config: {}", config_path.c_str());
+
+  optical_flow_ = std::make_unique<StereoOpticalFlow>(image_queue_, keypoint_queue_);
+
   return true;
 }
 
@@ -52,19 +60,19 @@ void StereoVO::OnCameraFrame(const std::array<cv::Mat, 2>& images) {
 }
 
 void StereoVO::OpticalFlowLoop() {
-  optical_flow_.Run(running_);
+  optical_flow_->Run(running_);
 }
 
 void StereoVO::EstimatorLoop() {
-  std::shared_ptr<TrackingResult> keypoint;
+  std::shared_ptr<TrackingResult> tracking_result;
   while (running_.load(std::memory_order_acquire)) {
-    if (!keypoint_queue_.try_pop(keypoint)) {
+    if (!keypoint_queue_.try_pop(tracking_result)) {
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
       continue;
     }
 
-    const cv::Mat& left  = keypoint->Image(0);
-    const cv::Mat& right = keypoint->Image(1);
+    const cv::Mat& left  = tracking_result->Image(0);
+    const cv::Mat& right = tracking_result->Image(1);
     if (!left.empty()) {
       cv::Mat left_vis;
       if (left.channels() == 1) {
@@ -73,25 +81,25 @@ void StereoVO::EstimatorLoop() {
       else {
         left.copyTo(left_vis);
       }
-      for (const auto& uv : keypoint->Uvs(0)) {
+      for (const auto& uv : tracking_result->Uvs(0)) {
         cv::circle(left_vis, uv, 2, cv::Scalar(0, 255, 0), -1);
       }
       cv::imshow("SVO Left Features", left_vis);
     }
 
-    // if (!right.empty()) {
-    //   cv::Mat right_vis;
-    //   if (right.channels() == 1) {
-    //     cv::cvtColor(right, right_vis, cv::COLOR_GRAY2BGR);
-    //   }
-    //   else {
-    //     right.copyTo(right_vis);
-    //   }
-    //   for (const auto& uv : keypoint->Uvs(1)) {
-    //     cv::circle(right_vis, uv, 2, cv::Scalar(0, 255, 0), -1);
-    //   }
-    //   cv::imshow("SVO Right Features", right_vis);
-    // }
+    if (!right.empty()) {
+      cv::Mat right_vis;
+      if (right.channels() == 1) {
+        cv::cvtColor(right, right_vis, cv::COLOR_GRAY2BGR);
+      }
+      else {
+        right.copyTo(right_vis);
+      }
+      for (const auto& uv : tracking_result->Uvs(1)) {
+        cv::circle(right_vis, uv, 2, cv::Scalar(0, 255, 0), -1);
+      }
+      cv::imshow("SVO Right Features", right_vis);
+    }
     cv::waitKey(1);
   }
 }

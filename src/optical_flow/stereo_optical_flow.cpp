@@ -200,6 +200,12 @@ void StereoOpticalFlow::TrackStereo(TrackingResult* curr_result) {
     if (!IsPointInImage(right_uvs[i], curr_result->Image(kRightCam))) {
       continue;
     }
+    const cv::Point2f dist       = left_uvs[i] - reverse_uvs[i];
+    const float       distNormSq = dist.x * dist.x + dist.y * dist.y;
+
+    if (distNormSq > SVOConfig::optical_flow_dist_threshold) {
+      continue;
+    }
     curr_result->AddFeature(kRightCam, right_uvs[i], left_ids[i]);
   }
 }
@@ -282,7 +288,7 @@ void StereoOpticalFlow::Run(std::atomic<bool>& running) {
     PrepareImagesAndPyramids(images, curr_result.get());
 
     TrackLeft(curr_result.get());
-    // TrackStereo(curr_result.get());
+    TrackStereo(curr_result.get());
     DetectFeatures(curr_result.get());
 
     prev_result_ = curr_result;

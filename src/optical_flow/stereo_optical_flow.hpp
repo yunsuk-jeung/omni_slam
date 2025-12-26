@@ -73,7 +73,7 @@ private:
   void TrackStereo(TrackingResult* curr_result);
   void DetectFeatures(TrackingResult* curr_result);
 
-  tbb::concurrent_queue<std::array<cv::Mat, 2>>&          in_queue_;
+  tbb::concurrent_queue<std::array<cv::Mat, kCamNum>>&    in_queue_;
   tbb::concurrent_queue<std::shared_ptr<TrackingResult>>& out_queue_;
 
   cv::Ptr<cv::CLAHE>              clahe_;
