@@ -5,7 +5,7 @@
   "clahe_clip_limit": 3.0,
   "clahe_tile_size": 8,
   "optical_flow_patch_size": 21,
-  "optical_flow_dist_threshold": 2.0,
+  "optical_flow_dist_threshold": 5.0,
   "fast_threshold": 20,
   "feature_grid_rows": 12,
   "feature_grid_cols": 18,

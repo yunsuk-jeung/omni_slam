@@ -10,6 +10,7 @@
 #include <opencv2/imgproc.hpp>
 #include <opencv2/video/tracking.hpp>
 
+#include "utils/logger.hpp"
 #include "config/svo_config.hpp"
 #include "stereo_optical_flow.hpp"
 
@@ -77,14 +78,17 @@ void StereoOpticalFlow::PrepareImagesAndPyramids(
   const std::array<cv::Mat, kCamNum>& images,
   TrackingResult*                     curr_result) {
   for (size_t i = 0; i < kCamNum; i++) {
-    if (images[i].type() != 0) {
-      images[i].convertTo(curr_result->Image(i), CV_8UC1);
+    auto& gray = curr_result->Image(i);
+
+    if (images[i].channels() == 1) {
+      gray = images[i].clone();
     }
     else {
-      curr_result->Image(i) = images[i];
+      cv::cvtColor(images[i], gray, cv::COLOR_BGR2GRAY);
     }
+
     if (SVOConfig::equalize_histogram && clahe_) {
-      clahe_->apply(curr_result->Image(i), curr_result->Image(i));
+      clahe_->apply(gray, gray);
     }
     const cv::Point2i patch(SVOConfig::optical_flow_patch_size,
                             SVOConfig::optical_flow_patch_size);
@@ -113,8 +117,8 @@ void StereoOpticalFlow::TrackLeft(TrackingResult* curr_result) {
   std::vector<cv::Point2f> tracked_uvs;
   std::vector<uchar>       status;
 
-  cv::calcOpticalFlowPyrLK(prev_result_->Image(kLeftCam),
-                           curr_result->Image(kLeftCam),
+  cv::calcOpticalFlowPyrLK(prev_result_->ImagePyramid(kLeftCam),
+                           curr_result->ImagePyramid(kLeftCam),
                            prev_uvs,
                            tracked_uvs,
                            status,
@@ -126,8 +130,8 @@ void StereoOpticalFlow::TrackLeft(TrackingResult* curr_result) {
   std::vector<cv::Point2f> reverse_uvs;
   std::vector<uchar>       reverse_status;
 
-  cv::calcOpticalFlowPyrLK(curr_result->Image(kLeftCam),
-                           prev_result_->Image(kLeftCam),
+  cv::calcOpticalFlowPyrLK(curr_result->ImagePyramid(kLeftCam),
+                           prev_result_->ImagePyramid(kLeftCam),
                            tracked_uvs,
                            reverse_uvs,
                            reverse_status,
@@ -143,13 +147,60 @@ void StereoOpticalFlow::TrackLeft(TrackingResult* curr_result) {
     if (!IsPointInImage(tracked_uvs[i], curr_result->Image(kLeftCam))) {
       continue;
     }
-    const cv::Point2f dist       = tracked_uvs[i] - reverse_uvs[i];
+    const cv::Point2f dist       = prev_uvs[i] - reverse_uvs[i];
     const float       distNormSq = dist.x * dist.x + dist.y * dist.y;
 
     if (distNormSq > SVOConfig::optical_flow_dist_threshold) {
       continue;
     }
     curr_result->AddFeature(kLeftCam, tracked_uvs[i], prev_ids[i]);
+  }
+}
+
+void StereoOpticalFlow::TrackStereo(TrackingResult* curr_result) {
+  constexpr size_t kLeftCam  = 0;
+  constexpr size_t kRightCam = 1;
+
+  const auto& left_ids = curr_result->Ids(kLeftCam);
+  const auto& left_uvs = curr_result->Uvs(kLeftCam);
+  if (left_uvs.empty()) {
+    return;
+  }
+
+  std::vector<cv::Point2f> right_uvs;
+  std::vector<uchar>       status;
+
+  cv::calcOpticalFlowPyrLK(curr_result->ImagePyramid(kLeftCam),
+                           curr_result->ImagePyramid(kRightCam),
+                           left_uvs,
+                           right_uvs,
+                           status,
+                           cv::noArray(),
+                           cv::Size(SVOConfig::optical_flow_patch_size,
+                                    SVOConfig::optical_flow_patch_size),
+                           SVOConfig::max_pyramid_level);
+
+  std::vector<cv::Point2f> reverse_uvs;
+  std::vector<uchar>       reverse_status;
+
+  cv::calcOpticalFlowPyrLK(curr_result->ImagePyramid(kRightCam),
+                           curr_result->ImagePyramid(kLeftCam),
+                           right_uvs,
+                           reverse_uvs,
+                           reverse_status,
+                           cv::noArray(),
+                           cv::Size(SVOConfig::optical_flow_patch_size,
+                                    SVOConfig::optical_flow_patch_size),
+                           SVOConfig::max_pyramid_level);
+
+  for (size_t i = 0; i < right_uvs.size(); ++i) {
+    if (!status[i] || !reverse_status[i]) {
+      continue;
+    }
+    if (!IsPointInImage(right_uvs[i], curr_result->Image(kRightCam))) {
+      continue;
+    }
+    curr_result->AddFeature(kRightCam, right_uvs[i], left_ids[i]);
   }
 }
 
@@ -198,7 +249,7 @@ void StereoOpticalFlow::DetectFeatures(TrackingResult* curr_result) {
                        keypoints.begin(),
                        keypoints.end(),
                        [](const cv::KeyPoint& a, const cv::KeyPoint& b) {
-                         return a.response < b.response;
+                         return a.response > b.response;
                        });
       auto&       keypoint = keypoints.front();
       cv::Point2f uv       = keypoint.pt;
@@ -207,53 +258,6 @@ void StereoOpticalFlow::DetectFeatures(TrackingResult* curr_result) {
 
       curr_result->AddFeature(kLeftCam, uv, next_feature_id_++);
     }
-  }
-}
-
-void StereoOpticalFlow::TrackStereo(TrackingResult* curr_result) {
-  constexpr size_t kLeftCam  = 0;
-  constexpr size_t kRightCam = 1;
-
-  const auto& left_ids = curr_result->Ids(kLeftCam);
-  const auto& left_uvs = curr_result->Uvs(kLeftCam);
-  if (left_uvs.empty()) {
-    return;
-  }
-
-  std::vector<cv::Point2f> right_uvs;
-  std::vector<uchar>       status;
-
-  cv::calcOpticalFlowPyrLK(curr_result->Image(kLeftCam),
-                           curr_result->Image(kRightCam),
-                           left_uvs,
-                           right_uvs,
-                           status,
-                           cv::noArray(),
-                           cv::Size(SVOConfig::optical_flow_patch_size,
-                                    SVOConfig::optical_flow_patch_size),
-                           SVOConfig::max_pyramid_level);
-
-  std::vector<cv::Point2f> reverse_uvs;
-  std::vector<uchar>       reverse_status;
-
-  cv::calcOpticalFlowPyrLK(curr_result->Image(kRightCam),
-                           curr_result->Image(kLeftCam),
-                           right_uvs,
-                           reverse_uvs,
-                           reverse_status,
-                           cv::noArray(),
-                           cv::Size(SVOConfig::optical_flow_patch_size,
-                                    SVOConfig::optical_flow_patch_size),
-                           SVOConfig::max_pyramid_level);
-
-  for (size_t i = 0; i < right_uvs.size(); ++i) {
-    if (!status[i] || !reverse_status[i]) {
-      continue;
-    }
-    if (!IsPointInImage(right_uvs[i], curr_result->Image(kRightCam))) {
-      continue;
-    }
-    curr_result->AddFeature(kRightCam, right_uvs[i], left_ids[i]);
   }
 }
 
@@ -278,7 +282,7 @@ void StereoOpticalFlow::Run(std::atomic<bool>& running) {
     PrepareImagesAndPyramids(images, curr_result.get());
 
     TrackLeft(curr_result.get());
-    TrackStereo(curr_result.get());
+    // TrackStereo(curr_result.get());
     DetectFeatures(curr_result.get());
 
     prev_result_ = curr_result;

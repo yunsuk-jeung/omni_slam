@@ -2,6 +2,9 @@
 
 #include <chrono>
 
+#include <opencv2/highgui.hpp>
+#include <opencv2/imgproc.hpp>
+
 #include "config/svo_config.hpp"
 #include "utils/logger.hpp"
 
@@ -60,7 +63,36 @@ void StereoVO::EstimatorLoop() {
       continue;
     }
 
-    // TODO: Replace with actual odometry estimation.
+    const cv::Mat& left  = keypoint->Image(0);
+    const cv::Mat& right = keypoint->Image(1);
+    if (!left.empty()) {
+      cv::Mat left_vis;
+      if (left.channels() == 1) {
+        cv::cvtColor(left, left_vis, cv::COLOR_GRAY2BGR);
+      }
+      else {
+        left.copyTo(left_vis);
+      }
+      for (const auto& uv : keypoint->Uvs(0)) {
+        cv::circle(left_vis, uv, 2, cv::Scalar(0, 255, 0), -1);
+      }
+      cv::imshow("SVO Left Features", left_vis);
+    }
+
+    // if (!right.empty()) {
+    //   cv::Mat right_vis;
+    //   if (right.channels() == 1) {
+    //     cv::cvtColor(right, right_vis, cv::COLOR_GRAY2BGR);
+    //   }
+    //   else {
+    //     right.copyTo(right_vis);
+    //   }
+    //   for (const auto& uv : keypoint->Uvs(1)) {
+    //     cv::circle(right_vis, uv, 2, cv::Scalar(0, 255, 0), -1);
+    //   }
+    //   cv::imshow("SVO Right Features", right_vis);
+    // }
+    cv::waitKey(1);
   }
 }
 
