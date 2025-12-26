@@ -32,7 +32,7 @@ int main(int argc, char** argv) {
     return -1;
   }
 
-  omni_slam::StereoVO stereo_vo;
+  omni_slam::StereoVO   stereo_vo;
   std::filesystem::path config_path = project_root / "configs/svo.json";
 
   if (!stereo_vo.Initialize(config_path.string())) {

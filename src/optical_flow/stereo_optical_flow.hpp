@@ -28,10 +28,11 @@ public:
 
   void Clear();
   void Reserve(size_t cam_idx, size_t size);
-  void PushBack(size_t cam_idx, const TrackingResult& kpts);
 
-  std::vector<int64_t>&           Ids(size_t cam_idx) { return ids_[cam_idx]; }
-  const std::vector<int64_t>&     Ids(size_t cam_idx) const { return ids_[cam_idx]; }
+  void AddFeature(size_t cam_idx, const cv::Point2f& uv, int64_t id);
+
+  std::vector<size_t>&            Ids(size_t cam_idx) { return ids_[cam_idx]; }
+  const std::vector<size_t>&      Ids(size_t cam_idx) const { return ids_[cam_idx]; }
   std::vector<cv::Point2f>&       Uvs(size_t cam_idx) { return uvs_[cam_idx]; }
   const std::vector<cv::Point2f>& Uvs(size_t cam_idx) const { return uvs_[cam_idx]; }
 
@@ -47,7 +48,7 @@ public:
   }
 
 private:
-  std::array<std::vector<int64_t>, kCamNum>     ids_;
+  std::array<std::vector<size_t>, kCamNum>      ids_;
   std::array<std::vector<cv::Point2f>, kCamNum> uvs_;
   std::array<std::map<size_t, size_t>, kCamNum> id_idx_;
   std::array<cv::Mat, kCamNum>                  images_;
@@ -66,6 +67,12 @@ public:
   void Run(std::atomic<bool>& running);
 
 private:
+  void PrepareImagesAndPyramids(const std::array<cv::Mat, kCamNum>& images,
+                                TrackingResult*                     curr_result);
+  void TrackLeft(TrackingResult* curr_result);
+  void TrackStereo(TrackingResult* curr_result);
+  void DetectFeatures(TrackingResult* curr_result);
+
   tbb::concurrent_queue<std::array<cv::Mat, 2>>&          in_queue_;
   tbb::concurrent_queue<std::shared_ptr<TrackingResult>>& out_queue_;
 
