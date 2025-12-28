@@ -2,8 +2,10 @@
 #include <chrono>
 #include <filesystem>
 #include <thread>
+#include <vector>
 
 #include <opencv2/core.hpp>
+#include <Eigen/Dense>
 
 #include "utils/logger.hpp"
 #include "device/dataset_simulator.hpp"
@@ -41,9 +43,14 @@ int main(int argc, char** argv) {
   }
 
   omni_slam::DatasetSimulator simulator(loader);
-  simulator.SetCameraCallback([&stereo_vo](const std::array<cv::Mat, 2>& images) {
-    stereo_vo.OnCameraFrame(images);
-  });
+  simulator.SetCameraCallback(
+    [&stereo_vo](const std::vector<cv::Mat>&             images,
+                 const std::vector<int>&                 models,
+                 const std::vector<std::vector<double>>& intrinsics,
+                 const std::vector<std::vector<double>>& distortions,
+                 const std::vector<std::vector<int>>&    resolutions) {
+      stereo_vo.OnCameraFrame(images, models, intrinsics, distortions, resolutions);
+    });
 
   simulator.Start();
   stereo_vo.Run();

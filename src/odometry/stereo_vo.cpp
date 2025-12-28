@@ -6,12 +6,16 @@
 #include <opencv2/imgproc.hpp>
 
 #include "config/svo_config.hpp"
+#include "database/Frame.hpp"
 #include "optical_flow/stereo_optical_flow.hpp"
 #include "utils/logger.hpp"
-#include "stereo_vo.hpp"
 
 namespace omni_slam {
-StereoVO::StereoVO() {}
+StereoVO::StereoVO()
+  : image_queue_{}
+  , keypoint_queue_{}
+  , optical_flow_{nullptr}
+  , running_{false} {}
 
 StereoVO::~StereoVO() {}
 
@@ -50,13 +54,50 @@ void StereoVO::Shutdown() {
   }
 }
 
-void StereoVO::OnCameraFrame(const std::array<cv::Mat, 2>& images) {
-  if (images[0].empty()) {
+void StereoVO::OnCameraFrame(const std::vector<cv::Mat>&             images,
+                             const std::vector<int>&                 models,
+                             const std::vector<std::vector<double>>& intrinsics,
+                             const std::vector<std::vector<double>>& distortions,
+                             const std::vector<std::vector<int>>&    resolutions) {
+  if (images.empty() || images[0].empty()) {
     Logger::Warn("Received camera frame with empty left image");
     return;
   }
 
-  image_queue_.push(images);
+  // camera_models_      = models;
+  // camera_intrinsics_  = intrinsics;
+  // camera_distortions_ = distortions;
+  // camera_resolutions_ = resolutions;
+  // camera_T_bc_        = T_bc;
+  // if (camera_models_.empty()) {
+  //   camera_models_.assign(images.size(),
+  //   static_cast<int>(CameraModel::PINHOLE_RAD_TAN));
+  // }
+  // frames_.clear();
+  // const size_t cam_count = camera_models_.size();
+  // frames_.reserve(cam_count);
+  // for (size_t i = 0; i < cam_count; ++i) {
+  //   const Eigen::Matrix4d T = (i < camera_T_bc_.size()) ? camera_T_bc_[i]
+  //                                                       : Eigen::Matrix4d::Identity();
+  //   frames_.push_back(
+  //     std::make_unique<Frame>(static_cast<CameraModel>(models[i]),
+  //                             i < camera_intrinsics_.size() ? camera_intrinsics_[i]
+  //                                                           : std::vector<double>{},
+  //                             i < camera_distortions_.size() ? camera_distortions_[i]
+  //                                                            : std::vector<double>{},
+  //                             i < camera_resolutions_.size() ? camera_resolutions_[i]
+  //                                                            : std::vector<int>{},
+  //                             T));
+  // }
+
+  std::array<cv::Mat, kCamNum> image_array;
+  if (!images.empty()) {
+    image_array[0] = images[0];
+  }
+  if (images.size() > 1) {
+    image_array[1] = images[1];
+  }
+  image_queue_.push(image_array);
 }
 
 void StereoVO::OpticalFlowLoop() {

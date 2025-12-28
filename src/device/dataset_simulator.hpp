@@ -4,9 +4,12 @@
 #include <atomic>
 #include <chrono>
 #include <thread>
+#include <vector>
 
 #include <opencv2/imgcodecs.hpp>
 
+#include "camera_model/camera_model.hpp"
+#include "config/svo_config.hpp"
 #include "device/vio_loader.hpp"
 #include "device/device_interface.hpp"
 
@@ -79,15 +82,48 @@ private:
         break;
       }
 
-      std::array<cv::Mat, 2> images;
+      std::vector<cv::Mat> images;
       if (!frame.cam0_image_path.empty()) {
-        images[0] = cv::imread(frame.cam0_image_path, cv::IMREAD_COLOR);
+        images.push_back(cv::imread(frame.cam0_image_path, cv::IMREAD_COLOR));
       }
       if (!frame.cam1_image_path.empty()) {
-        images[1] = cv::imread(frame.cam1_image_path, cv::IMREAD_COLOR);
+        images.push_back(cv::imread(frame.cam1_image_path, cv::IMREAD_COLOR));
       }
 
-      camera_callback_(images);
+      const size_t                     cam_count = images.size();
+      std::vector<int>                 models;
+      std::vector<std::vector<double>> intrinsics;
+      std::vector<std::vector<double>> distortions;
+      std::vector<std::vector<int>>    resolutions;
+
+      for (size_t i = 0; i < cam_count; ++i) {
+        if (i < SVOConfig::camera_models.size()) {
+          models.push_back(SVOConfig::camera_models[i]);
+        }
+        else {
+          models.push_back(static_cast<int>(CameraModel::PINHOLE_RAD_TAN));
+        }
+        if (i < SVOConfig::camera_intrinsics.size()) {
+          intrinsics.push_back(SVOConfig::camera_intrinsics[i]);
+        }
+        else {
+          intrinsics.emplace_back();
+        }
+        if (i < SVOConfig::camera_distortions.size()) {
+          distortions.push_back(SVOConfig::camera_distortions[i]);
+        }
+        else {
+          distortions.emplace_back();
+        }
+        if (i < SVOConfig::camera_resolutions.size()) {
+          resolutions.push_back(SVOConfig::camera_resolutions[i]);
+        }
+        else {
+          resolutions.emplace_back();
+        }
+      }
+
+      camera_callback_(images, models, intrinsics, distortions, resolutions);
     }
   }
 

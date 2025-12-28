@@ -80,6 +80,12 @@ void StereoOpticalFlow::PrepareImagesAndPyramids(
   for (size_t i = 0; i < kCamNum; i++) {
     auto& gray = curr_result->Image(i);
 
+    if (images[i].empty()) {
+      gray.release();
+      curr_result->ImagePyramid(i).clear();
+      continue;
+    }
+
     if (images[i].channels() == 1) {
       gray = images[i].clone();
     }
@@ -163,9 +169,6 @@ void StereoOpticalFlow::TrackStereo(TrackingResult* curr_result) {
 
   const auto& left_ids = curr_result->Ids(kLeftCam);
   const auto& left_uvs = curr_result->Uvs(kLeftCam);
-  if (left_uvs.empty()) {
-    return;
-  }
 
   std::vector<cv::Point2f> right_uvs;
   std::vector<uchar>       status;

@@ -2,6 +2,7 @@
 
 #include <array>
 #include <functional>
+#include <vector>
 
 #include <opencv2/core.hpp>
 
@@ -12,7 +13,11 @@ namespace omni_slam {
 
 class DeviceInterface {
 public:
-  using CameraCallback = std::function<void(const std::array<cv::Mat, 2>&)>;
+  using CameraCallback = std::function<void(const std::vector<cv::Mat>&,
+                                            const std::vector<int>&,
+                                            const std::vector<std::vector<double>>&,
+                                            const std::vector<std::vector<double>>&,
+                                            const std::vector<std::vector<int>>&)>;
   using ImuCallback    = std::function<void(const ImuData&)>;
 
   virtual ~DeviceInterface() = default;

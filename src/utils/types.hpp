@@ -5,6 +5,21 @@
 #include <Eigen/Dense>
 
 namespace omni_slam {
+static constexpr size_t kCamLeft  = 0;
+static constexpr size_t kCamRight = 1;
+
+enum class CameraModel {
+  PINHOLE_RAD_TAN = 0,
+};
+
+struct CameraParameter {
+  CameraModel           model;
+  std::array<double, 4> intrinsics;
+  std::vector<double>   distortions;
+  int                   w;
+  int                   h;
+};
+
 struct ImuData {
   using Ptr = std::shared_ptr<ImuData>;
 
