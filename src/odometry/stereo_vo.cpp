@@ -15,6 +15,7 @@ StereoVO::StereoVO()
   : frame_queue_{}
   , result_queue_{}
   , optical_flow_{nullptr}
+  , sliding_window_{0}
   , running_{false} {}
 
 StereoVO::~StereoVO() {}
@@ -29,6 +30,7 @@ bool StereoVO::Initialize(const std::string& config_path) {
   SVOConfig::ParseConfig(config_path);
   Logger::Info("Loaded VO config: {}", config_path.c_str());
 
+  sliding_window_.SetMaxSize(SVOConfig::max_window);
   optical_flow_ = std::make_unique<OpticalFlow>(kCamNum, frame_queue_, result_queue_);
 
   return true;

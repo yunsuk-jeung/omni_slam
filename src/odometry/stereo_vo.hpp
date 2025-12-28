@@ -10,6 +10,7 @@
 #include <opencv2/core.hpp>
 
 #include "odometry/odometry.hpp"
+#include "odometry/sliding_window.hpp"
 #include "utils/types.hpp"
 
 namespace omni_slam {
@@ -37,10 +38,10 @@ private:
 
   tbb::concurrent_queue<std::shared_ptr<Frame>> frame_queue_;
   tbb::concurrent_queue<std::shared_ptr<Frame>> result_queue_;
-  std::unique_ptr<OpticalFlow>                           optical_flow_;
-  std::vector<std::unique_ptr<Frame>>                    frames_;
+  std::unique_ptr<OpticalFlow>                  optical_flow_;
 
-  std::atomic<bool> running_;
+  SlidingWindow                                        sliding_window_;
+  std::atomic<bool>                                     running_;
 };
 
 }  // namespace omni_slam

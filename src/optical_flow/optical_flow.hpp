@@ -28,21 +28,22 @@ public:
 
   void AddFeature(size_t cam_idx, const cv::Point2f& uv, int64_t id);
 
-  std::vector<size_t>&            Ids(size_t cam_idx) { return ids_[cam_idx]; }
-  const std::vector<size_t>&      Ids(size_t cam_idx) const { return ids_[cam_idx]; }
-  std::vector<cv::Point2f>&       Uvs(size_t cam_idx) { return uvs_[cam_idx]; }
-  const std::vector<cv::Point2f>& Uvs(size_t cam_idx) const { return uvs_[cam_idx]; }
+  std::vector<size_t>&       Ids(size_t cam_idx) { return ids_[cam_idx]; }
+  const std::vector<size_t>& Ids(size_t cam_idx) const { return ids_[cam_idx]; }
 
   std::map<size_t, size_t>&       IdIndex(size_t cam_idx) { return id_idx_[cam_idx]; }
   const std::map<size_t, size_t>& IdIndex(size_t cam_idx) const {
     return id_idx_[cam_idx];
   }
 
+  std::vector<cv::Point2f>&       Uvs(size_t cam_idx) { return uvs_[cam_idx]; }
+  const std::vector<cv::Point2f>& Uvs(size_t cam_idx) const { return uvs_[cam_idx]; }
+
 private:
   const size_t                          kCamNum;
   std::vector<std::vector<size_t>>      ids_;
-  std::vector<std::vector<cv::Point2f>> uvs_;
   std::vector<std::map<size_t, size_t>> id_idx_;
+  std::vector<std::vector<cv::Point2f>> uvs_;
 };
 
 class Frame;
@@ -60,10 +61,9 @@ public:
 private:
   void PrepareImagesAndPyramids(std::shared_ptr<Frame>& curr_frame);
 
-  void TrackMono(const std::shared_ptr<Frame>& curr_frame, TrackingResult* curr_result);
-  void TrackStereo(const std::shared_ptr<Frame>& curr_frame, TrackingResult* curr_result);
-  void DetectFeatures(const std::shared_ptr<Frame>& curr_frame,
-                      TrackingResult*               curr_result);
+  void TrackMono(const std::shared_ptr<Frame>& curr_frame);
+  void TrackStereo(const std::shared_ptr<Frame>& curr_frame);
+  void DetectFeatures(const std::shared_ptr<Frame>& curr_frame);
 
 private:
   const size_t                                   kCamNum;

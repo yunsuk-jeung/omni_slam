@@ -104,8 +104,7 @@ void OpticalFlow::PrepareImagesAndPyramids(std::shared_ptr<Frame>& curr_frame) {
   }
 }
 
-void OpticalFlow::TrackMono(const std::shared_ptr<Frame>& curr_frame,
-                            TrackingResult*               curr_result) {
+void OpticalFlow::TrackMono(const std::shared_ptr<Frame>& curr_frame) {
   constexpr size_t kLeftCam = 0;
   if (!prev_frame_ || !prev_frame_->TrackingResultPtr()) {
     return;
@@ -114,6 +113,7 @@ void OpticalFlow::TrackMono(const std::shared_ptr<Frame>& curr_frame,
   const auto* prev_result = prev_frame_->TrackingResultPtr();
   const auto& prev_ids    = prev_result->Ids(kLeftCam);
   const auto& prev_uvs    = prev_result->Uvs(kLeftCam);
+  auto*       curr_result = curr_frame->TrackingResultPtr();
   if (prev_uvs.empty()) {
     return;
   }
@@ -161,10 +161,10 @@ void OpticalFlow::TrackMono(const std::shared_ptr<Frame>& curr_frame,
   }
 }
 
-void OpticalFlow::TrackStereo(const std::shared_ptr<Frame>& curr_frame,
-                              TrackingResult*               curr_result) {
-  constexpr size_t kLeftCam  = 0;
-  constexpr size_t kRightCam = 1;
+void OpticalFlow::TrackStereo(const std::shared_ptr<Frame>& curr_frame) {
+  constexpr size_t kLeftCam    = 0;
+  constexpr size_t kRightCam   = 1;
+  auto*            curr_result = curr_frame->TrackingResultPtr();
 
   const auto& left_ids = curr_result->Ids(kLeftCam);
   const auto& left_uvs = curr_result->Uvs(kLeftCam);
@@ -215,10 +215,11 @@ void OpticalFlow::TrackStereo(const std::shared_ptr<Frame>& curr_frame,
   }
 }
 
-void OpticalFlow::DetectFeatures(const std::shared_ptr<Frame>& curr_frame,
-                                 TrackingResult*               curr_result) {
+void OpticalFlow::DetectFeatures(const std::shared_ptr<Frame>& curr_frame) {
   constexpr size_t kLeftCam = 0;
-  auto&            curr_uvs = curr_result->Uvs(kLeftCam);
+
+  auto* curr_result = curr_frame->TrackingResultPtr();
+  auto& curr_uvs    = curr_result->Uvs(kLeftCam);
 
   const int         grid_rows = std::max(1, SVOConfig::feature_grid_rows);
   const int         grid_cols = std::max(1, SVOConfig::feature_grid_cols);
@@ -285,7 +286,7 @@ void OpticalFlow::Run(std::atomic<bool>& running) {
       continue;
     }
 
-    auto curr_result = std::make_unique<TrackingResult>(kCamNum);
+    auto* curr_result = curr_frame->TrackingResultPtr();
 
     const size_t prev_left_size = (prev_frame_ && prev_frame_->TrackingResultPtr())
                                     ? prev_frame_->TrackingResultPtr()->Size(0)
@@ -299,16 +300,15 @@ void OpticalFlow::Run(std::atomic<bool>& running) {
 
     PrepareImagesAndPyramids(curr_frame);
 
-    TrackMono(curr_frame, curr_result.get());
+    TrackMono(curr_frame);
 
     if (kCamNum == 2) {
-      TrackStereo(curr_frame, curr_result.get());
+      TrackStereo(curr_frame);
     }
-    DetectFeatures(curr_frame, curr_result.get());
+    DetectFeatures(curr_frame);
 
-    curr_frame->SetTrackingResult(std::move(curr_result));
     prev_frame_ = curr_frame;
     out_queue_.push(curr_frame);
   }
-}
+}  // namespace omni_slam
 }  // namespace omni_slam

@@ -50,6 +50,7 @@ if(OMNI_BUILD_STEREO_VO)
 
   set(VO_SOURCES
     odometry/stereo_vo.cpp
+    odometry/sliding_window.cpp
     database/Frame.cpp
     camera_model/camera_model.cpp
   )

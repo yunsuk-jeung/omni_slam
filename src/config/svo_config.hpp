@@ -1,4 +1,5 @@
 #pragma once
+#include <cstddef>
 #include <string>
 #include <vector>
 
@@ -19,6 +20,7 @@ public:
   static int    feature_grid_rows;
   static int    feature_grid_cols;
   static int    max_pyramid_level;
+  static size_t max_window;
 
   static std::vector<int>                 camera_models;
   static std::vector<std::vector<double>> camera_intrinsics;

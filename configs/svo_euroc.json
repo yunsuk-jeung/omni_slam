@@ -10,6 +10,7 @@
   "feature_grid_rows": 12,
   "feature_grid_cols": 18,
   "max_pyramid_level": 3,
+  "max_window": 8,
 
   "cam0": {
     "camera_model": 0,

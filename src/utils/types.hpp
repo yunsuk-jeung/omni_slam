@@ -31,7 +31,18 @@ struct ImuData {
     acc.setZero();
     gyr.setZero();
   }
+  struct FrameCamId {
+    FrameCamId()
+      : frameId(0)
+      , camId(0) {}
 
+    FrameCamId(const int64_t& frameId, const size_t& camId)
+      : frameId(frameId)
+      , camId(camId) {}
+
+    size_t frameId;
+    size_t camId;
+  };
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 };
 }  // namespace omni_slam
