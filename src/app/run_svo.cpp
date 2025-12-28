@@ -36,7 +36,7 @@ int main(int argc, char** argv) {
   }
 
   omni_slam::StereoVO   stereo_vo;
-  std::filesystem::path config_path = project_root / "configs/svo.json";
+  std::filesystem::path config_path = project_root / "configs/svo_euroc.json";
 
   if (!stereo_vo.Initialize(config_path.string())) {
     LogE("Failed to initialize VO pipeline");
@@ -45,7 +45,7 @@ int main(int argc, char** argv) {
 
   omni_slam::DatasetSimulator simulator(loader);
   simulator.SetCameraCallback(
-    [&stereo_vo](const std::vector<cv::Mat>&           images,
+    [&stereo_vo](const std::vector<cv::Mat>&                    images,
                  const std::vector<omni_slam::CameraParameter>& camera_parameters) {
       stereo_vo.OnCameraFrame(images, camera_parameters);
     });

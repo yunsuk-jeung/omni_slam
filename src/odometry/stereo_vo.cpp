@@ -7,13 +7,13 @@
 
 #include "config/svo_config.hpp"
 #include "database/Frame.hpp"
-#include "optical_flow/stereo_optical_flow.hpp"
+#include "optical_flow/optical_flow.hpp"
 #include "utils/logger.hpp"
 
 namespace omni_slam {
 StereoVO::StereoVO()
-  : image_queue_{}
-  , keypoint_queue_{}
+  : frame_queue_{}
+  , result_queue_{}
   , optical_flow_{nullptr}
   , running_{false} {}
 
@@ -29,7 +29,7 @@ bool StereoVO::Initialize(const std::string& config_path) {
   SVOConfig::ParseConfig(config_path);
   Logger::Info("Loaded VO config: {}", config_path.c_str());
 
-  optical_flow_ = std::make_unique<StereoOpticalFlow>(image_queue_, keypoint_queue_);
+  optical_flow_ = std::make_unique<OpticalFlow>(kCamNum, frame_queue_, result_queue_);
 
   return true;
 }
@@ -54,7 +54,7 @@ void StereoVO::Shutdown() {
   }
 }
 
-void StereoVO::OnCameraFrame(const std::vector<cv::Mat>&           images,
+void StereoVO::OnCameraFrame(const std::vector<cv::Mat>&         images,
                              const std::vector<CameraParameter>& camera_parameters) {
   if (images.empty() || images[0].empty()) {
     Logger::Warn("Received camera frame with empty left image");
@@ -89,14 +89,8 @@ void StereoVO::OnCameraFrame(const std::vector<cv::Mat>&           images,
   //                             T));
   // }
 
-  std::array<cv::Mat, kCamNum> image_array;
-  if (!images.empty()) {
-    image_array[0] = images[0];
-  }
-  if (images.size() > 1) {
-    image_array[1] = images[1];
-  }
-  image_queue_.push(image_array);
+  auto frame = std::make_shared<Frame>(images, camera_parameters);
+  frame_queue_.push(frame);
 }
 
 void StereoVO::OpticalFlowLoop() {
@@ -104,15 +98,20 @@ void StereoVO::OpticalFlowLoop() {
 }
 
 void StereoVO::EstimatorLoop() {
-  std::shared_ptr<TrackingResult> tracking_result;
+  std::shared_ptr<Frame> frame;
   while (running_.load(std::memory_order_acquire)) {
-    if (!keypoint_queue_.try_pop(tracking_result)) {
+    if (!result_queue_.try_pop(frame)) {
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
       continue;
     }
 
-    const cv::Mat& left  = tracking_result->Image(0);
-    const cv::Mat& right = tracking_result->Image(1);
+    if (!frame || !frame->TrackingResultPtr()) {
+      continue;
+    }
+
+    const auto* tracking_result = frame->TrackingResultPtr();
+    const cv::Mat& left          = frame->Image(0);
+    const cv::Mat& right         = frame->Image(1);
     if (!left.empty()) {
       cv::Mat left_vis;
       if (left.channels() == 1) {

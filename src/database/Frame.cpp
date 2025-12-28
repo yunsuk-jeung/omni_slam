@@ -1,11 +1,14 @@
-#include "optical_flow/stereo_optical_flow.hpp"
+#include "optical_flow/optical_flow.hpp"
 #include "camera_model/pinhole_radtan.hpp"
 #include "database/Frame.hpp"
 
 namespace omni_slam {
 Frame::Frame() {}
 
-Frame::Frame(const std::vector<CameraParameter>& camera_parameters) {
+Frame::Frame(const std::vector<cv::Mat>&         images,
+             const std::vector<CameraParameter>& camera_parameters)
+  : images_(images)
+  , image_pyramids_(images.size()) {
   SetCameraParams(camera_parameters);
 }
 

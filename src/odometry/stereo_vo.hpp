@@ -1,6 +1,5 @@
 #pragma once
 
-#include <array>
 #include <atomic>
 #include <memory>
 #include <string>
@@ -15,7 +14,7 @@
 
 namespace omni_slam {
 class TrackingResult;
-class StereoOpticalFlow;
+class OpticalFlow;
 class Frame;
 class StereoVO : public Odometry {
 public:
@@ -25,7 +24,7 @@ public:
   bool Initialize(const std::string& config_path) override;
   void Run() override;
   void Shutdown() override;
-  void OnCameraFrame(const std::vector<cv::Mat>&           images,
+  void OnCameraFrame(const std::vector<cv::Mat>&         images,
                      const std::vector<CameraParameter>& camera_parameters);
 
 private:
@@ -36,9 +35,9 @@ private:
   std::thread optical_flow_thread_;
   std::thread estimator_thread_;
 
-  tbb::concurrent_queue<std::array<cv::Mat, kCamNum>>    image_queue_;
-  tbb::concurrent_queue<std::shared_ptr<TrackingResult>> keypoint_queue_;
-  std::unique_ptr<StereoOpticalFlow>                     optical_flow_;
+  tbb::concurrent_queue<std::shared_ptr<Frame>> frame_queue_;
+  tbb::concurrent_queue<std::shared_ptr<Frame>> result_queue_;
+  std::unique_ptr<OpticalFlow>                           optical_flow_;
   std::vector<std::unique_ptr<Frame>>                    frames_;
 
   std::atomic<bool> running_;

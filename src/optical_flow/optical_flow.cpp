@@ -12,7 +12,8 @@
 
 #include "utils/logger.hpp"
 #include "config/svo_config.hpp"
-#include "stereo_optical_flow.hpp"
+#include "database/Frame.hpp"
+#include "optical_flow/optical_flow.hpp"
 
 namespace omni_slam {
 namespace {
@@ -22,17 +23,17 @@ bool IsPointInImage(const cv::Point2f& pt, const cv::Mat& image) {
 
 }  // namespace
 
-TrackingResult::TrackingResult() = default;
+TrackingResult::TrackingResult()
+  : kCamNum{1u}
+  , ids_(kCamNum)
+  , uvs_(kCamNum)
+  , id_idx_(kCamNum){};
 
-TrackingResult::TrackingResult(std::array<cv::Mat, kCamNum>& images) {
-  images_ = images;
-}
-
-TrackingResult::TrackingResult(const TrackingResult& src) {
-  ids_    = src.ids_;
-  uvs_    = src.uvs_;
-  id_idx_ = src.id_idx_;
-}
+TrackingResult::TrackingResult(const size_t& cam_num)
+  : kCamNum{cam_num}
+  , ids_(cam_num)
+  , uvs_(cam_num)
+  , id_idx_(cam_num) {}
 
 TrackingResult::~TrackingResult() = default;
 
@@ -60,12 +61,13 @@ void TrackingResult::AddFeature(size_t cam_idx, const cv::Point2f& uv, int64_t i
   id_idx_[cam_idx][id] = ids_[cam_idx].size() - 1;
 }
 
-StereoOpticalFlow::StereoOpticalFlow(
-  tbb::concurrent_queue<std::array<cv::Mat, kCamNum>>&    in_queue,
-  tbb::concurrent_queue<std::shared_ptr<TrackingResult>>& out_queue)
-  : in_queue_(in_queue)
+OpticalFlow::OpticalFlow(const size_t                                   cam_num,
+                         tbb::concurrent_queue<std::shared_ptr<Frame>>& in_queue,
+                         tbb::concurrent_queue<std::shared_ptr<Frame>>& out_queue)
+  : kCamNum{cam_num}
+  , in_queue_(in_queue)
   , out_queue_(out_queue)
-  , prev_result_{nullptr}
+  , prev_frame_{nullptr}
   , next_feature_id_{0} {
   if (SVOConfig::equalize_histogram) {
     clahe_ = cv::createCLAHE(SVOConfig::clahe_clip_limit,
@@ -74,32 +76,26 @@ StereoOpticalFlow::StereoOpticalFlow(
   }
 }
 
-void StereoOpticalFlow::PrepareImagesAndPyramids(
-  const std::array<cv::Mat, kCamNum>& images,
-  TrackingResult*                     curr_result) {
+void OpticalFlow::PrepareImagesAndPyramids(std::shared_ptr<Frame>& curr_frame) {
   for (size_t i = 0; i < kCamNum; i++) {
-    auto& gray = curr_result->Image(i);
-
-    if (images[i].empty()) {
-      gray.release();
-      curr_result->ImagePyramid(i).clear();
-      continue;
-    }
-
-    if (images[i].channels() == 1) {
-      gray = images[i].clone();
+    const auto& image = curr_frame->Image(i);
+    cv::Mat     gray;
+    if (image.channels() == 1) {
+      gray = image;
     }
     else {
-      cv::cvtColor(images[i], gray, cv::COLOR_BGR2GRAY);
+      cv::cvtColor(image, gray, cv::COLOR_BGR2GRAY);
     }
 
     if (SVOConfig::equalize_histogram && clahe_) {
       clahe_->apply(gray, gray);
     }
+    // Store the grayscale image in the frame so downstream uses match pyramids.
+    curr_frame->Image(i) = gray;
     const cv::Point2i patch(SVOConfig::optical_flow_patch_size,
                             SVOConfig::optical_flow_patch_size);
-    cv::buildOpticalFlowPyramid(curr_result->Image(i),
-                                curr_result->ImagePyramid(i),
+    cv::buildOpticalFlowPyramid(gray,
+                                curr_frame->ImagePyramid(i),
                                 patch,
                                 SVOConfig::max_pyramid_level,
                                 true,
@@ -108,14 +104,16 @@ void StereoOpticalFlow::PrepareImagesAndPyramids(
   }
 }
 
-void StereoOpticalFlow::TrackLeft(TrackingResult* curr_result) {
+void OpticalFlow::TrackMono(const std::shared_ptr<Frame>& curr_frame,
+                            TrackingResult*               curr_result) {
   constexpr size_t kLeftCam = 0;
-  if (!prev_result_) {
+  if (!prev_frame_ || !prev_frame_->TrackingResultPtr()) {
     return;
   }
 
-  const auto& prev_ids = prev_result_->Ids(kLeftCam);
-  const auto& prev_uvs = prev_result_->Uvs(kLeftCam);
+  const auto* prev_result = prev_frame_->TrackingResultPtr();
+  const auto& prev_ids    = prev_result->Ids(kLeftCam);
+  const auto& prev_uvs    = prev_result->Uvs(kLeftCam);
   if (prev_uvs.empty()) {
     return;
   }
@@ -123,8 +121,8 @@ void StereoOpticalFlow::TrackLeft(TrackingResult* curr_result) {
   std::vector<cv::Point2f> tracked_uvs;
   std::vector<uchar>       status;
 
-  cv::calcOpticalFlowPyrLK(prev_result_->ImagePyramid(kLeftCam),
-                           curr_result->ImagePyramid(kLeftCam),
+  cv::calcOpticalFlowPyrLK(prev_frame_->ImagePyramid(kLeftCam),
+                           curr_frame->ImagePyramid(kLeftCam),
                            prev_uvs,
                            tracked_uvs,
                            status,
@@ -136,8 +134,8 @@ void StereoOpticalFlow::TrackLeft(TrackingResult* curr_result) {
   std::vector<cv::Point2f> reverse_uvs;
   std::vector<uchar>       reverse_status;
 
-  cv::calcOpticalFlowPyrLK(curr_result->ImagePyramid(kLeftCam),
-                           prev_result_->ImagePyramid(kLeftCam),
+  cv::calcOpticalFlowPyrLK(curr_frame->ImagePyramid(kLeftCam),
+                           prev_frame_->ImagePyramid(kLeftCam),
                            tracked_uvs,
                            reverse_uvs,
                            reverse_status,
@@ -150,7 +148,7 @@ void StereoOpticalFlow::TrackLeft(TrackingResult* curr_result) {
     if (!status[i] || !reverse_status[i]) {
       continue;
     }
-    if (!IsPointInImage(tracked_uvs[i], curr_result->Image(kLeftCam))) {
+    if (!IsPointInImage(tracked_uvs[i], curr_frame->Image(kLeftCam))) {
       continue;
     }
     const cv::Point2f dist       = prev_uvs[i] - reverse_uvs[i];
@@ -163,18 +161,22 @@ void StereoOpticalFlow::TrackLeft(TrackingResult* curr_result) {
   }
 }
 
-void StereoOpticalFlow::TrackStereo(TrackingResult* curr_result) {
+void OpticalFlow::TrackStereo(const std::shared_ptr<Frame>& curr_frame,
+                              TrackingResult*               curr_result) {
   constexpr size_t kLeftCam  = 0;
   constexpr size_t kRightCam = 1;
 
   const auto& left_ids = curr_result->Ids(kLeftCam);
   const auto& left_uvs = curr_result->Uvs(kLeftCam);
+  if (left_uvs.empty()) {
+    return;
+  }
 
   std::vector<cv::Point2f> right_uvs;
   std::vector<uchar>       status;
 
-  cv::calcOpticalFlowPyrLK(curr_result->ImagePyramid(kLeftCam),
-                           curr_result->ImagePyramid(kRightCam),
+  cv::calcOpticalFlowPyrLK(curr_frame->ImagePyramid(kLeftCam),
+                           curr_frame->ImagePyramid(kRightCam),
                            left_uvs,
                            right_uvs,
                            status,
@@ -186,8 +188,8 @@ void StereoOpticalFlow::TrackStereo(TrackingResult* curr_result) {
   std::vector<cv::Point2f> reverse_uvs;
   std::vector<uchar>       reverse_status;
 
-  cv::calcOpticalFlowPyrLK(curr_result->ImagePyramid(kRightCam),
-                           curr_result->ImagePyramid(kLeftCam),
+  cv::calcOpticalFlowPyrLK(curr_frame->ImagePyramid(kRightCam),
+                           curr_frame->ImagePyramid(kLeftCam),
                            right_uvs,
                            reverse_uvs,
                            reverse_status,
@@ -200,7 +202,7 @@ void StereoOpticalFlow::TrackStereo(TrackingResult* curr_result) {
     if (!status[i] || !reverse_status[i]) {
       continue;
     }
-    if (!IsPointInImage(right_uvs[i], curr_result->Image(kRightCam))) {
+    if (!IsPointInImage(right_uvs[i], curr_frame->Image(kRightCam))) {
       continue;
     }
     const cv::Point2f dist       = left_uvs[i] - reverse_uvs[i];
@@ -213,14 +215,15 @@ void StereoOpticalFlow::TrackStereo(TrackingResult* curr_result) {
   }
 }
 
-void StereoOpticalFlow::DetectFeatures(TrackingResult* curr_result) {
+void OpticalFlow::DetectFeatures(const std::shared_ptr<Frame>& curr_frame,
+                                 TrackingResult*               curr_result) {
   constexpr size_t kLeftCam = 0;
   auto&            curr_uvs = curr_result->Uvs(kLeftCam);
 
   const int         grid_rows = std::max(1, SVOConfig::feature_grid_rows);
   const int         grid_cols = std::max(1, SVOConfig::feature_grid_cols);
-  const int         cell_w = std::max(1, curr_result->Image(kLeftCam).cols / grid_cols);
-  const int         cell_h = std::max(1, curr_result->Image(kLeftCam).rows / grid_rows);
+  const int         cell_w    = std::max(1, curr_frame->Image(kLeftCam).cols / grid_cols);
+  const int         cell_h    = std::max(1, curr_frame->Image(kLeftCam).rows / grid_rows);
   std::vector<bool> cell_has_feature(grid_rows * grid_cols, false);
 
   for (const auto& uv : curr_uvs) {
@@ -236,9 +239,9 @@ void StereoOpticalFlow::DetectFeatures(TrackingResult* curr_result) {
       }
       const int x0 = col * cell_w;
       const int y0 = row * cell_h;
-      const int x1 = (col == grid_cols - 1) ? curr_result->Image(kLeftCam).cols
+      const int x1 = (col == grid_cols - 1) ? curr_frame->Image(kLeftCam).cols
                                             : (col + 1) * cell_w;
-      const int y1 = (row == grid_rows - 1) ? curr_result->Image(kLeftCam).rows
+      const int y1 = (row == grid_rows - 1) ? curr_frame->Image(kLeftCam).rows
                                             : (row + 1) * cell_h;
       if (x1 <= x0 || y1 <= y0) {
         continue;
@@ -246,7 +249,7 @@ void StereoOpticalFlow::DetectFeatures(TrackingResult* curr_result) {
 
       const cv::Rect            roi(x0, y0, x1 - x0, y1 - y0);
       std::vector<cv::KeyPoint> keypoints;
-      cv::FAST(curr_result->Image(kLeftCam)(roi),
+      cv::FAST(curr_frame->Image(kLeftCam)(roi),
                keypoints,
                SVOConfig::fast_threshold,
                true);
@@ -270,17 +273,23 @@ void StereoOpticalFlow::DetectFeatures(TrackingResult* curr_result) {
   }
 }
 
-void StereoOpticalFlow::Run(std::atomic<bool>& running) {
-  std::array<cv::Mat, 2> images;
+void OpticalFlow::Run(std::atomic<bool>& running) {
+  std::shared_ptr<Frame> curr_frame;
   while (running.load(std::memory_order_acquire)) {
-    if (!in_queue_.try_pop(images)) {
+    if (!in_queue_.try_pop(curr_frame)) {
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
       continue;
     }
 
-    auto curr_result = std::make_shared<TrackingResult>();
+    if (!curr_frame) {
+      continue;
+    }
 
-    const size_t prev_left_size = prev_result_ ? prev_result_->Size(0) : 0;
+    auto curr_result = std::make_unique<TrackingResult>(kCamNum);
+
+    const size_t prev_left_size = (prev_frame_ && prev_frame_->TrackingResultPtr())
+                                    ? prev_frame_->TrackingResultPtr()->Size(0)
+                                    : 0;
     const int    grid_rows      = std::max(1, SVOConfig::feature_grid_rows);
     const int    grid_cols      = std::max(1, SVOConfig::feature_grid_cols);
     const size_t expected_left  = (prev_left_size >> 1)
@@ -288,14 +297,18 @@ void StereoOpticalFlow::Run(std::atomic<bool>& running) {
     curr_result->Reserve(0, expected_left);
     curr_result->Reserve(1, expected_left);
 
-    PrepareImagesAndPyramids(images, curr_result.get());
+    PrepareImagesAndPyramids(curr_frame);
 
-    TrackLeft(curr_result.get());
-    TrackStereo(curr_result.get());
-    DetectFeatures(curr_result.get());
+    TrackMono(curr_frame, curr_result.get());
 
-    prev_result_ = curr_result;
-    out_queue_.push(curr_result);
+    if (kCamNum == 2) {
+      TrackStereo(curr_frame, curr_result.get());
+    }
+    DetectFeatures(curr_frame, curr_result.get());
+
+    curr_frame->SetTrackingResult(std::move(curr_result));
+    prev_frame_ = curr_frame;
+    out_queue_.push(curr_frame);
   }
 }
 }  // namespace omni_slam
