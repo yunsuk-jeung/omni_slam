@@ -11,6 +11,7 @@
 #include <opencv2/core.hpp>
 
 #include "odometry/odometry.hpp"
+#include "utils/types.hpp"
 
 namespace omni_slam {
 class TrackingResult;
@@ -24,11 +25,8 @@ public:
   bool Initialize(const std::string& config_path) override;
   void Run() override;
   void Shutdown() override;
-  void OnCameraFrame(const std::vector<cv::Mat>&             images,
-                     const std::vector<int>&                 models,
-                     const std::vector<std::vector<double>>& intrinsics,
-                     const std::vector<std::vector<double>>& distortions,
-                     const std::vector<std::vector<int>>&    resolutions);
+  void OnCameraFrame(const std::vector<cv::Mat>&           images,
+                     const std::vector<CameraParameter>& camera_parameters);
 
 private:
   void                    OpticalFlowLoop();

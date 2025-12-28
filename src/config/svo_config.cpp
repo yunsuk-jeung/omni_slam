@@ -24,15 +24,14 @@ std::vector<int>                 SVOConfig::camera_models;
 std::vector<std::vector<double>> SVOConfig::camera_intrinsics;
 std::vector<std::vector<double>> SVOConfig::camera_distortions;
 std::vector<std::vector<int>>    SVOConfig::camera_resolutions;
-std::vector<Eigen::Matrix4d>     SVOConfig::camera_T_bc;
+std::vector<Sophus::SE3d>        SVOConfig::camera_T_bc;
 
-namespace {
 void ParseCameraParams(const nlohmann::json&             node,
                        std::vector<int>*                 models,
                        std::vector<std::vector<double>>* intrinsics,
                        std::vector<std::vector<double>>* distortions,
                        std::vector<std::vector<int>>*    resolutions,
-                       std::vector<Eigen::Matrix4d>*     T_bc) {
+                       std::vector<Sophus::SE3d>*        T_bc) {
   if (!node.is_object()) {
     return;
   }
@@ -74,20 +73,18 @@ void ParseCameraParams(const nlohmann::json&             node,
     }
     resolutions->push_back(std::move(vals));
   }
-
   if (T_bc && node.contains("Mbc") && node["Mbc"].is_array()
       && node["Mbc"].size() == 16) {
     Eigen::Matrix4d T = Eigen::Matrix4d::Identity();
     for (int i = 0; i < 16; ++i) {
       T(i / 4, i % 4) = node["Mbc"][i].get<double>();
     }
-    T_bc->push_back(T);
+    T_bc->push_back(Sophus::SE3d(T));
   }
   else if (T_bc) {
-    T_bc->push_back(Eigen::Matrix4d::Identity());
+    T_bc->push_back(Sophus::SE3d());
   }
 }
-}  // namespace
 
 void SVOConfig::ParseConfig(const std::string& file) {
   std::ifstream input(file);

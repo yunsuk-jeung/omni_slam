@@ -11,6 +11,7 @@
 #include "device/dataset_simulator.hpp"
 #include "device/euroc_loader.hpp"
 #include "odometry/stereo_vo.hpp"
+#include "utils/types.hpp"
 
 int main(int argc, char** argv) {
   LogI("Starting VO application");
@@ -44,12 +45,9 @@ int main(int argc, char** argv) {
 
   omni_slam::DatasetSimulator simulator(loader);
   simulator.SetCameraCallback(
-    [&stereo_vo](const std::vector<cv::Mat>&             images,
-                 const std::vector<int>&                 models,
-                 const std::vector<std::vector<double>>& intrinsics,
-                 const std::vector<std::vector<double>>& distortions,
-                 const std::vector<std::vector<int>>&    resolutions) {
-      stereo_vo.OnCameraFrame(images, models, intrinsics, distortions, resolutions);
+    [&stereo_vo](const std::vector<cv::Mat>&           images,
+                 const std::vector<omni_slam::CameraParameter>& camera_parameters) {
+      stereo_vo.OnCameraFrame(images, camera_parameters);
     });
 
   simulator.Start();

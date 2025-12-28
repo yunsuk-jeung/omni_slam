@@ -54,15 +54,14 @@ void StereoVO::Shutdown() {
   }
 }
 
-void StereoVO::OnCameraFrame(const std::vector<cv::Mat>&             images,
-                             const std::vector<int>&                 models,
-                             const std::vector<std::vector<double>>& intrinsics,
-                             const std::vector<std::vector<double>>& distortions,
-                             const std::vector<std::vector<int>>&    resolutions) {
+void StereoVO::OnCameraFrame(const std::vector<cv::Mat>&           images,
+                             const std::vector<CameraParameter>& camera_parameters) {
   if (images.empty() || images[0].empty()) {
     Logger::Warn("Received camera frame with empty left image");
     return;
   }
+
+  (void)camera_parameters;
 
   // camera_models_      = models;
   // camera_intrinsics_  = intrinsics;

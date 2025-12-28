@@ -90,40 +90,42 @@ private:
         images.push_back(cv::imread(frame.cam1_image_path, cv::IMREAD_COLOR));
       }
 
-      const size_t                     cam_count = images.size();
-      std::vector<int>                 models;
-      std::vector<std::vector<double>> intrinsics;
-      std::vector<std::vector<double>> distortions;
-      std::vector<std::vector<int>>    resolutions;
+      const size_t cam_count = images.size();
+      std::vector<CameraParameter> camera_parameters;
+      camera_parameters.reserve(cam_count);
 
       for (size_t i = 0; i < cam_count; ++i) {
+        CameraParameter params{};
         if (i < SVOConfig::camera_models.size()) {
-          models.push_back(SVOConfig::camera_models[i]);
+          params.model = static_cast<CameraModel>(SVOConfig::camera_models[i]);
         }
         else {
-          models.push_back(static_cast<int>(CameraModel::PINHOLE_RAD_TAN));
+          params.model = CameraModel::PINHOLE_RAD_TAN;
         }
-        if (i < SVOConfig::camera_intrinsics.size()) {
-          intrinsics.push_back(SVOConfig::camera_intrinsics[i]);
+        if (i < SVOConfig::camera_intrinsics.size()
+            && SVOConfig::camera_intrinsics[i].size() >= 4) {
+          const auto& intr = SVOConfig::camera_intrinsics[i];
+          params.intrinsics = {intr[0], intr[1], intr[2], intr[3]};
         }
         else {
-          intrinsics.emplace_back();
+          params.intrinsics = {0.0, 0.0, 0.0, 0.0};
         }
         if (i < SVOConfig::camera_distortions.size()) {
-          distortions.push_back(SVOConfig::camera_distortions[i]);
+          params.distortions = SVOConfig::camera_distortions[i];
+        }
+        if (i < SVOConfig::camera_resolutions.size()
+            && SVOConfig::camera_resolutions[i].size() >= 2) {
+          params.w = SVOConfig::camera_resolutions[i][0];
+          params.h = SVOConfig::camera_resolutions[i][1];
         }
         else {
-          distortions.emplace_back();
+          params.w = 0;
+          params.h = 0;
         }
-        if (i < SVOConfig::camera_resolutions.size()) {
-          resolutions.push_back(SVOConfig::camera_resolutions[i]);
-        }
-        else {
-          resolutions.emplace_back();
-        }
+        camera_parameters.push_back(std::move(params));
       }
 
-      camera_callback_(images, models, intrinsics, distortions, resolutions);
+      camera_callback_(images, camera_parameters);
     }
   }
 

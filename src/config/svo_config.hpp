@@ -2,7 +2,7 @@
 #include <string>
 #include <vector>
 
-#include <Eigen/Dense>
+#include <sophus/se3.hpp>
 
 namespace omni_slam {
 class SVOConfig {
@@ -24,6 +24,6 @@ public:
   static std::vector<std::vector<double>> camera_intrinsics;
   static std::vector<std::vector<double>> camera_distortions;
   static std::vector<std::vector<int>>    camera_resolutions;
-  static std::vector<Eigen::Matrix4d>     camera_T_bc;
+  static std::vector<Sophus::SE3d>        camera_T_bc;
 };
 }  // namespace omni_slam

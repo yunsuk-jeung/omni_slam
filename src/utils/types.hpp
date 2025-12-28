@@ -21,8 +21,6 @@ struct CameraParameter {
 };
 
 struct ImuData {
-  using Ptr = std::shared_ptr<ImuData>;
-
   int64_t         t_ns;  ///< timestamp in nanoseconds
   Eigen::Vector3d acc;   ///< Accelerometer measurement
   Eigen::Vector3d gyr;   ///< Gyroscope measurement
