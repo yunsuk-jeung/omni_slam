@@ -9,14 +9,14 @@
 #include <tbb/concurrent_queue.h>
 #include <opencv2/core.hpp>
 
-#include "odometry/odometry.hpp"
-#include "odometry/sliding_window.hpp"
 #include "utils/types.hpp"
+#include "odometry/odometry.hpp"
 
 namespace omni_slam {
 class TrackingResult;
 class OpticalFlow;
 class Frame;
+class SlidingWindow;
 class StereoVO : public Odometry {
 public:
   StereoVO();
@@ -40,8 +40,8 @@ private:
   tbb::concurrent_queue<std::shared_ptr<Frame>> result_queue_;
   std::unique_ptr<OpticalFlow>                  optical_flow_;
 
-  SlidingWindow                                        sliding_window_;
-  std::atomic<bool>                                     running_;
+  std::unique_ptr<SlidingWindow> sliding_window_;
+  std::atomic<bool>              running_;
 };
 
 }  // namespace omni_slam

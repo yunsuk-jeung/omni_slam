@@ -40,14 +40,14 @@ public:
 protected:
   void SetDistortions(const std::vector<double>& distortions) override {
     if (distortions.size() >= 4) {
-      cv_D_ = (cv::Mat_<double>(1, 4) << distortions[0],
+      cv_D_           = (cv::Mat_<double>(1, 4) << distortions[0],
                distortions[1],
                distortions[2],
                distortions[3]);
-      k1_ = distortions[0];
-      k2_ = distortions[1];
-      p1_ = distortions[2];
-      p2_ = distortions[3];
+      k1_             = distortions[0];
+      k2_             = distortions[1];
+      p1_             = distortions[2];
+      p2_             = distortions[3];
       has_distortion_ = true;
     }
     else {

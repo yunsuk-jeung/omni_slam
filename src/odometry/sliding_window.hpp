@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <memory>
+#include <vector>
 #include <unordered_map>
 
 namespace omni_slam {

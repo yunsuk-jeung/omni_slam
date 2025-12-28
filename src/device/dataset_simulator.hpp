@@ -90,7 +90,7 @@ private:
         images.push_back(cv::imread(frame.cam1_image_path, cv::IMREAD_COLOR));
       }
 
-      const size_t cam_count = images.size();
+      const size_t                 cam_count = images.size();
       std::vector<CameraParameter> camera_parameters;
       camera_parameters.reserve(cam_count);
 
@@ -104,7 +104,7 @@ private:
         }
         if (i < SVOConfig::camera_intrinsics.size()
             && SVOConfig::camera_intrinsics[i].size() >= 4) {
-          const auto& intr = SVOConfig::camera_intrinsics[i];
+          const auto& intr  = SVOConfig::camera_intrinsics[i];
           params.intrinsics = {intr[0], intr[1], intr[2], intr[3]};
         }
         else {

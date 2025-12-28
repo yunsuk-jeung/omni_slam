@@ -5,18 +5,20 @@
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
 
+#include "utils/logger.hpp"
 #include "config/svo_config.hpp"
 #include "database/Frame.hpp"
 #include "optical_flow/optical_flow.hpp"
-#include "utils/logger.hpp"
+#include "odometry/sliding_window.hpp"
 
 namespace omni_slam {
 StereoVO::StereoVO()
   : frame_queue_{}
   , result_queue_{}
   , optical_flow_{nullptr}
-  , sliding_window_{0}
-  , running_{false} {}
+  , running_{false} {
+  sliding_window_ = std::make_unique<SlidingWindow>();
+}
 
 StereoVO::~StereoVO() {}
 
@@ -30,7 +32,7 @@ bool StereoVO::Initialize(const std::string& config_path) {
   SVOConfig::ParseConfig(config_path);
   Logger::Info("Loaded VO config: {}", config_path.c_str());
 
-  sliding_window_.SetMaxSize(SVOConfig::max_window);
+  sliding_window_->SetMaxSize(SVOConfig::max_window);
   optical_flow_ = std::make_unique<OpticalFlow>(kCamNum, frame_queue_, result_queue_);
 
   return true;
