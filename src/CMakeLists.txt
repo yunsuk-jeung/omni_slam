@@ -51,6 +51,7 @@ if(OMNI_BUILD_STEREO_VO)
   set(VO_SOURCES
     odometry/stereo_vo.cpp
     database/Frame.cpp
+    camera_model/camera_model.cpp
   )
 
   add_executable(stereo_vo app/run_svo.cpp ${VO_SOURCES})

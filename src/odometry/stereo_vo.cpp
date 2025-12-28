@@ -61,34 +61,6 @@ void StereoVO::OnCameraFrame(const std::vector<cv::Mat>&         images,
     return;
   }
 
-  (void)camera_parameters;
-
-  // camera_models_      = models;
-  // camera_intrinsics_  = intrinsics;
-  // camera_distortions_ = distortions;
-  // camera_resolutions_ = resolutions;
-  // camera_T_bc_        = T_bc;
-  // if (camera_models_.empty()) {
-  //   camera_models_.assign(images.size(),
-  //   static_cast<int>(CameraModel::PINHOLE_RAD_TAN));
-  // }
-  // frames_.clear();
-  // const size_t cam_count = camera_models_.size();
-  // frames_.reserve(cam_count);
-  // for (size_t i = 0; i < cam_count; ++i) {
-  //   const Eigen::Matrix4d T = (i < camera_T_bc_.size()) ? camera_T_bc_[i]
-  //                                                       : Eigen::Matrix4d::Identity();
-  //   frames_.push_back(
-  //     std::make_unique<Frame>(static_cast<CameraModel>(models[i]),
-  //                             i < camera_intrinsics_.size() ? camera_intrinsics_[i]
-  //                                                           : std::vector<double>{},
-  //                             i < camera_distortions_.size() ? camera_distortions_[i]
-  //                                                            : std::vector<double>{},
-  //                             i < camera_resolutions_.size() ? camera_resolutions_[i]
-  //                                                            : std::vector<int>{},
-  //                             T));
-  // }
-
   auto frame = std::make_shared<Frame>(images, camera_parameters);
   frame_queue_.push(frame);
 }
@@ -109,9 +81,9 @@ void StereoVO::EstimatorLoop() {
       continue;
     }
 
-    const auto* tracking_result = frame->TrackingResultPtr();
-    const cv::Mat& left          = frame->Image(0);
-    const cv::Mat& right         = frame->Image(1);
+    const auto*    tracking_result = frame->TrackingResultPtr();
+    const cv::Mat& left            = frame->Image(0);
+    const cv::Mat& right           = frame->Image(1);
     if (!left.empty()) {
       cv::Mat left_vis;
       if (left.channels() == 1) {

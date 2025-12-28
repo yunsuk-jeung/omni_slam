@@ -18,6 +18,7 @@ public:
 
   void SetCameraParams(const std::vector<CameraParameter>& camera_parameters);
 
+public:
   cv::Mat&              Image(size_t cam_idx) { return images_[cam_idx]; }
   const cv::Mat&        Image(size_t cam_idx) const { return images_[cam_idx]; }
   std::vector<cv::Mat>& ImagePyramid(size_t cam_idx) { return image_pyramids_[cam_idx]; }
