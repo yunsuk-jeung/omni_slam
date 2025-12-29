@@ -17,7 +17,8 @@ public:
   ~Frame();
 
 public:
-  size_t                Id() const { return id_; }
+  const size_t          CamNum() const { return cam_num_; }
+  uint64_t              Id() const { return id_; }
   cv::Mat&              Image(size_t cam_idx) { return images_[cam_idx]; }
   const cv::Mat&        Image(size_t cam_idx) const { return images_[cam_idx]; }
   std::vector<cv::Mat>& ImagePyramid(size_t cam_idx) { return image_pyramids_[cam_idx]; }
@@ -28,7 +29,8 @@ public:
   const TrackingResult* TrackingResultPtr() const { return tracking_result_.get(); }
 
 private:
-  size_t                            id_;
+  const size_t                      cam_num_;
+  uint64_t                          id_;
   std::vector<cv::Mat>              images_;
   std::vector<std::vector<cv::Mat>> image_pyramids_;
 

@@ -1,7 +1,7 @@
 #include <atomic>
 #include <utility>
 
-#include "optical_flow/optical_flow.hpp"
+#include "feature_tracking/tracking_result.hpp"
 #include "database/Frame.hpp"
 
 namespace omni_slam {
@@ -13,9 +13,10 @@ Frame::Frame(const std::vector<cv::Mat>&         images,
              const std::vector<CameraParameter>& camera_parameters)
   : id_(g_frame_id.fetch_add(1, std::memory_order_relaxed))
   , images_(images)
-  , image_pyramids_(images.size()) {
+  , image_pyramids_(images.size())
+  , cam_num_{images.size()} {
   cams_.clear();
-  cams_.reserve(camera_parameters.size());
+  cams_.reserve(images.size());
 
   for (const auto& params : camera_parameters) {
     auto camera = CameraModelFactory::Create(params);

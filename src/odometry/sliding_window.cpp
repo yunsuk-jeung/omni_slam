@@ -1,7 +1,8 @@
-#include "odometry/sliding_window.hpp"
 
 #include "database/Frame.hpp"
 #include "database/MapPoint.hpp"
+#include "feature_tracking/tracking_result.hpp"
+#include "odometry/sliding_window.hpp"
 
 namespace omni_slam {
 
@@ -36,6 +37,13 @@ void SlidingWindow::AddFrame(std::shared_ptr<Frame> frame) {
 
   frame_ids_.push_back(id);
   frames_.emplace(id, frame);
+
+  TrackingResult* tracking_result = frame->TrackingResultPtr();
+  const size_t    camNum          = frame->CamNum();
+
+  for (size_t i = 0; i < camNum; ++i) {
+    const auto& point_num = tracking_result->Size(i);
+  }
 }
 
 std::shared_ptr<Frame> SlidingWindow::RemoveFrame(size_t id) {

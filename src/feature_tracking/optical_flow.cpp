@@ -13,7 +13,7 @@
 #include "utils/logger.hpp"
 #include "config/svo_config.hpp"
 #include "database/Frame.hpp"
-#include "optical_flow/optical_flow.hpp"
+#include "feature_tracking/optical_flow.hpp"
 
 namespace omni_slam {
 namespace {

@@ -41,7 +41,7 @@ target_compile_features(omni_camera_model INTERFACE cxx_std_20)
 if(OMNI_BUILD_STEREO_VO)
 
   add_library(svo SHARED
-    ${CMAKE_CURRENT_SOURCE_DIR}/optical_flow/optical_flow.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/feature_tracking/optical_flow.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/config/svo_config.cpp
   )
   target_include_directories(svo PRIVATE ${OpenCV_INCLUDE_DIRS})
@@ -49,9 +49,10 @@ if(OMNI_BUILD_STEREO_VO)
   target_compile_features(svo INTERFACE cxx_std_20)
 
   set(VO_SOURCES
-    odometry/stereo_vo.cpp
-    odometry/sliding_window.cpp
     database/Frame.cpp
+    database/MapPoint.cpp
+    odometry/sliding_window.cpp
+    odometry/stereo_vo.cpp
     camera_model/camera_model.cpp
   )
 

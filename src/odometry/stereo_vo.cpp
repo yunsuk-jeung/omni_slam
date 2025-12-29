@@ -8,7 +8,7 @@
 #include "utils/logger.hpp"
 #include "config/svo_config.hpp"
 #include "database/Frame.hpp"
-#include "optical_flow/optical_flow.hpp"
+#include "feature_tracking/optical_flow.hpp"
 #include "odometry/sliding_window.hpp"
 
 namespace omni_slam {
@@ -85,37 +85,7 @@ void StereoVO::EstimatorLoop() {
       continue;
     }
 
-    const auto*    tracking_result = frame->TrackingResultPtr();
-    const cv::Mat& left            = frame->Image(0);
-    const cv::Mat& right           = frame->Image(1);
-    if (!left.empty()) {
-      cv::Mat left_vis;
-      if (left.channels() == 1) {
-        cv::cvtColor(left, left_vis, cv::COLOR_GRAY2BGR);
-      }
-      else {
-        left.copyTo(left_vis);
-      }
-      for (const auto& uv : tracking_result->Uvs(0)) {
-        cv::circle(left_vis, uv, 2, cv::Scalar(0, 255, 0), -1);
-      }
-      cv::imshow("SVO Left Features", left_vis);
-    }
-
-    if (!right.empty()) {
-      cv::Mat right_vis;
-      if (right.channels() == 1) {
-        cv::cvtColor(right, right_vis, cv::COLOR_GRAY2BGR);
-      }
-      else {
-        right.copyTo(right_vis);
-      }
-      for (const auto& uv : tracking_result->Uvs(1)) {
-        cv::circle(right_vis, uv, 2, cv::Scalar(0, 255, 0), -1);
-      }
-      cv::imshow("SVO Right Features", right_vis);
-    }
-    cv::waitKey(1);
+    sliding_window_->AddFrame(frame);
   }
 }
 
