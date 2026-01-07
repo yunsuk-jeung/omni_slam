@@ -3,6 +3,7 @@
 #include "database/MapPoint.hpp"
 #include "feature_tracking/tracking_result.hpp"
 #include "odometry/sliding_window.hpp"
+#include "sliding_window.hpp"
 
 namespace omni_slam {
 
@@ -37,16 +38,9 @@ void SlidingWindow::AddFrame(std::shared_ptr<Frame> frame) {
 
   frame_ids_.push_back(id);
   frames_.emplace(id, frame);
-
-  TrackingResult* tracking_result = frame->TrackingResultPtr();
-  const size_t    camNum          = frame->CamNum();
-
-  for (size_t i = 0; i < camNum; ++i) {
-    const auto& point_num = tracking_result->Size(i);
-  }
 }
 
-std::shared_ptr<Frame> SlidingWindow::RemoveFrame(size_t id) {
+std::shared_ptr<Frame> SlidingWindow::RemoveFrame(uint64_t id) {
   auto it = frames_.find(id);
   if (it == frames_.end()) {
     return nullptr;
@@ -67,12 +61,17 @@ const std::vector<size_t>& SlidingWindow::FrameIds() const {
   return frame_ids_;
 }
 
-std::shared_ptr<MapPoint> SlidingWindow::GetMapPoint(size_t id) const {
+std::shared_ptr<MapPoint> SlidingWindow::GetMapPoint(const uint64_t& id) const {
   const auto it = map_points_.find(id);
   return (it == map_points_.end()) ? nullptr : it->second;
 }
 
-const std::unordered_map<size_t, std::shared_ptr<MapPoint>>& SlidingWindow::MapPoints()
+bool SlidingWindow::HasMapPoint(const uint64_t& id) const {
+  const auto it = map_points_.find(id);
+  return !(it == map_points_.end());
+}
+
+const std::unordered_map<uint64_t, std::shared_ptr<MapPoint>>& SlidingWindow::MapPoints()
   const {
   return map_points_;
 }

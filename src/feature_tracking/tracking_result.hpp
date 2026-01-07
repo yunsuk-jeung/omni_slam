@@ -9,24 +9,36 @@ namespace omni_slam {
 
 class TrackingResult {
 public:
-  TrackingResult();
-  TrackingResult(const size_t& cam_num);
-  ~TrackingResult();
+  TrackingResult() = delete;
+  TrackingResult(const size_t& cam_num)
+    : kCamNum{cam_num}
+    , ids_(cam_num)
+    , uvs_(cam_num){};
 
-  size_t Size(size_t cam_idx) const;
+  ~TrackingResult() = default;
 
-  void Clear();
-  void Reserve(size_t cam_idx, size_t size);
+  size_t Size(size_t cam_idx) const { return ids_[cam_idx].size(); }
 
-  void AddFeature(size_t cam_idx, const cv::Point2f& uv, int64_t id);
+  void Clear() {
+    for (size_t i = 0; i < kCamNum; ++i) {
+      ids_[i].clear();
+      uvs_[i].clear();
+    }
+  }
+
+  void Reserve(size_t cam_idx, size_t size) {
+    const auto idx = cam_idx;
+    ids_[idx].reserve(size);
+    uvs_[idx].reserve(size);
+  }
+
+  void AddFeature(size_t cam_idx, const cv::Point2f& uv, int64_t id) {
+    ids_[cam_idx].push_back(id);
+    uvs_[cam_idx].push_back(uv);
+  }
 
   std::vector<size_t>&       Ids(size_t cam_idx) { return ids_[cam_idx]; }
   const std::vector<size_t>& Ids(size_t cam_idx) const { return ids_[cam_idx]; }
-
-  std::map<size_t, size_t>&       IdIndex(size_t cam_idx) { return id_idx_[cam_idx]; }
-  const std::map<size_t, size_t>& IdIndex(size_t cam_idx) const {
-    return id_idx_[cam_idx];
-  }
 
   std::vector<cv::Point2f>&       Uvs(size_t cam_idx) { return uvs_[cam_idx]; }
   const std::vector<cv::Point2f>& Uvs(size_t cam_idx) const { return uvs_[cam_idx]; }
@@ -34,7 +46,6 @@ public:
 private:
   const size_t                          kCamNum;
   std::vector<std::vector<size_t>>      ids_;
-  std::vector<std::map<size_t, size_t>> id_idx_;
   std::vector<std::vector<cv::Point2f>> uvs_;
 };
 

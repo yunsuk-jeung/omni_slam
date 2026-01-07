@@ -16,6 +16,7 @@ namespace omni_slam {
 class TrackingResult;
 class OpticalFlow;
 class Frame;
+class MapPoint;
 class SlidingWindow;
 class StereoVO : public Odometry {
 public:
@@ -29,19 +30,22 @@ public:
                      const std::vector<CameraParameter>& camera_parameters);
 
 private:
-  void                    OpticalFlowLoop();
-  void                    EstimatorLoop();
+  void OpticalFlowLoop();
+  void EstimatorLoop();
+
+private:
   static constexpr size_t kCamNum = 2;
 
-  std::thread optical_flow_thread_;
-  std::thread estimator_thread_;
+  std::atomic<bool> running_;
+  std::thread       optical_flow_thread_;
+  std::thread       estimator_thread_;
 
   tbb::concurrent_queue<std::shared_ptr<Frame>> frame_queue_;
   tbb::concurrent_queue<std::shared_ptr<Frame>> result_queue_;
   std::unique_ptr<OpticalFlow>                  optical_flow_;
 
-  std::unique_ptr<SlidingWindow> sliding_window_;
-  std::atomic<bool>              running_;
+  std::unique_ptr<SlidingWindow>                          sliding_window_;
+  std::unordered_map<uint64_t, std::shared_ptr<MapPoint>> map_point_candidates_;
 };
 
 }  // namespace omni_slam

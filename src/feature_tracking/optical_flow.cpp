@@ -23,44 +23,6 @@ bool IsPointInImage(const cv::Point2f& pt, const cv::Mat& image) {
 
 }  // namespace
 
-TrackingResult::TrackingResult()
-  : kCamNum{1u}
-  , ids_(kCamNum)
-  , uvs_(kCamNum)
-  , id_idx_(kCamNum){};
-
-TrackingResult::TrackingResult(const size_t& cam_num)
-  : kCamNum{cam_num}
-  , ids_(cam_num)
-  , uvs_(cam_num)
-  , id_idx_(cam_num) {}
-
-TrackingResult::~TrackingResult() = default;
-
-size_t TrackingResult::Size(size_t cam_idx) const {
-  return ids_[cam_idx].size();
-}
-
-void TrackingResult::Clear() {
-  for (size_t i = 0; i < kCamNum; ++i) {
-    ids_[i].clear();
-    uvs_[i].clear();
-    id_idx_[i].clear();
-  }
-}
-
-void TrackingResult::Reserve(size_t cam_idx, size_t size) {
-  const auto idx = cam_idx;
-  ids_[idx].reserve(size);
-  uvs_[idx].reserve(size);
-}
-
-void TrackingResult::AddFeature(size_t cam_idx, const cv::Point2f& uv, int64_t id) {
-  ids_[cam_idx].push_back(id);
-  uvs_[cam_idx].push_back(uv);
-  id_idx_[cam_idx][id] = ids_[cam_idx].size() - 1;
-}
-
 OpticalFlow::OpticalFlow(const size_t                                   cam_num,
                          tbb::concurrent_queue<std::shared_ptr<Frame>>& in_queue,
                          tbb::concurrent_queue<std::shared_ptr<Frame>>& out_queue)

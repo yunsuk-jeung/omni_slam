@@ -21,21 +21,23 @@ public:
   size_t MapPointCount() const;
 
   void                   AddFrame(std::shared_ptr<Frame> frame);
-  std::shared_ptr<Frame> RemoveFrame(size_t id);
+  std::shared_ptr<Frame> RemoveFrame(uint64_t id);
 
-  std::shared_ptr<MapPoint> GetMapPoint(size_t id) const;
+  std::shared_ptr<MapPoint> GetMapPoint(const uint64_t& id) const;
+  bool                      HasMapPoint(const uint64_t& id) const;
 
-  const std::vector<size_t>&                                   FrameIds() const;
+  const std::vector<uint64_t>&                                 FrameIds() const;
   const std::unordered_map<size_t, std::shared_ptr<MapPoint>>& MapPoints() const;
 
   void Clear();
 
 private:
-  size_t                                                max_size_;
-  size_t                                                next_map_point_id_;
-  std::vector<size_t>                                   frame_ids_;
-  std::unordered_map<size_t, std::shared_ptr<Frame>>    frames_;
-  std::unordered_map<size_t, std::shared_ptr<MapPoint>> map_points_;
+  size_t                                                  max_size_;
+  uint64_t                                                next_map_point_id_;
+  std::vector<uint64_t>                                   frame_ids_;
+  std::unordered_map<uint64_t, std::shared_ptr<Frame>>    frames_;
+  std::unordered_map<uint64_t, std::shared_ptr<MapPoint>> map_points_;
+  std::unordered_map<uint64_t, std::shared_ptr<MapPoint>> map_point_candidates_;
 };
 
 }  // namespace omni_slam

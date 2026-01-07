@@ -8,6 +8,7 @@
 #include "utils/logger.hpp"
 #include "config/svo_config.hpp"
 #include "database/Frame.hpp"
+#include "database/MapPoint.hpp"
 #include "feature_tracking/optical_flow.hpp"
 #include "odometry/sliding_window.hpp"
 
@@ -86,6 +87,47 @@ void StereoVO::EstimatorLoop() {
     }
 
     sliding_window_->AddFrame(frame);
+
+    TrackingResult* tracking_result = frame->TrackingResultPtr();
+    const size_t    camNum          = frame->CamNum();
+
+    size_t connected = 0;
+
+    for (size_t i = 0; i < camNum; ++i) {
+      auto& ids = tracking_result->Ids(i);
+      auto& uvs = tracking_result->Uvs(i);
+
+      const auto& point_num = tracking_result->Size(i);
+      for (size_t j = 0; j < point_num; j++) {
+        const auto& id = ids[j];
+        const auto& uv = uvs[j];
+
+        std::shared_ptr mp = sliding_window_->GetMapPoint(ids[j]);
+
+        if (mp) {
+          if (i == 0) {
+            ++connected;
+          }
+        }
+        else {
+          mp = map_point_candidates_.at(id);
+          if (mp) {
+          }
+          else {
+            mp                            = std::make_shared<MapPoint>(ids[j]);
+            map_point_candidates_[ids[j]] = mp;
+          }
+        }
+        ReprojectionFactor factor{
+          frame,
+          i,
+          {uvs[j].x, uvs[j].y}
+        };
+        mp->AddFactor(factor);
+      }
+    }
+    // triangulate
+    // add map points in SlidingWindow
   }
 }
 
