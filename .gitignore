@@ -31,3 +31,5 @@ Makefile
 # Logs
 *.log
 logs/
+
+**/.DS_Store
