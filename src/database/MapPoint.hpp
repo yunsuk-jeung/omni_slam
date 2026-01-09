@@ -10,7 +10,7 @@ class Frame;
 struct ReprojectionFactor {
   std::weak_ptr<Frame> frame;
   size_t               cam_id;
-  Eigen::Vector2d      uv;
+  Eigen::Vector2d      n_uv;
 };
 
 class MapPoint {

@@ -28,6 +28,8 @@ public:
   TrackingResult*       TrackingResultPtr() { return tracking_result_.get(); }
   const TrackingResult* TrackingResultPtr() const { return tracking_result_.get(); }
 
+  CameraModelBase* Cam(size_t cam_idx) { return cams_[cam_idx].get(); }
+
 private:
   const size_t                      cam_num_;
   uint64_t                          id_;

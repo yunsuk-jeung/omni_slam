@@ -97,6 +97,9 @@ void StereoVO::EstimatorLoop() {
       auto& ids = tracking_result->Ids(i);
       auto& uvs = tracking_result->Uvs(i);
 
+      std::vector<cv::Point2f> n_uvs;
+      frame->Cam(i)->undistortPoints(uvs, n_uvs);
+
       const auto& point_num = tracking_result->Size(i);
       for (size_t j = 0; j < point_num; j++) {
         const auto& id = ids[j];
@@ -110,18 +113,20 @@ void StereoVO::EstimatorLoop() {
           }
         }
         else {
-          mp = map_point_candidates_.at(id);
-          if (mp) {
+          auto mp_it = map_point_candidates_.find(id);
+          if (mp_it != map_point_candidates_.end()) {
+            mp = mp_it->second;
           }
           else {
             mp                            = std::make_shared<MapPoint>(ids[j]);
             map_point_candidates_[ids[j]] = mp;
           }
         }
+
         ReprojectionFactor factor{
           frame,
           i,
-          {uvs[j].x, uvs[j].y}
+          {n_uvs[j].x, n_uvs[j].y}
         };
         mp->AddFactor(factor);
       }
