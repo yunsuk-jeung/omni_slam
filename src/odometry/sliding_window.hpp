@@ -26,8 +26,10 @@ public:
   std::shared_ptr<MapPoint> GetMapPoint(const uint64_t& id) const;
   bool                      HasMapPoint(const uint64_t& id) const;
 
-  const std::vector<uint64_t>&                                 FrameIds() const;
-  const std::unordered_map<size_t, std::shared_ptr<MapPoint>>& MapPoints() const;
+  const std::vector<uint64_t>& FrameIds() const { return frame_ids_; };
+  const std::unordered_map<uint64_t, std::shared_ptr<MapPoint>>& MapPoints() const {
+    return map_points_;
+  };
 
   void Clear();
 

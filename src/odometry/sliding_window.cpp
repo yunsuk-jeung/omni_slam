@@ -57,10 +57,6 @@ std::shared_ptr<Frame> SlidingWindow::RemoveFrame(uint64_t id) {
   return removed;
 }
 
-const std::vector<size_t>& SlidingWindow::FrameIds() const {
-  return frame_ids_;
-}
-
 std::shared_ptr<MapPoint> SlidingWindow::GetMapPoint(const uint64_t& id) const {
   const auto it = map_points_.find(id);
   return (it == map_points_.end()) ? nullptr : it->second;
@@ -69,11 +65,6 @@ std::shared_ptr<MapPoint> SlidingWindow::GetMapPoint(const uint64_t& id) const {
 bool SlidingWindow::HasMapPoint(const uint64_t& id) const {
   const auto it = map_points_.find(id);
   return !(it == map_points_.end());
-}
-
-const std::unordered_map<uint64_t, std::shared_ptr<MapPoint>>& SlidingWindow::MapPoints()
-  const {
-  return map_points_;
 }
 
 void SlidingWindow::Clear() {

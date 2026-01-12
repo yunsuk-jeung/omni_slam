@@ -95,25 +95,30 @@ build_library() {
 #     "-DBUILD_SOPHUS_TESTS=OFF \
 #      -DBUILD_SOPHUS_EXAMPLES=OFF"
 
-# 3. spdlog
-build_library "spdlog" "$THIRD_PARTY_DIR/spdlog" \
-    "-DSPDLOG_BUILD_EXAMPLE=OFF \
-     -DSPDLOG_USE_STD_FORMAT=ON \
-     -DSPDLOG_BUILD_SHARED=ON \
-     -DSPDLOG_BUILD_TESTS=OFF"
+# 3. nlohmann_json
+build_library "nlohmann_json" "$THIRD_PARTY_DIR/json" \
+    "-DJSON_BuildTests=OFF \
+     -DJSON_Install=ON"
 
-# # 4. TBB
-# build_library "tbb" "$THIRD_PARTY_DIR/tbb" \
+# # 4. spdlog
+# build_library "spdlog" "$THIRD_PARTY_DIR/spdlog" \
+#     "-DSPDLOG_BUILD_EXAMPLE=OFF \
+#      -DSPDLOG_USE_STD_FORMAT=ON \
+#      -DSPDLOG_BUILD_SHARED=ON \
+#      -DSPDLOG_BUILD_TESTS=OFF"
+
+# # 5. TBB
+# build_library "tbb" "$THIRD_PARTY_DIR/oneTBB" \
 #     "-DTBB_TEST=OFF \
 #      -DTBB_EXAMPLES=OFF \
 #      -DTBB_STRICT=OFF"
 
-# # 5. GoogleTest
+# # 6. GoogleTest
 # build_library "googletest" "$THIRD_PARTY_DIR/googletest" \
 #     "-DBUILD_GMOCK=OFF \
 #      -DINSTALL_GTEST=ON"
 
-# # 6. Ceres Solver (depends on Eigen)
+# # 7. Ceres Solver (depends on Eigen)
 # build_library "ceres-solver" "$THIRD_PARTY_DIR/ceres-solver" \
 #     "-DBUILD_TESTING=OFF \
 #      -DBUILD_EXAMPLES=OFF \
@@ -124,7 +129,7 @@ build_library "spdlog" "$THIRD_PARTY_DIR/spdlog" \
 #   libgtk-3-dev \
 #   pkg-config
 
-# # 7. OpenCV
+# # 8. OpenCV
 # build_library "opencv" "$THIRD_PARTY_DIR/opencv" \
 #     "-DBUILD_TESTS=OFF \
 #      -DBUILD_PERF_TESTS=OFF \
