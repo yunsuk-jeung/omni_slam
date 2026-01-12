@@ -62,6 +62,16 @@ std::shared_ptr<MapPoint> SlidingWindow::GetMapPoint(const uint64_t& id) const {
   return (it == map_points_.end()) ? nullptr : it->second;
 }
 
+std::shared_ptr<MapPoint> SlidingWindow::GetOrCreateCandidateMapPoint(const uint64_t& id) {
+  auto it = map_point_candidates_.find(id);
+  if (it != map_point_candidates_.end()) {
+    return it->second;
+  }
+  auto map_point                 = std::make_shared<MapPoint>(id);
+  map_point_candidates_[id]      = map_point;
+  return map_point;
+}
+
 bool SlidingWindow::HasMapPoint(const uint64_t& id) const {
   const auto it = map_points_.find(id);
   return !(it == map_points_.end());
@@ -71,6 +81,7 @@ void SlidingWindow::Clear() {
   frame_ids_.clear();
   frames_.clear();
   map_points_.clear();
+  map_point_candidates_.clear();
 }
 
 }  // namespace omni_slam

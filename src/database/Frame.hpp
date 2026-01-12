@@ -17,7 +17,7 @@ public:
   ~Frame();
 
 public:
-  const size_t          CamNum() const { return cam_num_; }
+  const size_t          CamNum() const { return kCamNum; }
   uint64_t              Id() const { return id_; }
   cv::Mat&              Image(size_t cam_idx) { return images_[cam_idx]; }
   const cv::Mat&        Image(size_t cam_idx) const { return images_[cam_idx]; }
@@ -31,7 +31,7 @@ public:
   CameraModelBase* Cam(size_t cam_idx) { return cams_[cam_idx].get(); }
 
 private:
-  const size_t                      cam_num_;
+  const size_t                      kCamNum;
   uint64_t                          id_;
   std::vector<cv::Mat>              images_;
   std::vector<std::vector<cv::Mat>> image_pyramids_;

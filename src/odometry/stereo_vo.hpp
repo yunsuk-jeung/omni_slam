@@ -44,8 +44,7 @@ private:
   tbb::concurrent_queue<std::shared_ptr<Frame>> result_queue_;
   std::unique_ptr<OpticalFlow>                  optical_flow_;
 
-  std::unique_ptr<SlidingWindow>                          sliding_window_;
-  std::unordered_map<uint64_t, std::shared_ptr<MapPoint>> map_point_candidates_;
+  std::unique_ptr<SlidingWindow> sliding_window_;
 };
 
 }  // namespace omni_slam

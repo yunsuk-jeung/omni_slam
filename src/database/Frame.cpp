@@ -14,7 +14,7 @@ Frame::Frame(const std::vector<cv::Mat>&         images,
   : id_(g_frame_id.fetch_add(1, std::memory_order_relaxed))
   , images_(images)
   , image_pyramids_(images.size())
-  , cam_num_{images.size()} {
+  , kCamNum{images.size()} {
   cams_.clear();
   cams_.reserve(images.size());
 

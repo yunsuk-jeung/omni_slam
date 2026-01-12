@@ -89,11 +89,11 @@ void StereoVO::EstimatorLoop() {
     sliding_window_->AddFrame(frame);
 
     TrackingResult* tracking_result = frame->TrackingResultPtr();
-    const size_t    camNum          = frame->CamNum();
+    const size_t    kCamNum         = frame->CamNum();
 
     size_t connected = 0;
 
-    for (size_t i = 0; i < camNum; ++i) {
+    for (size_t i = 0; i < kCamNum; ++i) {
       auto& ids      = tracking_result->Ids(i);
       auto& uv_dists = tracking_result->Uvs(i);
 
@@ -110,14 +110,7 @@ void StereoVO::EstimatorLoop() {
           }
         }
         else {
-          auto mp_it = map_point_candidates_.find(id);
-          if (mp_it != map_point_candidates_.end()) {
-            mp = mp_it->second;
-          }
-          else {
-            mp                            = std::make_shared<MapPoint>(ids[j]);
-            map_point_candidates_[ids[j]] = mp;
-          }
+          mp = sliding_window_->GetOrCreateCandidateMapPoint(id);
         }
 
         ReprojectionFactor factor{
@@ -129,6 +122,7 @@ void StereoVO::EstimatorLoop() {
       }
     }
     // triangulate
+
     // add map points in SlidingWindow
   }
 }
