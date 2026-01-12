@@ -10,7 +10,7 @@ class Frame;
 struct ReprojectionFactor {
   std::weak_ptr<Frame> frame;
   size_t               cam_id;
-  Eigen::Vector2d      n_uv;
+  Eigen::Vector2d      uv;
 };
 
 class MapPoint {
@@ -24,14 +24,14 @@ public:
 
 public:
   const uint64_t Id() const { return id_; }
-  double&        InvDepth() { return inv_depth_; }
-  void           SetInvDepth(double inv_depth);
+  double&        InvDist() { return inv_dist_; }
+  void           SetInvDist(const double& inv_dist) { inv_dist_ = inv_dist; };
 
 private:
   const uint64_t id_;
 
-  Eigen::Vector2d n_uv_;
-  double          inv_depth_;
+  Eigen::Vector2d direction_;
+  double          inv_dist_;
 
   uint64_t host_frame_id_;
 

@@ -14,7 +14,24 @@ public:
   }
   ~PinholeRadialTangential() = default;
 
-  Eigen::Vector2d distort(const Eigen::Vector2d& nuv) override {
+  void Project(const Eigen::Vector3d& xyz, Eigen::Vector2d& uv) override {
+    Eigen::Vector2d n_uv(xyz.x() / xyz.z(), xyz.y() / xyz.z());
+    if (has_distortion_) {
+      n_uv += Distort(n_uv);
+    }
+    uv.x() = fx_ * n_uv.x() + cx_;
+    uv.y() = fy_ * n_uv.y() + cy_;
+  }
+
+  cv::Point2d Project(const Eigen::Vector3d& xyz) override {
+    Eigen::Vector2d n_uv(xyz.x() / xyz.z(), xyz.y() / xyz.z());
+    if (has_distortion_) {
+      n_uv += Distort(n_uv);
+    }
+    return cv::Point2d(fx_ * n_uv.x() + cx_, fy_ * n_uv.y() + cy_);
+  }
+
+  Eigen::Vector2d Distort(const Eigen::Vector2d& nuv) override {
     if (!has_distortion_) {
       return Eigen::Vector2d::Zero();
     }
@@ -32,10 +49,26 @@ public:
     return Eigen::Vector2d(x_dist - x, y_dist - y);
   }
 
-  virtual void undistortPoints(std::vector<cv::Point2f>& pts,
+  virtual void UndistortPoints(std::vector<cv::Point2f>& pts,
                                std::vector<cv::Point2f>& undists) override {
-    cv::undistortPoints(pts, undists, cv_K_, cv_D_);
+    // cv::undistortPoints(pts, undists, cv_K_, cv_D_);
+    cv::undistortImagePoints(pts, undists, cv_K_, cv_D_);
   }
+
+  virtual bool Unproject(const cv::Point2f& uv, Eigen::Vector3d& t_c_x) {
+    const double mx = (uv.x - cx_) / fx_;
+    const double my = (uv.y - cy_) / fy_;
+
+    const double r2 = mx * mx + my * my;
+
+    const double norm     = sqrt(1.0 + r2);
+    const double norm_inv = 1.0 / norm;
+
+    t_c_x.setZero();
+    t_c_x[0] = mx * norm_inv;
+    t_c_x[1] = my * norm_inv;
+    t_c_x[2] = norm_inv;
+  };
 
 protected:
   void SetDistortions(const std::vector<double>& distortions) override {

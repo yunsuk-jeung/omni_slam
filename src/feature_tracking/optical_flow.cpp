@@ -263,14 +263,12 @@ void OpticalFlow::Run(std::atomic<bool>& running) {
     PrepareImagesAndPyramids(curr_frame);
 
     TrackMono(curr_frame);
-
+    DetectFeatures(curr_frame);
     if (kCamNum == 2) {
       TrackStereo(curr_frame);
     }
-    DetectFeatures(curr_frame);
-
     prev_frame_ = curr_frame;
     out_queue_.push(curr_frame);
   }
-}  // namespace omni_slam
+}
 }  // namespace omni_slam

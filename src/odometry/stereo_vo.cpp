@@ -94,19 +94,16 @@ void StereoVO::EstimatorLoop() {
     size_t connected = 0;
 
     for (size_t i = 0; i < camNum; ++i) {
-      auto& ids = tracking_result->Ids(i);
-      auto& uvs = tracking_result->Uvs(i);
+      auto& ids      = tracking_result->Ids(i);
+      auto& uv_dists = tracking_result->Uvs(i);
 
-      std::vector<cv::Point2f> n_uvs;
-      frame->Cam(i)->undistortPoints(uvs, n_uvs);
+      std::vector<cv::Point2f> uvs;
+      frame->Cam(i)->UndistortPoints(uv_dists, uvs);
 
       const auto& point_num = tracking_result->Size(i);
       for (size_t j = 0; j < point_num; j++) {
-        const auto& id = ids[j];
-        const auto& uv = uvs[j];
-
+        const auto&     id = ids[j];
         std::shared_ptr mp = sliding_window_->GetMapPoint(ids[j]);
-
         if (mp) {
           if (i == 0) {
             ++connected;
@@ -126,7 +123,7 @@ void StereoVO::EstimatorLoop() {
         ReprojectionFactor factor{
           frame,
           i,
-          {n_uvs[j].x, n_uvs[j].y}
+          {uvs[j].x, uvs[j].y}
         };
         mp->AddFactor(factor);
       }

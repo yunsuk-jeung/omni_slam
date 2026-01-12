@@ -17,27 +17,16 @@ public:
   CameraModelBase()          = default;
   virtual ~CameraModelBase() = default;
 
-  void project(const Eigen::Vector3d& xyz, Eigen::Vector2d& uv) {
-    Eigen::Vector2d n_uv(xyz.x() / xyz.z(), xyz.y() / xyz.z());
-    if (has_distortion_) {
-      n_uv += distort(n_uv);
-    }
-    uv.x() = fx_ * n_uv.x() + cx_;
-    uv.y() = fy_ * n_uv.y() + cy_;
-  }
+  virtual void Project(const Eigen::Vector3d& xyz, Eigen::Vector2d& uv) = 0;
 
-  cv::Point2d project(const Eigen::Vector3d& xyz) {
-    Eigen::Vector2d n_uv(xyz.x() / xyz.z(), xyz.y() / xyz.z());
-    if (has_distortion_) {
-      n_uv += distort(n_uv);
-    }
-    return cv::Point2d(fx_ * n_uv.x() + cx_, fy_ * n_uv.y() + cy_);
-  }
+  virtual cv::Point2d Project(const Eigen::Vector3d& xyz) = 0;
 
-  virtual Eigen::Vector2d distort(const Eigen::Vector2d& n_uv) = 0;
+  virtual Eigen::Vector2d Distort(const Eigen::Vector2d& n_uv) = 0;
 
-  virtual void undistortPoints(std::vector<cv::Point2f>& pts,
+  virtual void UndistortPoints(std::vector<cv::Point2f>& pts,
                                std::vector<cv::Point2f>& upts) = 0;
+
+  virtual bool Unproject(const cv::Point2f& uv, Eigen::Vector4d& P_c_x) = 0;
 
 protected:
   void SetIntrinsics(const std::array<double, 4>& intrinsics) {
