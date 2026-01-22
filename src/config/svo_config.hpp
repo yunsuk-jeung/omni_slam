@@ -21,6 +21,7 @@ public:
   static int    feature_grid_cols;
   static int    max_pyramid_level;
   static size_t max_window;
+  static double triangulation_dist_threshold;
 
   static std::vector<int>                 camera_models;
   static std::vector<std::vector<double>> camera_intrinsics;

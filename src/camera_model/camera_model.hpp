@@ -26,7 +26,7 @@ public:
   virtual void UndistortPoints(std::vector<cv::Point2f>& pts,
                                std::vector<cv::Point2f>& upts) = 0;
 
-  virtual bool Unproject(const cv::Point2f& uv, Eigen::Vector3d& P_c_x) = 0;
+  virtual bool Unproject(const Eigen::Vector2d& uv, Eigen::Vector3d& P_c_x) = 0;
 
 protected:
   void SetIntrinsics(const std::array<double, 4>& intrinsics) {

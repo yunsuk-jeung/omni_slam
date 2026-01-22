@@ -25,6 +25,8 @@ Frame::Frame(const std::vector<cv::Mat>&         images,
     }
   }
   tracking_result_ = std::make_unique<TrackingResult>(images_.size());
+
+  T_bcs_.resize(images.size());
 }
 
 Frame::~Frame() {

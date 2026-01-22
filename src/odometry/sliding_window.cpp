@@ -40,6 +40,11 @@ void SlidingWindow::AddFrame(std::shared_ptr<Frame> frame) {
   frames_.emplace(id, frame);
 }
 
+std::shared_ptr<Frame> SlidingWindow::GetFrame(const uint64_t& id) {
+  const auto it = frames_.find(id);
+  return (it == frames_.end()) ? nullptr : it->second;
+}
+
 std::shared_ptr<Frame> SlidingWindow::RemoveFrame(uint64_t id) {
   auto it = frames_.find(id);
   if (it == frames_.end()) {
@@ -62,13 +67,14 @@ std::shared_ptr<MapPoint> SlidingWindow::GetMapPoint(const uint64_t& id) const {
   return (it == map_points_.end()) ? nullptr : it->second;
 }
 
-std::shared_ptr<MapPoint> SlidingWindow::GetOrCreateCandidateMapPoint(const uint64_t& id) {
+std::shared_ptr<MapPoint> SlidingWindow::GetOrCreateMapPointCandidate(
+  const uint64_t& id) {
   auto it = map_point_candidates_.find(id);
   if (it != map_point_candidates_.end()) {
     return it->second;
   }
-  auto map_point                 = std::make_shared<MapPoint>(id);
-  map_point_candidates_[id]      = map_point;
+  auto map_point            = std::make_shared<MapPoint>(id);
+  map_point_candidates_[id] = map_point;
   return map_point;
 }
 

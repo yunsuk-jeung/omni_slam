@@ -10,7 +10,9 @@ omni_slam::MapPoint::MapPoint(const size_t& id)
 
 MapPoint::~MapPoint() {}
 
-void MapPoint::AddFactor(ReprojectionFactor factor) {}
+void MapPoint::AddFactor(const FrameCamId& frame_cam_id, const Eigen::Vector2d& uv) {
+  reprojection_factor_map_.insert({frame_cam_id, uv});
+}
 
 void MapPoint::RemoveFactor(const FrameCamId& frame_cam_id) {}
 }  // namespace omni_slam

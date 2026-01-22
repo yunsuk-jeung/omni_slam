@@ -30,6 +30,10 @@ public:
 
   CameraModelBase* Cam(size_t cam_idx) { return cams_[cam_idx].get(); }
 
+  const Sophus::SE3d& Twb() const { return T_wb_; }
+  Sophus::SE3d&       Twb() { return T_wb_; }
+  Sophus::SE3d        Twc(size_t i) { return T_wb_ * T_bcs_[i]; }
+
 private:
   const size_t                      kCamNum;
   uint64_t                          id_;
@@ -38,10 +42,9 @@ private:
 
   std::unique_ptr<TrackingResult> tracking_result_;
 
+  Sophus::SE3d                                  T_wb_;
   std::vector<std::unique_ptr<CameraModelBase>> cams_;
   std::vector<Sophus::SE3d>                     T_bcs_;
-
-  Sophus::SE3d T_wb;
 };
 
 }  // namespace omni_slam

@@ -21,6 +21,7 @@ int                              SVOConfig::feature_grid_rows           = 4;
 int                              SVOConfig::feature_grid_cols           = 4;
 int                              SVOConfig::max_pyramid_level           = 3;
 size_t                           SVOConfig::max_window                  = 0;
+double                           SVOConfig::triangulation_dist_threshold = 0.0025;
 std::vector<int>                 SVOConfig::camera_models;
 std::vector<std::vector<double>> SVOConfig::camera_intrinsics;
 std::vector<std::vector<double>> SVOConfig::camera_distortions;
@@ -102,6 +103,10 @@ void SVOConfig::ParseConfig(const std::string& file) {
   }
 
   debug                       = config.value("debug", debug);
+  if (debug) {
+    Logger::Init();
+    spdlog::set_level(spdlog::level::debug);
+  }
   tbb                         = config.value("tbb", tbb);
   equalize_histogram          = config.value("equalize_histogram", equalize_histogram);
   clahe_clip_limit            = config.value("clahe_clip_limit", clahe_clip_limit);
@@ -115,6 +120,8 @@ void SVOConfig::ParseConfig(const std::string& file) {
   feature_grid_cols           = config.value("feature_grid_cols", feature_grid_cols);
   max_pyramid_level           = config.value("max_pyramid_level", max_pyramid_level);
   max_window                  = config.value("max_window", max_window);
+  triangulation_dist_threshold =
+    config.value("triangulation_dist_threshold", triangulation_dist_threshold);
 
   camera_models.clear();
   camera_intrinsics.clear();
@@ -152,6 +159,8 @@ void SVOConfig::ParseConfig(const std::string& file) {
     Logger::Info("SVOConfig.feature_grid_cols: {}", feature_grid_cols);
     Logger::Info("SVOConfig.max_pyramid_level: {}", max_pyramid_level);
     Logger::Info("SVOConfig.max_window: {}", max_window);
+    Logger::Info("SVOConfig.triangulation_dist_threshold: {}",
+                 triangulation_dist_threshold);
     Logger::Info("SVOConfig.camera_models: {}", camera_models.size());
   }
 }

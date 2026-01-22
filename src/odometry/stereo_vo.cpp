@@ -1,16 +1,17 @@
-#include "odometry/stereo_vo.hpp"
-
 #include <chrono>
-
+#include <set>
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
 
 #include "utils/logger.hpp"
 #include "config/svo_config.hpp"
+#include "camera_model/stereographic_param.hpp"
 #include "database/Frame.hpp"
 #include "database/MapPoint.hpp"
 #include "feature_tracking/optical_flow.hpp"
+#include "optimizer/geometry.hpp"
 #include "odometry/sliding_window.hpp"
+#include "odometry/stereo_vo.hpp"
 
 namespace omni_slam {
 StereoVO::StereoVO()
@@ -110,20 +111,82 @@ void StereoVO::EstimatorLoop() {
           }
         }
         else {
-          mp = sliding_window_->GetOrCreateCandidateMapPoint(id);
+          mp = sliding_window_->GetOrCreateMapPointCandidate(id);
         }
 
-        ReprojectionFactor factor{
-          frame,
-          i,
-          {uvs[j].x, uvs[j].y}
-        };
-        mp->AddFactor(factor);
+        FrameCamId frame_cam_id{frame->Id(), i};
+        mp->AddFactor(frame_cam_id, {uvs[j].x, uvs[j].y});
       }
     }
     // triangulate
+    auto& candidates = sliding_window_->MapPointCandidates();
+
+    int init_count = 0;
+    int old_count  = 0;
+    int try_count  = candidates.size();
+
+    FrameCamId         frame_cam_id0{frame->Id(), 0};
+    std::set<uint64_t> erase_mp_ids;
 
     // add map points in SlidingWindow
+    for (auto& [mp_id, mp] : candidates) {
+      auto& factor_map = mp->ReprojectionFactorMap();
+
+      if (factor_map.count(frame_cam_id0) == 0) {
+        erase_mp_ids.insert(mp_id);
+        continue;
+      }
+
+      Eigen::Vector2d uv0 = factor_map[frame_cam_id0];
+      Eigen::Vector3d b0;
+      bool            valid0 = frame->Cam(0)->Unproject(uv0, b0);
+
+      if (!valid0) {
+        break;
+      }
+
+      bool success = false;
+      for (auto& [frame_cam_id1, uv1] : factor_map) {
+        if (frame_cam_id0 == frame_cam_id1) {
+          old_count++;
+          continue;
+        }
+
+        std::shared_ptr<Frame> frame1 = sliding_window_->GetFrame(frame_cam_id1.frame_id);
+
+        Eigen::Vector3d b1;
+        bool            valid1 = frame->Cam(frame_cam_id1.cam_id)->Unproject(uv1, b1);
+
+        if (!valid1) {
+          continue;
+        }
+
+        auto T_w_c0  = frame->Twc(frame_cam_id0.cam_id);
+        auto T_w_c1  = frame1->Twc(frame_cam_id1.cam_id);
+        auto T_c0_c1 = T_w_c0.inverse() * T_w_c1;
+
+        if (T_c0_c1.translation().squaredNorm() < SVOConfig::triangulation_dist_threshold)
+          continue;
+
+        Eigen::Vector4d t_c0_x = Geometry::triangulate(b0, b1, T_c0_c1);
+        if (t_c0_x.array().isFinite().all() && t_c0_x[3] > 0 && t_c0_x[3] < 3.0) {
+          mp->Direction()   = StereographicParam::project(t_c0_x);
+          mp->InvDist()     = t_c0_x[3];
+          mp->HostFrameId() = frame->Id();
+          erase_mp_ids.insert(mp_id);
+          init_count++;
+          break;
+        }
+      }
+    }
+    for (auto& id : erase_mp_ids) {
+      candidates.erase(id);
+    }
+    LogD("init : {}, oldCount :{}, cand : {} -> {}",
+         init_count,
+         old_count,
+         try_count,
+         candidates.size());
   }
 }
 

@@ -55,19 +55,20 @@ public:
     cv::undistortImagePoints(pts, undists, cv_K_, cv_D_);
   }
 
-  virtual bool Unproject(const cv::Point2f& uv, Eigen::Vector3d& t_c_x) override {
-    const double mx = (uv.x - cx_) / fx_;
-    const double my = (uv.y - cy_) / fy_;
+  virtual bool Unproject(const Eigen::Vector2d& uv,
+                         Eigen::Vector3d&       bearing_vec) override {
+    const double mx = (uv.x() - cx_) / fx_;
+    const double my = (uv.y() - cy_) / fy_;
 
     const double r2 = mx * mx + my * my;
 
     const double norm     = sqrt(1.0 + r2);
     const double norm_inv = 1.0 / norm;
 
-    t_c_x.setZero();
-    t_c_x[0] = mx * norm_inv;
-    t_c_x[1] = my * norm_inv;
-    t_c_x[2] = norm_inv;
+    bearing_vec.setZero();
+    bearing_vec[0] = mx * norm_inv;
+    bearing_vec[1] = my * norm_inv;
+    bearing_vec[2] = norm_inv;
 
     return true;
   };
