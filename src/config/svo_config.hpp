@@ -27,6 +27,6 @@ public:
   static std::vector<std::vector<double>> camera_intrinsics;
   static std::vector<std::vector<double>> camera_distortions;
   static std::vector<std::vector<int>>    camera_resolutions;
-  static std::vector<Sophus::SE3d>        camera_T_bc;
+  static std::vector<Sophus::SE3d>        camera_T_b_c;
 };
 }  // namespace omni_slam

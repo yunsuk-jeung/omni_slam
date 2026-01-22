@@ -9,24 +9,24 @@
 #include "camera_model/camera_model.hpp"
 
 namespace omni_slam {
-bool                             SVOConfig::debug                       = false;
-bool                             SVOConfig::tbb                         = true;
-bool                             SVOConfig::equalize_histogram          = false;
-double                           SVOConfig::clahe_clip_limit            = 3.0;
-int                              SVOConfig::clahe_tile_size             = 8;
-int                              SVOConfig::optical_flow_patch_size     = 21;
-float                            SVOConfig::optical_flow_dist_threshold = 5.0;
-int                              SVOConfig::fast_threshold              = 20;
-int                              SVOConfig::feature_grid_rows           = 4;
-int                              SVOConfig::feature_grid_cols           = 4;
-int                              SVOConfig::max_pyramid_level           = 3;
-size_t                           SVOConfig::max_window                  = 0;
+bool                             SVOConfig::debug                        = false;
+bool                             SVOConfig::tbb                          = true;
+bool                             SVOConfig::equalize_histogram           = false;
+double                           SVOConfig::clahe_clip_limit             = 3.0;
+int                              SVOConfig::clahe_tile_size              = 8;
+int                              SVOConfig::optical_flow_patch_size      = 21;
+float                            SVOConfig::optical_flow_dist_threshold  = 5.0;
+int                              SVOConfig::fast_threshold               = 20;
+int                              SVOConfig::feature_grid_rows            = 4;
+int                              SVOConfig::feature_grid_cols            = 4;
+int                              SVOConfig::max_pyramid_level            = 3;
+size_t                           SVOConfig::max_window                   = 0;
 double                           SVOConfig::triangulation_dist_threshold = 0.0025;
 std::vector<int>                 SVOConfig::camera_models;
 std::vector<std::vector<double>> SVOConfig::camera_intrinsics;
 std::vector<std::vector<double>> SVOConfig::camera_distortions;
 std::vector<std::vector<int>>    SVOConfig::camera_resolutions;
-std::vector<Sophus::SE3d>        SVOConfig::camera_T_bc;
+std::vector<Sophus::SE3d>        SVOConfig::camera_T_b_c;
 
 void ParseCameraParams(const nlohmann::json&             node,
                        std::vector<int>*                 models,
@@ -75,11 +75,11 @@ void ParseCameraParams(const nlohmann::json&             node,
     }
     resolutions->push_back(std::move(vals));
   }
-  if (T_bc && node.contains("Mbc") && node["Mbc"].is_array()
-      && node["Mbc"].size() == 16) {
+  if (T_bc && node.contains("T_b_c") && node["T_b_c"].is_array()
+      && node["T_b_c"].size() == 16) {
     Eigen::Matrix4d T = Eigen::Matrix4d::Identity();
     for (int i = 0; i < 16; ++i) {
-      T(i / 4, i % 4) = node["Mbc"][i].get<double>();
+      T(i / 4, i % 4) = node["T_b_c"][i].get<double>();
     }
     T_bc->push_back(Sophus::SE3d(T));
   }
@@ -102,39 +102,39 @@ void SVOConfig::ParseConfig(const std::string& file) {
     return;
   }
 
-  debug                       = config.value("debug", debug);
+  debug = config.value("debug", debug);
   if (debug) {
     Logger::Init();
     spdlog::set_level(spdlog::level::debug);
   }
-  tbb                         = config.value("tbb", tbb);
-  equalize_histogram          = config.value("equalize_histogram", equalize_histogram);
-  clahe_clip_limit            = config.value("clahe_clip_limit", clahe_clip_limit);
-  clahe_tile_size             = config.value("clahe_tile_size", clahe_tile_size);
-  optical_flow_patch_size     = config.value("optical_flow_patch_size",
+  tbb                          = config.value("tbb", tbb);
+  equalize_histogram           = config.value("equalize_histogram", equalize_histogram);
+  clahe_clip_limit             = config.value("clahe_clip_limit", clahe_clip_limit);
+  clahe_tile_size              = config.value("clahe_tile_size", clahe_tile_size);
+  optical_flow_patch_size      = config.value("optical_flow_patch_size",
                                          optical_flow_patch_size);
-  optical_flow_dist_threshold = config.value("optical_flow_dist_threshold",
+  optical_flow_dist_threshold  = config.value("optical_flow_dist_threshold",
                                              optical_flow_dist_threshold);
-  fast_threshold              = config.value("fast_threshold", fast_threshold);
-  feature_grid_rows           = config.value("feature_grid_rows", feature_grid_rows);
-  feature_grid_cols           = config.value("feature_grid_cols", feature_grid_cols);
-  max_pyramid_level           = config.value("max_pyramid_level", max_pyramid_level);
-  max_window                  = config.value("max_window", max_window);
-  triangulation_dist_threshold =
-    config.value("triangulation_dist_threshold", triangulation_dist_threshold);
+  fast_threshold               = config.value("fast_threshold", fast_threshold);
+  feature_grid_rows            = config.value("feature_grid_rows", feature_grid_rows);
+  feature_grid_cols            = config.value("feature_grid_cols", feature_grid_cols);
+  max_pyramid_level            = config.value("max_pyramid_level", max_pyramid_level);
+  max_window                   = config.value("max_window", max_window);
+  triangulation_dist_threshold = config.value("triangulation_dist_threshold",
+                                              triangulation_dist_threshold);
 
   camera_models.clear();
   camera_intrinsics.clear();
   camera_distortions.clear();
   camera_resolutions.clear();
-  camera_T_bc.clear();
+  camera_T_b_c.clear();
   if (config.contains("cam0")) {
     ParseCameraParams(config["cam0"],
                       &camera_models,
                       &camera_intrinsics,
                       &camera_distortions,
                       &camera_resolutions,
-                      &camera_T_bc);
+                      &camera_T_b_c);
   }
   if (config.contains("cam1")) {
     ParseCameraParams(config["cam1"],
@@ -142,7 +142,7 @@ void SVOConfig::ParseConfig(const std::string& file) {
                       &camera_intrinsics,
                       &camera_distortions,
                       &camera_resolutions,
-                      &camera_T_bc);
+                      &camera_T_b_c);
   }
 
   if (debug) {

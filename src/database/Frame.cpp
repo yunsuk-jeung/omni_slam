@@ -3,6 +3,7 @@
 
 #include "feature_tracking/tracking_result.hpp"
 #include "database/Frame.hpp"
+#include "config/svo_config.hpp"
 
 namespace omni_slam {
 namespace {
@@ -27,6 +28,11 @@ Frame::Frame(const std::vector<cv::Mat>&         images,
   tracking_result_ = std::make_unique<TrackingResult>(images_.size());
 
   T_bcs_.resize(images.size());
+  for (size_t i = 0; i < images.size(); ++i) {
+    if (i < SVOConfig::camera_T_b_c.size()) {
+      T_bcs_[i] = SVOConfig::camera_T_b_c[i];
+    }
+  }
 }
 
 Frame::~Frame() {
