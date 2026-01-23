@@ -17,15 +17,15 @@ void SlidingWindow::SetMaxSize(size_t max_size) {
   frame_ids_.reserve(max_size);
 }
 
-size_t SlidingWindow::MaxSize() const {
+size_t SlidingWindow::GetMaxSize() const {
   return max_size_;
 }
 
-size_t SlidingWindow::FrameCount() const {
+size_t SlidingWindow::GetFrameCount() const {
   return frames_.size();
 }
 
-size_t SlidingWindow::MapPointCount() const {
+size_t SlidingWindow::GetMapPointCount() const {
   return map_points_.size();
 }
 
@@ -33,7 +33,7 @@ void SlidingWindow::AddFrame(std::shared_ptr<Frame> frame) {
   if (!frame) {
     return;
   }
-  const size_t id = frame->Id();
+  const size_t id = frame->GetId();
   auto         it = frames_.find(id);
 
   frame_ids_.push_back(id);
@@ -78,7 +78,7 @@ std::shared_ptr<MapPoint> SlidingWindow::GetOrCreateMapPointCandidate(
   return map_point;
 }
 
-bool SlidingWindow::HasMapPoint(const uint64_t& id) const {
+bool SlidingWindow::GetHasMapPoint(const uint64_t& id) const {
   const auto it = map_points_.find(id);
   return !(it == map_points_.end());
 }

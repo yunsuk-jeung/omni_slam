@@ -17,7 +17,7 @@ public:
 
   ~TrackingResult() = default;
 
-  size_t Size(size_t cam_idx) const { return ids_[cam_idx].size(); }
+  size_t GetSize(size_t cam_idx) const { return ids_[cam_idx].size(); }
 
   void Clear() {
     for (size_t i = 0; i < kCamNum; ++i) {
@@ -37,11 +37,11 @@ public:
     uvs_[cam_idx].push_back(uv);
   }
 
-  std::vector<size_t>&       Ids(size_t cam_idx) { return ids_[cam_idx]; }
-  const std::vector<size_t>& Ids(size_t cam_idx) const { return ids_[cam_idx]; }
+  std::vector<size_t>&       GetIds(size_t cam_idx) { return ids_[cam_idx]; }
+  const std::vector<size_t>& GetIds(size_t cam_idx) const { return ids_[cam_idx]; }
 
-  std::vector<cv::Point2f>&       Uvs(size_t cam_idx) { return uvs_[cam_idx]; }
-  const std::vector<cv::Point2f>& Uvs(size_t cam_idx) const { return uvs_[cam_idx]; }
+  std::vector<cv::Point2f>&       GetUvs(size_t cam_idx) { return uvs_[cam_idx]; }
+  const std::vector<cv::Point2f>& GetUvs(size_t cam_idx) const { return uvs_[cam_idx]; }
 
 private:
   const size_t                          kCamNum;

@@ -40,7 +40,7 @@ OpticalFlow::OpticalFlow(const size_t                                   cam_num,
 
 void OpticalFlow::PrepareImagesAndPyramids(std::shared_ptr<Frame>& curr_frame) {
   for (size_t i = 0; i < kCamNum; i++) {
-    const auto& image = curr_frame->Image(i);
+    const auto& image = curr_frame->GetImage(i);
     cv::Mat     gray;
     if (image.channels() == 1) {
       gray = image;
@@ -53,11 +53,11 @@ void OpticalFlow::PrepareImagesAndPyramids(std::shared_ptr<Frame>& curr_frame) {
       clahe_->apply(gray, gray);
     }
     // Store the grayscale image in the frame so downstream uses match pyramids.
-    curr_frame->Image(i) = gray;
+    curr_frame->GetImage(i) = gray;
     const cv::Point2i patch(SVOConfig::optical_flow_patch_size,
                             SVOConfig::optical_flow_patch_size);
     cv::buildOpticalFlowPyramid(gray,
-                                curr_frame->ImagePyramid(i),
+                                curr_frame->GetImagePyramid(i),
                                 patch,
                                 SVOConfig::max_pyramid_level,
                                 true,
@@ -68,14 +68,14 @@ void OpticalFlow::PrepareImagesAndPyramids(std::shared_ptr<Frame>& curr_frame) {
 
 void OpticalFlow::TrackMono(const std::shared_ptr<Frame>& curr_frame) {
   constexpr size_t kLeftCam = 0;
-  if (!prev_frame_ || !prev_frame_->TrackingResultPtr()) {
+  if (!prev_frame_ || !prev_frame_->GetTrackingResultPtr()) {
     return;
   }
 
-  const auto* prev_result = prev_frame_->TrackingResultPtr();
-  const auto& prev_ids    = prev_result->Ids(kLeftCam);
-  const auto& prev_uvs    = prev_result->Uvs(kLeftCam);
-  auto*       curr_result = curr_frame->TrackingResultPtr();
+  const auto* prev_result = prev_frame_->GetTrackingResultPtr();
+  const auto& prev_ids    = prev_result->GetIds(kLeftCam);
+  const auto& prev_uvs    = prev_result->GetUvs(kLeftCam);
+  auto*       curr_result = curr_frame->GetTrackingResultPtr();
   if (prev_uvs.empty()) {
     return;
   }
@@ -83,8 +83,8 @@ void OpticalFlow::TrackMono(const std::shared_ptr<Frame>& curr_frame) {
   std::vector<cv::Point2f> tracked_uvs;
   std::vector<uchar>       status;
 
-  cv::calcOpticalFlowPyrLK(prev_frame_->ImagePyramid(kLeftCam),
-                           curr_frame->ImagePyramid(kLeftCam),
+  cv::calcOpticalFlowPyrLK(prev_frame_->GetImagePyramid(kLeftCam),
+                           curr_frame->GetImagePyramid(kLeftCam),
                            prev_uvs,
                            tracked_uvs,
                            status,
@@ -96,8 +96,8 @@ void OpticalFlow::TrackMono(const std::shared_ptr<Frame>& curr_frame) {
   std::vector<cv::Point2f> reverse_uvs;
   std::vector<uchar>       reverse_status;
 
-  cv::calcOpticalFlowPyrLK(curr_frame->ImagePyramid(kLeftCam),
-                           prev_frame_->ImagePyramid(kLeftCam),
+  cv::calcOpticalFlowPyrLK(curr_frame->GetImagePyramid(kLeftCam),
+                           prev_frame_->GetImagePyramid(kLeftCam),
                            tracked_uvs,
                            reverse_uvs,
                            reverse_status,
@@ -110,7 +110,7 @@ void OpticalFlow::TrackMono(const std::shared_ptr<Frame>& curr_frame) {
     if (!status[i] || !reverse_status[i]) {
       continue;
     }
-    if (!IsPointInImage(tracked_uvs[i], curr_frame->Image(kLeftCam))) {
+    if (!IsPointInImage(tracked_uvs[i], curr_frame->GetImage(kLeftCam))) {
       continue;
     }
     const cv::Point2f dist       = prev_uvs[i] - reverse_uvs[i];
@@ -126,10 +126,10 @@ void OpticalFlow::TrackMono(const std::shared_ptr<Frame>& curr_frame) {
 void OpticalFlow::TrackStereo(const std::shared_ptr<Frame>& curr_frame) {
   constexpr size_t kLeftCam    = 0;
   constexpr size_t kRightCam   = 1;
-  auto*            curr_result = curr_frame->TrackingResultPtr();
+  auto*            curr_result = curr_frame->GetTrackingResultPtr();
 
-  const auto& left_ids = curr_result->Ids(kLeftCam);
-  const auto& left_uvs = curr_result->Uvs(kLeftCam);
+  const auto& left_ids = curr_result->GetIds(kLeftCam);
+  const auto& left_uvs = curr_result->GetUvs(kLeftCam);
   if (left_uvs.empty()) {
     return;
   }
@@ -137,8 +137,8 @@ void OpticalFlow::TrackStereo(const std::shared_ptr<Frame>& curr_frame) {
   std::vector<cv::Point2f> right_uvs;
   std::vector<uchar>       status;
 
-  cv::calcOpticalFlowPyrLK(curr_frame->ImagePyramid(kLeftCam),
-                           curr_frame->ImagePyramid(kRightCam),
+  cv::calcOpticalFlowPyrLK(curr_frame->GetImagePyramid(kLeftCam),
+                           curr_frame->GetImagePyramid(kRightCam),
                            left_uvs,
                            right_uvs,
                            status,
@@ -150,8 +150,8 @@ void OpticalFlow::TrackStereo(const std::shared_ptr<Frame>& curr_frame) {
   std::vector<cv::Point2f> reverse_uvs;
   std::vector<uchar>       reverse_status;
 
-  cv::calcOpticalFlowPyrLK(curr_frame->ImagePyramid(kRightCam),
-                           curr_frame->ImagePyramid(kLeftCam),
+  cv::calcOpticalFlowPyrLK(curr_frame->GetImagePyramid(kRightCam),
+                           curr_frame->GetImagePyramid(kLeftCam),
                            right_uvs,
                            reverse_uvs,
                            reverse_status,
@@ -164,7 +164,7 @@ void OpticalFlow::TrackStereo(const std::shared_ptr<Frame>& curr_frame) {
     if (!status[i] || !reverse_status[i]) {
       continue;
     }
-    if (!IsPointInImage(right_uvs[i], curr_frame->Image(kRightCam))) {
+    if (!IsPointInImage(right_uvs[i], curr_frame->GetImage(kRightCam))) {
       continue;
     }
     const cv::Point2f dist       = left_uvs[i] - reverse_uvs[i];
@@ -180,13 +180,13 @@ void OpticalFlow::TrackStereo(const std::shared_ptr<Frame>& curr_frame) {
 void OpticalFlow::DetectFeatures(const std::shared_ptr<Frame>& curr_frame) {
   constexpr size_t kLeftCam = 0;
 
-  auto* curr_result = curr_frame->TrackingResultPtr();
-  auto& curr_uvs    = curr_result->Uvs(kLeftCam);
+  auto* curr_result = curr_frame->GetTrackingResultPtr();
+  auto& curr_uvs    = curr_result->GetUvs(kLeftCam);
 
   const int         grid_rows = std::max(1, SVOConfig::feature_grid_rows);
   const int         grid_cols = std::max(1, SVOConfig::feature_grid_cols);
-  const int         cell_w    = std::max(1, curr_frame->Image(kLeftCam).cols / grid_cols);
-  const int         cell_h    = std::max(1, curr_frame->Image(kLeftCam).rows / grid_rows);
+  const int         cell_w    = std::max(1, curr_frame->GetImage(kLeftCam).cols / grid_cols);
+  const int         cell_h    = std::max(1, curr_frame->GetImage(kLeftCam).rows / grid_rows);
   std::vector<bool> cell_has_feature(grid_rows * grid_cols, false);
 
   for (const auto& uv : curr_uvs) {
@@ -202,9 +202,9 @@ void OpticalFlow::DetectFeatures(const std::shared_ptr<Frame>& curr_frame) {
       }
       const int x0 = col * cell_w;
       const int y0 = row * cell_h;
-      const int x1 = (col == grid_cols - 1) ? curr_frame->Image(kLeftCam).cols
+      const int x1 = (col == grid_cols - 1) ? curr_frame->GetImage(kLeftCam).cols
                                             : (col + 1) * cell_w;
-      const int y1 = (row == grid_rows - 1) ? curr_frame->Image(kLeftCam).rows
+      const int y1 = (row == grid_rows - 1) ? curr_frame->GetImage(kLeftCam).rows
                                             : (row + 1) * cell_h;
       if (x1 <= x0 || y1 <= y0) {
         continue;
@@ -212,7 +212,7 @@ void OpticalFlow::DetectFeatures(const std::shared_ptr<Frame>& curr_frame) {
 
       const cv::Rect            roi(x0, y0, x1 - x0, y1 - y0);
       std::vector<cv::KeyPoint> keypoints;
-      cv::FAST(curr_frame->Image(kLeftCam)(roi),
+      cv::FAST(curr_frame->GetImage(kLeftCam)(roi),
                keypoints,
                SVOConfig::fast_threshold,
                true);
@@ -248,10 +248,10 @@ void OpticalFlow::Run(std::atomic<bool>& running) {
       continue;
     }
 
-    auto* curr_result = curr_frame->TrackingResultPtr();
+    auto* curr_result = curr_frame->GetTrackingResultPtr();
 
-    const size_t prev_left_size = (prev_frame_ && prev_frame_->TrackingResultPtr())
-                                    ? prev_frame_->TrackingResultPtr()->Size(0)
+    const size_t prev_left_size = (prev_frame_ && prev_frame_->GetTrackingResultPtr())
+                                    ? prev_frame_->GetTrackingResultPtr()->GetSize(0)
                                     : 0;
     const int    grid_rows      = std::max(1, SVOConfig::feature_grid_rows);
     const int    grid_cols      = std::max(1, SVOConfig::feature_grid_cols);

@@ -17,22 +17,22 @@ public:
   ~Frame();
 
 public:
-  const size_t          CamNum() const { return kCamNum; }
-  uint64_t              Id() const { return id_; }
-  cv::Mat&              Image(size_t cam_idx) { return images_[cam_idx]; }
-  const cv::Mat&        Image(size_t cam_idx) const { return images_[cam_idx]; }
-  std::vector<cv::Mat>& ImagePyramid(size_t cam_idx) { return image_pyramids_[cam_idx]; }
-  const std::vector<cv::Mat>& ImagePyramid(size_t cam_idx) const {
+  const size_t          GetCamNum() const { return kCamNum; }
+  uint64_t              GetId() const { return id_; }
+  cv::Mat&              GetImage(size_t cam_idx) { return images_[cam_idx]; }
+  const cv::Mat&        GetImage(size_t cam_idx) const { return images_[cam_idx]; }
+  std::vector<cv::Mat>& GetImagePyramid(size_t cam_idx) { return image_pyramids_[cam_idx]; }
+  const std::vector<cv::Mat>& GetImagePyramid(size_t cam_idx) const {
     return image_pyramids_[cam_idx];
   }
-  TrackingResult*       TrackingResultPtr() { return tracking_result_.get(); }
-  const TrackingResult* TrackingResultPtr() const { return tracking_result_.get(); }
+  TrackingResult*       GetTrackingResultPtr() { return tracking_result_.get(); }
+  const TrackingResult* GetTrackingResultPtr() const { return tracking_result_.get(); }
 
-  CameraModelBase* Cam(size_t cam_idx) { return cams_[cam_idx].get(); }
+  CameraModelBase* GetCam(size_t cam_idx) { return cams_[cam_idx].get(); }
 
-  const Sophus::SE3d& Twb() const { return T_wb_; }
-  Sophus::SE3d&       Twb() { return T_wb_; }
-  Sophus::SE3d        Twc(size_t i) { return T_wb_ * T_bcs_[i]; }
+  const Sophus::SE3d& GetTwb() const { return T_wb_; }
+  Sophus::SE3d&       GetTwb() { return T_wb_; }
+  Sophus::SE3d        GetTwc(size_t i) { return T_wb_ * T_bcs_[i]; }
 
 private:
   const size_t                      kCamNum;

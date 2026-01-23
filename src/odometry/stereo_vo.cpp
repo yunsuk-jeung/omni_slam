@@ -83,25 +83,25 @@ void StereoVO::EstimatorLoop() {
       continue;
     }
 
-    if (!frame || !frame->TrackingResultPtr()) {
+    if (!frame || !frame->GetTrackingResultPtr()) {
       continue;
     }
 
     sliding_window_->AddFrame(frame);
 
-    TrackingResult* tracking_result = frame->TrackingResultPtr();
-    const size_t    kCamNum         = frame->CamNum();
+    TrackingResult* tracking_result = frame->GetTrackingResultPtr();
+    const size_t    kCamNum         = frame->GetCamNum();
 
     size_t connected = 0;
 
     for (size_t i = 0; i < kCamNum; ++i) {
-      auto& ids      = tracking_result->Ids(i);
-      auto& uv_dists = tracking_result->Uvs(i);
+      auto& ids      = tracking_result->GetIds(i);
+      auto& uv_dists = tracking_result->GetUvs(i);
 
       std::vector<cv::Point2f> uvs;
-      frame->Cam(i)->UndistortPoints(uv_dists, uvs);
+      frame->GetCam(i)->UndistortPoints(uv_dists, uvs);
 
-      const auto& point_num = tracking_result->Size(i);
+      const auto& point_num = tracking_result->GetSize(i);
       for (size_t j = 0; j < point_num; j++) {
         const auto&     id = ids[j];
         std::shared_ptr mp = sliding_window_->GetMapPoint(ids[j]);
@@ -114,23 +114,23 @@ void StereoVO::EstimatorLoop() {
           mp = sliding_window_->GetOrCreateMapPointCandidate(id);
         }
 
-        FrameCamId frame_cam_id{frame->Id(), i};
+        FrameCamId frame_cam_id{frame->GetId(), i};
         mp->AddFactor(frame_cam_id, {uvs[j].x, uvs[j].y});
       }
     }
     // triangulate
-    auto& candidates = sliding_window_->MapPointCandidates();
+    auto& candidates = sliding_window_->GetMapPointCandidates();
 
     int init_count = 0;
     int old_count  = 0;
     int try_count  = candidates.size();
 
-    FrameCamId         frame_cam_id0{frame->Id(), 0};
+    FrameCamId         frame_cam_id0{frame->GetId(), 0};
     std::set<uint64_t> erase_mp_ids;
 
     // add map points in SlidingWindow
     for (auto& [mp_id, mp] : candidates) {
-      auto& factor_map = mp->ReprojectionFactorMap();
+      auto& factor_map = mp->GetReprojectionFactorMap();
 
       if (factor_map.count(frame_cam_id0) == 0) {
         erase_mp_ids.insert(mp_id);
@@ -139,7 +139,7 @@ void StereoVO::EstimatorLoop() {
 
       Eigen::Vector2d uv0 = factor_map[frame_cam_id0];
       Eigen::Vector3d b0;
-      bool            valid0 = frame->Cam(0)->Unproject(uv0, b0);
+      bool            valid0 = frame->GetCam(0)->Unproject(uv0, b0);
 
       if (!valid0) {
         break;
@@ -155,14 +155,14 @@ void StereoVO::EstimatorLoop() {
         std::shared_ptr<Frame> frame1 = sliding_window_->GetFrame(frame_cam_id1.frame_id);
 
         Eigen::Vector3d b1;
-        bool            valid1 = frame->Cam(frame_cam_id1.cam_id)->Unproject(uv1, b1);
+        bool            valid1 = frame->GetCam(frame_cam_id1.cam_id)->Unproject(uv1, b1);
 
         if (!valid1) {
           continue;
         }
 
-        auto T_w_c0  = frame->Twc(frame_cam_id0.cam_id);
-        auto T_w_c1  = frame1->Twc(frame_cam_id1.cam_id);
+        auto T_w_c0  = frame->GetTwc(frame_cam_id0.cam_id);
+        auto T_w_c1  = frame1->GetTwc(frame_cam_id1.cam_id);
         auto T_c0_c1 = T_w_c0.inverse() * T_w_c1;
 
         if (T_c0_c1.translation().squaredNorm() < SVOConfig::triangulation_dist_threshold)
@@ -170,9 +170,9 @@ void StereoVO::EstimatorLoop() {
 
         Eigen::Vector4d t_c0_x = Geometry::triangulate(b0, b1, T_c0_c1);
         if (t_c0_x.array().isFinite().all() && t_c0_x[3] > 0 && t_c0_x[3] < 3.0) {
-          mp->Direction()   = StereographicParam::project(t_c0_x);
-          mp->InvDist()     = t_c0_x[3];
-          mp->HostFrameId() = frame->Id();
+          mp->GetDirection()   = StereographicParam::project(t_c0_x);
+          mp->GetInvDist()     = t_c0_x[3];
+          mp->GetHostFrameId() = frame->GetId();
           erase_mp_ids.insert(mp_id);
           init_count++;
           break;

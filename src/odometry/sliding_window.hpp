@@ -15,10 +15,10 @@ public:
   explicit SlidingWindow(size_t max_size = 0);
 
   void   SetMaxSize(size_t max_size);
-  size_t MaxSize() const;
+  size_t GetMaxSize() const;
 
-  size_t FrameCount() const;
-  size_t MapPointCount() const;
+  size_t GetFrameCount() const;
+  size_t GetMapPointCount() const;
 
   void                   AddFrame(std::shared_ptr<Frame> frame);
   std::shared_ptr<Frame> GetFrame(const uint64_t& id);
@@ -26,14 +26,14 @@ public:
 
   std::shared_ptr<MapPoint> GetMapPoint(const uint64_t& id) const;
   std::shared_ptr<MapPoint> GetOrCreateMapPointCandidate(const uint64_t& id);
-  bool                      HasMapPoint(const uint64_t& id) const;
+  bool                      GetHasMapPoint(const uint64_t& id) const;
 
-  const std::vector<uint64_t>& FrameIds() const { return frame_ids_; };
-  const std::unordered_map<uint64_t, std::shared_ptr<MapPoint>>& MapPoints() const {
+  const std::vector<uint64_t>& GetFrameIds() const { return frame_ids_; };
+  const std::unordered_map<uint64_t, std::shared_ptr<MapPoint>>& GetMapPoints() const {
     return map_points_;
   };
 
-  std::unordered_map<uint64_t, std::shared_ptr<MapPoint>>& MapPointCandidates() {
+  std::unordered_map<uint64_t, std::shared_ptr<MapPoint>>& GetMapPointCandidates() {
     return map_point_candidates_;
   };
 

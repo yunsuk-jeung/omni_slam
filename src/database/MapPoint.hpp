@@ -17,12 +17,12 @@ public:
   void RemoveFactor(const FrameCamId& frame_cam_id);
 
 public:
-  const uint64_t   Id() const { return id_; }
-  Eigen::Vector2d& Direction() { return direction_; }
-  double&          InvDist() { return inv_dist_; }
+  const uint64_t   GetId() const { return id_; }
+  Eigen::Vector2d& GetDirection() { return direction_; }
+  double&          GetInvDist() { return inv_dist_; }
   void             SetInvDist(const double& inv_dist) { inv_dist_ = inv_dist; };
-  auto&            ReprojectionFactorMap() { return reprojection_factor_map_; }
-  uint64_t&        HostFrameId() { return host_frame_id_; }
+  auto&            GetReprojectionFactorMap() { return reprojection_factor_map_; }
+  uint64_t&        GetHostFrameId() { return host_frame_id_; }
 
 private:
   const uint64_t id_;
