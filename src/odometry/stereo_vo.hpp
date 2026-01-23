@@ -5,6 +5,7 @@
 #include <string>
 #include <thread>
 #include <vector>
+#include <map>
 
 #include <tbb/concurrent_queue.h>
 #include <opencv2/core.hpp>
@@ -33,6 +34,8 @@ private:
   void OpticalFlowLoop();
   void EstimatorLoop();
 
+  int InitializeMapPoints(std::shared_ptr<Frame>& frame);
+
 private:
   static constexpr size_t kCamNum = 2;
 
@@ -45,6 +48,10 @@ private:
   std::unique_ptr<OpticalFlow>                  optical_flow_;
 
   std::unique_ptr<SlidingWindow> sliding_window_;
+
+  bool                    make_keyframe_;
+  int                     new_keyframe_after_;
+  std::map<uint64_t, int> created_map_point_nums_;
 };
 
 }  // namespace omni_slam

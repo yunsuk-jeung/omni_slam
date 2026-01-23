@@ -21,6 +21,8 @@ int                              SVOConfig::feature_grid_rows            = 4;
 int                              SVOConfig::feature_grid_cols            = 4;
 int                              SVOConfig::max_pyramid_level            = 3;
 size_t                           SVOConfig::max_window                   = 0;
+float                            SVOConfig::keyframe_min_mp_ratio        = 0.8f;
+int                              SVOConfig::new_keyframe_after           = 1;
 double                           SVOConfig::triangulation_dist_threshold = 0.0025;
 std::vector<int>                 SVOConfig::camera_models;
 std::vector<std::vector<double>> SVOConfig::camera_intrinsics;
@@ -122,6 +124,8 @@ void SVOConfig::ParseConfig(const std::string& file) {
   max_window                   = config.value("max_window", max_window);
   triangulation_dist_threshold = config.value("triangulation_dist_threshold",
                                               triangulation_dist_threshold);
+  keyframe_min_mp_ratio = config.value("keyframe_min_mp_ratio", keyframe_min_mp_ratio);
+  new_keyframe_after    = config.value("new_keyframe_after", new_keyframe_after);
 
   camera_models.clear();
   camera_intrinsics.clear();
@@ -161,6 +165,8 @@ void SVOConfig::ParseConfig(const std::string& file) {
     Logger::Info("SVOConfig.max_window: {}", max_window);
     Logger::Info("SVOConfig.triangulation_dist_threshold: {}",
                  triangulation_dist_threshold);
+    Logger::Info("SVOConfig.keyframe_min_mp_ratio: {}", keyframe_min_mp_ratio);
+    Logger::Info("SVOConfig.new_keyframe_after: {}", new_keyframe_after);
     Logger::Info("SVOConfig.camera_models: {}", camera_models.size());
   }
 }

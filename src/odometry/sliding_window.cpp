@@ -29,7 +29,7 @@ size_t SlidingWindow::GetMapPointCount() const {
   return map_points_.size();
 }
 
-void SlidingWindow::AddFrame(std::shared_ptr<Frame> frame) {
+void SlidingWindow::AddFrame(std::shared_ptr<Frame>& frame) {
   if (!frame) {
     return;
   }
@@ -60,6 +60,15 @@ std::shared_ptr<Frame> SlidingWindow::RemoveFrame(uint64_t id) {
     }
   }
   return removed;
+}
+
+void SlidingWindow::AddMapPoint(std::shared_ptr<MapPoint>& map_point) {
+  if (!map_point) {
+    return;
+  }
+  const size_t id = map_point->GetId();
+  auto         it = map_points_.find(id);
+  map_points_.emplace(id, map_point);
 }
 
 std::shared_ptr<MapPoint> SlidingWindow::GetMapPoint(const uint64_t& id) const {

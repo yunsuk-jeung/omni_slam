@@ -20,10 +20,11 @@ public:
   size_t GetFrameCount() const;
   size_t GetMapPointCount() const;
 
-  void                   AddFrame(std::shared_ptr<Frame> frame);
+  void                   AddFrame(std::shared_ptr<Frame>& frame);
   std::shared_ptr<Frame> GetFrame(const uint64_t& id);
   std::shared_ptr<Frame> RemoveFrame(uint64_t id);
 
+  void                      AddMapPoint(std::shared_ptr<MapPoint>& map_point);
   std::shared_ptr<MapPoint> GetMapPoint(const uint64_t& id) const;
   std::shared_ptr<MapPoint> GetOrCreateMapPointCandidate(const uint64_t& id);
   bool                      GetHasMapPoint(const uint64_t& id) const;

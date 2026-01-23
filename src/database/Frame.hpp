@@ -21,7 +21,9 @@ public:
   uint64_t              GetId() const { return id_; }
   cv::Mat&              GetImage(size_t cam_idx) { return images_[cam_idx]; }
   const cv::Mat&        GetImage(size_t cam_idx) const { return images_[cam_idx]; }
-  std::vector<cv::Mat>& GetImagePyramid(size_t cam_idx) { return image_pyramids_[cam_idx]; }
+  std::vector<cv::Mat>& GetImagePyramid(size_t cam_idx) {
+    return image_pyramids_[cam_idx];
+  }
   const std::vector<cv::Mat>& GetImagePyramid(size_t cam_idx) const {
     return image_pyramids_[cam_idx];
   }
@@ -34,6 +36,9 @@ public:
   Sophus::SE3d&       GetTwb() { return T_wb_; }
   Sophus::SE3d        GetTwc(size_t i) { return T_wb_ * T_bcs_[i]; }
 
+  void       SetKeyframe() { is_keyframe_ = true; }
+  const bool IsKeyframe() const { return is_keyframe_; }
+
 private:
   const size_t                      kCamNum;
   uint64_t                          id_;
@@ -45,6 +50,8 @@ private:
   Sophus::SE3d                                  T_wb_;
   std::vector<std::unique_ptr<CameraModelBase>> cams_;
   std::vector<Sophus::SE3d>                     T_bcs_;
+
+  bool is_keyframe_;
 };
 
 }  // namespace omni_slam

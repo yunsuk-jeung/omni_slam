@@ -11,6 +11,8 @@
   "feature_grid_cols": 18,
   "max_pyramid_level": 3,
   "max_window": 8,
+  "keyframe_min_mp_ratio": 0.8,
+  "new_keyframe_after": 1,
   "triangulation_dist_threshold": 0.0025,
 
   "cam0": {
