@@ -10,6 +10,7 @@ option(OMNI_BUILD_STEREO_VO "Build Stereo Visual Odometry pipeline" ON)
 option(OMNI_BUILD_STEREO_VIO "Build Stereo Visual-Inertial Odometry pipeline" OFF)
 option(OMNI_BUILD_LIO "Build LiDAR-Inertial Odometry pipeline" OFF)
 option(OMNI_BUILD_LOOP "Build Loop Closure module" ON)
+option(OMNI_BUILD_VIEWER "Build Vulkan viewer app" OFF)
 option(OMNI_BUILD_TESTS "Build tests" OFF)
 
 # Set installation paths based on build type
@@ -36,3 +37,4 @@ find_package(nlohmann_json REQUIRED)
 
 # Source tree (build options live in src/CMakeLists.txt)
 add_subdirectory(src)
+add_subdirectory(apps)

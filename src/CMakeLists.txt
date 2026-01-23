@@ -39,26 +39,18 @@ target_link_libraries(omni_camera_model INTERFACE
 target_compile_features(omni_camera_model INTERFACE cxx_std_20)
 
 if(OMNI_BUILD_STEREO_VO)
-
   add_library(svo SHARED
     ${CMAKE_CURRENT_SOURCE_DIR}/feature_tracking/optical_flow.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/config/svo_config.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/database/Frame.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/database/MapPoint.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/odometry/sliding_window.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/odometry/stereo_vo.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/camera_model/camera_model.cpp
   )
   target_include_directories(svo PRIVATE ${OpenCV_INCLUDE_DIRS})
   target_link_libraries(svo omni_utils omni_camera_model ${OpenCV_LIBS})
   target_compile_features(svo INTERFACE cxx_std_20)
-
-  set(VO_SOURCES
-    database/Frame.cpp
-    database/MapPoint.cpp
-    odometry/sliding_window.cpp
-    odometry/stereo_vo.cpp
-    camera_model/camera_model.cpp
-  )
-
-  add_executable(stereo_vo app/run_svo.cpp ${VO_SOURCES})
-  target_include_directories(stereo_vo PRIVATE ${OpenCV_INCLUDE_DIRS})
-  target_link_libraries(stereo_vo omni_utils omni_device svo ${OpenCV_LIBS})
 endif()
 
 
