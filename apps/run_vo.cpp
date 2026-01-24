@@ -1,5 +1,6 @@
 #include <array>
 #include <chrono>
+#include <cstdint>
 #include <filesystem>
 #include <thread>
 #include <vector>
@@ -16,10 +17,7 @@
 int main(int argc, char** argv) {
   LogI("Starting VO application");
 
-  const auto project_root = std::filesystem::path(__FILE__)
-                              .parent_path()
-                              .parent_path()
-                              .parent_path();
+  const auto project_root = std::filesystem::path(__FILE__).parent_path().parent_path();
 
   std::filesystem::path dataset_path = project_root
                                        / "datasets/EUROC/vicon_room1/V1_01_easy";
@@ -45,9 +43,10 @@ int main(int argc, char** argv) {
 
   omni_slam::DatasetSimulator simulator(loader);
   simulator.SetCameraCallback(
-    [&stereo_vo](const std::vector<cv::Mat>&                    images,
+    [&stereo_vo](int64_t                                          timestamp_ns,
+                 const std::vector<cv::Mat>&                    images,
                  const std::vector<omni_slam::CameraParameter>& camera_parameters) {
-      stereo_vo.OnCameraFrame(images, camera_parameters);
+      stereo_vo.OnCameraFrame(timestamp_ns, images, camera_parameters);
     });
 
   simulator.Start();
