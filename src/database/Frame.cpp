@@ -10,9 +10,11 @@ namespace {
 std::atomic<size_t> g_frame_id{0};
 }  // namespace
 
-Frame::Frame(const std::vector<cv::Mat>&         images,
+Frame::Frame(int64_t                             timestamp_ns,
+             const std::vector<cv::Mat>&         images,
              const std::vector<CameraParameter>& camera_parameters)
   : id_(g_frame_id.fetch_add(1, std::memory_order_relaxed))
+  , timestamp_ns_(timestamp_ns)
   , images_(images)
   , image_pyramids_(images.size())
   , kCamNum{images.size()} {

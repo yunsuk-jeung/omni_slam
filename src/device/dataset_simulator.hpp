@@ -125,7 +125,7 @@ private:
         camera_parameters.push_back(std::move(params));
       }
 
-      camera_callback_(images, camera_parameters);
+      camera_callback_(frame.t_ns, images, camera_parameters);
     }
   }
 

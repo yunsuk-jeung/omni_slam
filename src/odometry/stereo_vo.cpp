@@ -22,7 +22,10 @@ StereoVO::StereoVO()
   , running_{false}
   , make_keyframe_{true}
   , new_keyframe_after_{100}
-  , created_map_point_nums_{} {
+  , created_map_point_nums_{}
+  , result_mutex_{}
+  , has_result_{false}
+  , latest_result_{} {
   sliding_window_ = std::make_unique<SlidingWindow>();
 }
 
@@ -64,14 +67,15 @@ void StereoVO::Shutdown() {
   }
 }
 
-void StereoVO::OnCameraFrame(const std::vector<cv::Mat>&         images,
+void StereoVO::OnCameraFrame(int64_t                             timestamp_ns,
+                             const std::vector<cv::Mat>&         images,
                              const std::vector<CameraParameter>& camera_parameters) {
   if (images.empty() || images[0].empty()) {
     Logger::Warn("Received camera frame with empty left image");
     return;
   }
 
-  auto frame = std::make_shared<Frame>(images, camera_parameters);
+  auto frame = std::make_shared<Frame>(timestamp_ns, images, camera_parameters);
   frame_queue_.push(frame);
 }
 
@@ -152,7 +156,80 @@ void StereoVO::EstimatorLoop() {
     else {
       ++new_keyframe_after_;
     }
+
+    OdometryResult result = BuildOdometryResult(frame, tracking_result);
+
+    {
+      std::lock_guard<std::mutex> lock(result_mutex_);
+      latest_result_ = std::move(result);
+      has_result_    = true;
+    }
   }
+}
+
+OdometryResult StereoVO::BuildOdometryResult(const std::shared_ptr<Frame>& frame,
+                                             TrackingResult*              tracking_result) {
+  OdometryResult result;
+  result.timestamp_ns = frame->GetTimestampNs();
+  result.T_b_c        = frame->GetTbc();
+
+  result.window_frame_ids = sliding_window_->GetFrameIds();
+  result.T_w_b_window.reserve(result.window_frame_ids.size());
+  for (const auto frame_id : result.window_frame_ids) {
+    std::shared_ptr<Frame> window_frame = sliding_window_->GetFrame(frame_id);
+    if (window_frame) {
+      result.T_w_b_window.push_back(window_frame->GetTwb());
+    }
+    else {
+      result.T_w_b_window.emplace_back();
+    }
+  }
+
+  const size_t cam_num = frame->GetCamNum();
+  result.images.reserve(cam_num);
+  result.tracking.ids.resize(cam_num);
+  result.tracking.uvs.resize(cam_num);
+  for (size_t i = 0; i < cam_num; ++i) {
+    result.images.push_back(frame->GetImage(i));
+    result.tracking.ids[i] = tracking_result->GetIds(i);
+    result.tracking.uvs[i] = tracking_result->GetUvs(i);
+  }
+
+  const auto& map_points = sliding_window_->GetMapPoints();
+  result.map_points.reserve(map_points.size());
+  for (const auto& [mp_id, mp] : map_points) {
+    const double inv_dist = mp->GetInvDist();
+    if (inv_dist <= 0.0) {
+      continue;
+    }
+
+    std::shared_ptr<Frame> host_frame = sliding_window_->GetFrame(mp->GetHostFrameId());
+    if (!host_frame) {
+      continue;
+    }
+
+    const Eigen::Vector3d bearing = StereographicParam::unproject(mp->GetDirection());
+    const Eigen::Vector3d p_c     = bearing / inv_dist;
+    const Eigen::Vector3d p_w     = host_frame->GetTwc(0) * p_c;
+
+    Eigen::Vector4f packed;
+    packed << static_cast<float>(p_w.x()),
+      static_cast<float>(p_w.y()),
+      static_cast<float>(p_w.z()),
+      static_cast<float>(mp_id);
+    result.map_points.push_back(packed);
+  }
+
+  return result;
+}
+
+bool StereoVO::FetchResult(OdometryResult& out) {
+  std::lock_guard<std::mutex> lock(result_mutex_);
+  if (!has_result_) {
+    return false;
+  }
+  out = latest_result_;
+  return true;
 }
 
 int StereoVO::InitializeMapPoints(std::shared_ptr<Frame>& frame) {

@@ -1,4 +1,5 @@
 #pragma once
+#include <cstdint>
 #include <memory>
 #include <vector>
 #include <sophus/se3.hpp>
@@ -12,13 +13,15 @@ class CameraModelBase;
 class Frame {
 public:
   Frame() = delete;
-  Frame(const std::vector<cv::Mat>&         images,
+  Frame(int64_t                             timestamp_ns,
+        const std::vector<cv::Mat>&         images,
         const std::vector<CameraParameter>& camera_parameters);
   ~Frame();
 
 public:
   const size_t          GetCamNum() const { return kCamNum; }
   uint64_t              GetId() const { return id_; }
+  int64_t               GetTimestampNs() const { return timestamp_ns_; }
   cv::Mat&              GetImage(size_t cam_idx) { return images_[cam_idx]; }
   const cv::Mat&        GetImage(size_t cam_idx) const { return images_[cam_idx]; }
   std::vector<cv::Mat>& GetImagePyramid(size_t cam_idx) {
@@ -35,6 +38,7 @@ public:
   const Sophus::SE3d& GetTwb() const { return T_wb_; }
   Sophus::SE3d&       GetTwb() { return T_wb_; }
   Sophus::SE3d        GetTwc(size_t i) { return T_wb_ * T_bcs_[i]; }
+  const std::vector<Sophus::SE3d>& GetTbc() const { return T_bcs_; }
 
   void       SetKeyframe() { is_keyframe_ = true; }
   const bool IsKeyframe() const { return is_keyframe_; }
@@ -42,6 +46,7 @@ public:
 private:
   const size_t                      kCamNum;
   uint64_t                          id_;
+  int64_t                           timestamp_ns_;
   std::vector<cv::Mat>              images_;
   std::vector<std::vector<cv::Mat>> image_pyramids_;
 
