@@ -41,8 +41,8 @@ private:
   void EstimatorLoop();
 
   OdometryResult BuildOdometryResult(const std::shared_ptr<Frame>& frame,
-                                     TrackingResult*              tracking_result);
-  int InitializeMapPoints(std::shared_ptr<Frame>& frame);
+                                     TrackingResult*               tracking_result);
+  int            InitializeMapPoints(std::shared_ptr<Frame>& frame);
 
 private:
   static constexpr size_t kCamNum = 2;
@@ -61,9 +61,9 @@ private:
   int                     new_keyframe_after_;
   std::map<uint64_t, int> created_map_point_nums_;
 
-  std::mutex      result_mutex_;
-  bool            has_result_;
-  OdometryResult  latest_result_;
+  std::mutex     result_mutex_;
+  bool           has_result_;
+  OdometryResult latest_result_;
 };
 
 }  // namespace omni_slam

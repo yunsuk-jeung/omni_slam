@@ -185,8 +185,8 @@ void OpticalFlow::DetectFeatures(const std::shared_ptr<Frame>& curr_frame) {
 
   const int         grid_rows = std::max(1, SVOConfig::feature_grid_rows);
   const int         grid_cols = std::max(1, SVOConfig::feature_grid_cols);
-  const int         cell_w    = std::max(1, curr_frame->GetImage(kLeftCam).cols / grid_cols);
-  const int         cell_h    = std::max(1, curr_frame->GetImage(kLeftCam).rows / grid_rows);
+  const int         cell_w = std::max(1, curr_frame->GetImage(kLeftCam).cols / grid_cols);
+  const int         cell_h = std::max(1, curr_frame->GetImage(kLeftCam).rows / grid_rows);
   std::vector<bool> cell_has_feature(grid_rows * grid_cols, false);
 
   for (const auto& uv : curr_uvs) {

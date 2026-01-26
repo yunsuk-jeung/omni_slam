@@ -50,9 +50,10 @@ rerun::Image MakeRerunImage(const cv::Mat& image) {
   if (!converted.isContinuous()) {
     converted = converted.clone();
   }
-  const auto converted_bytes = static_cast<size_t>(converted.total() * converted.elemSize());
-  auto       converted_data =
-    rerun::Collection<uint8_t>::borrow(converted.data, converted_bytes);
+  const auto converted_bytes = static_cast<size_t>(converted.total()
+                                                   * converted.elemSize());
+  auto       converted_data  = rerun::Collection<uint8_t>::borrow(converted.data,
+                                                           converted_bytes);
 
   if (converted.type() == CV_8UC1) {
     return rerun::Image::from_grayscale8(std::move(converted_data), {width, height});
@@ -74,11 +75,10 @@ rerun::Transform3D MakeTransform(const Sophus::SE3d& T) {
   rerun::components::Translation3D translation(static_cast<float>(t.x()),
                                                static_cast<float>(t.y()),
                                                static_cast<float>(t.z()));
-  const auto quat =
-    rerun::datatypes::Quaternion::from_wxyz(static_cast<float>(q.w()),
-                                            static_cast<float>(q.x()),
-                                            static_cast<float>(q.y()),
-                                            static_cast<float>(q.z()));
+  const auto quat = rerun::datatypes::Quaternion::from_wxyz(static_cast<float>(q.w()),
+                                                            static_cast<float>(q.x()),
+                                                            static_cast<float>(q.y()),
+                                                            static_cast<float>(q.z()));
   return rerun::Transform3D(translation, rerun::Rotation3D(quat), true);
 }
 
@@ -116,7 +116,7 @@ int main(int argc, char** argv) {
 
   omni_slam::DatasetSimulator simulator(loader);
   simulator.SetCameraCallback(
-    [&stereo_vo](int64_t                                          timestamp_ns,
+    [&stereo_vo](int64_t                                        timestamp_ns,
                  const std::vector<cv::Mat>&                    images,
                  const std::vector<omni_slam::CameraParameter>& camera_parameters) {
       stereo_vo.OnCameraFrame(timestamp_ns, images, camera_parameters);
@@ -125,7 +125,7 @@ int main(int argc, char** argv) {
   simulator.Start();
   stereo_vo.Run();
 
-  int64_t last_timestamp = std::numeric_limits<int64_t>::min();
+  int64_t                   last_timestamp = std::numeric_limits<int64_t>::min();
   omni_slam::OdometryResult result;
 
   while (loader.HasCameraData()) {
@@ -141,8 +141,8 @@ int main(int argc, char** argv) {
       }
 
       if (!result.tracking.uvs.empty()) {
-        const auto& uvs = result.tracking.uvs[0];
-        std::vector<std::array<float, 2>> points2d;
+        const auto&                            uvs = result.tracking.uvs[0];
+        std::vector<std::array<float, 2>>      points2d;
         std::vector<rerun::components::Radius> radii;
         std::vector<rerun::components::Color>  colors;
         points2d.reserve(uvs.size());

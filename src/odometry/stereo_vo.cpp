@@ -168,7 +168,7 @@ void StereoVO::EstimatorLoop() {
 }
 
 OdometryResult StereoVO::BuildOdometryResult(const std::shared_ptr<Frame>& frame,
-                                             TrackingResult*              tracking_result) {
+                                             TrackingResult* tracking_result) {
   OdometryResult result;
   result.timestamp_ns = frame->GetTimestampNs();
   result.T_b_c        = frame->GetTbc();
@@ -213,10 +213,8 @@ OdometryResult StereoVO::BuildOdometryResult(const std::shared_ptr<Frame>& frame
     const Eigen::Vector3d p_w     = host_frame->GetTwc(0) * p_c;
 
     Eigen::Vector4f packed;
-    packed << static_cast<float>(p_w.x()),
-      static_cast<float>(p_w.y()),
-      static_cast<float>(p_w.z()),
-      static_cast<float>(mp_id);
+    packed << static_cast<float>(p_w.x()), static_cast<float>(p_w.y()),
+      static_cast<float>(p_w.z()), static_cast<float>(mp_id);
     result.map_points.push_back(packed);
   }
 

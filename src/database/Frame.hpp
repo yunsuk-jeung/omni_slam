@@ -35,9 +35,9 @@ public:
 
   CameraModelBase* GetCam(size_t cam_idx) { return cams_[cam_idx].get(); }
 
-  const Sophus::SE3d& GetTwb() const { return T_wb_; }
-  Sophus::SE3d&       GetTwb() { return T_wb_; }
-  Sophus::SE3d        GetTwc(size_t i) { return T_wb_ * T_bcs_[i]; }
+  const Sophus::SE3d&              GetTwb() const { return T_wb_; }
+  Sophus::SE3d&                    GetTwb() { return T_wb_; }
+  Sophus::SE3d                     GetTwc(size_t i) { return T_wb_ * T_bcs_[i]; }
   const std::vector<Sophus::SE3d>& GetTbc() const { return T_bcs_; }
 
   void       SetKeyframe() { is_keyframe_ = true; }
