@@ -1,5 +1,10 @@
 # Download the rerun_sdk
 include(FetchContent)
+if(APPLE AND NOT DEFINED RERUN_DOWNLOAD_AND_BUILD_ARROW)
+  # Prefer system Arrow on macOS to avoid long builds from source.
+  set(RERUN_DOWNLOAD_AND_BUILD_ARROW OFF CACHE BOOL "Use system Arrow on macOS")
+endif()
+
 FetchContent_Declare(rerun_sdk URL
   https://github.com/rerun-io/rerun/releases/latest/download/rerun_cpp_sdk.zip)
 FetchContent_MakeAvailable(rerun_sdk)
