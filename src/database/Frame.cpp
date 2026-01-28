@@ -35,10 +35,18 @@ Frame::Frame(int64_t                             timestamp_ns,
       T_bcs_[i] = SVOConfig::camera_T_b_c[i];
     }
   }
+  mp_id_to_uvs_.resize(images.size());
 }
 
 Frame::~Frame() {
   tracking_result_.reset();
+}
+
+void Frame::AddObservation(size_t cam_idx, size_t mp_id, const Eigen::Vector2d& uv) {
+  if (cam_idx >= mp_id_to_uvs_.size()) {
+    return;
+  }
+  mp_id_to_uvs_[cam_idx][mp_id] = uv;
 }
 
 }  // namespace omni_slam

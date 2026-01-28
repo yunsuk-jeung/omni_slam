@@ -89,8 +89,7 @@ int main(int argc, char** argv) {
 
   const auto project_root = std::filesystem::path(__FILE__).parent_path().parent_path();
 
-  std::filesystem::path dataset_path = project_root
-                                       / "datasets/EUROC/vicon_room1/V1_01_easy";
+  std::filesystem::path dataset_path = project_root / "datasets/EUROC/V1_02_medium";
 
   omni_slam::EurocLoader loader;
   if (!loader.Initialize(dataset_path.string())) {

@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <memory>
 #include <vector>
+#include <unordered_map>
 #include <sophus/se3.hpp>
 #include <opencv2/core.hpp>
 #include "utils/types.hpp"
@@ -40,8 +41,16 @@ public:
   Sophus::SE3d                     GetTwc(size_t i) { return T_wb_ * T_bcs_[i]; }
   const std::vector<Sophus::SE3d>& GetTbc() const { return T_bcs_; }
 
+  void AddObservation(size_t cam_idx, size_t mp_id, const Eigen::Vector2d& uv);
+
   void       SetKeyframe() { is_keyframe_ = true; }
   const bool IsKeyframe() const { return is_keyframe_; }
+
+  std::unordered_map<size_t, Eigen::Vector2d>& GetMapPointIdToUv(size_t i) {
+    return mp_id_to_uvs_[i];
+  }
+
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
 private:
   const size_t                      kCamNum;
@@ -57,6 +66,8 @@ private:
   std::vector<Sophus::SE3d>                     T_bcs_;
 
   bool is_keyframe_;
+
+  std::vector<std::unordered_map<size_t, Eigen::Vector2d>> mp_id_to_uvs_;
 };
 
 }  // namespace omni_slam

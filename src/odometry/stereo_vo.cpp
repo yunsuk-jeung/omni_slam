@@ -10,6 +10,7 @@
 #include "database/MapPoint.hpp"
 #include "feature_tracking/optical_flow.hpp"
 #include "optimizer/geometry.hpp"
+#include "optimizer/vo_estimator.hpp"
 #include "odometry/sliding_window.hpp"
 #include "odometry/stereo_vo.hpp"
 #include "stereo_vo.hpp"
@@ -103,9 +104,8 @@ void StereoVO::EstimatorLoop() {
     size_t connected = 0;
 
     for (size_t i = 0; i < kCamNum; ++i) {
-      auto& ids      = tracking_result->GetIds(i);
-      auto& uv_dists = tracking_result->GetUvs(i);
-
+      auto&                    ids      = tracking_result->GetIds(i);
+      auto&                    uv_dists = tracking_result->GetUvs(i);
       std::vector<cv::Point2f> uvs;
       frame->GetCam(i)->UndistortPoints(uv_dists, uvs);
 
@@ -122,8 +122,12 @@ void StereoVO::EstimatorLoop() {
           mp = sliding_window_->GetOrCreateMapPointCandidate(id);
         }
 
+        Eigen::Vector2d uv{uvs[j].x, uvs[j].y};
+
+        frame->AddObservation(i, id, uv);
+
         FrameCamId frame_cam_id{frame->GetId(), i};
-        mp->AddFactor(frame_cam_id, {uvs[j].x, uvs[j].y});
+        mp->AddObservation(frame_cam_id, uv);
       }
     }
 
@@ -156,6 +160,8 @@ void StereoVO::EstimatorLoop() {
     else {
       ++new_keyframe_after_;
     }
+
+    VOEstimator::OptimizeSingleFrame(frame, this->sliding_window_.get());
 
     OdometryResult result = BuildOdometryResult(frame, tracking_result);
 
@@ -243,7 +249,7 @@ int StereoVO::InitializeMapPoints(std::shared_ptr<Frame>& frame) {
 
   // add map points in SlidingWindow
   for (auto& [mp_id, mp] : candidates) {
-    auto& factor_map = mp->GetReprojectionFactorMap();
+    auto& factor_map = mp->GetFrameCamIdToUv();
 
     if (factor_map.count(frame_cam_id0) == 0) {
       old_count++;

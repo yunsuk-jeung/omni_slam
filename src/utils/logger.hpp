@@ -11,6 +11,8 @@
 #include <utility>
 #include <vector>
 
+#include "utils/fmt_eigen.hpp"
+
 #include <spdlog/sinks/basic_file_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>

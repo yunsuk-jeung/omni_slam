@@ -11,6 +11,7 @@ target_link_libraries(omni_utils INTERFACE
   spdlog::spdlog
   TBB::tbb
   nlohmann_json::nlohmann_json
+  Ceres::ceres
 )
 
 target_compile_features(omni_utils INTERFACE cxx_std_20)
@@ -42,11 +43,12 @@ if(OMNI_BUILD_STEREO_VO)
   add_library(svo SHARED
     ${CMAKE_CURRENT_SOURCE_DIR}/feature_tracking/optical_flow.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/config/svo_config.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/camera_model/camera_model.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/database/Frame.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/database/MapPoint.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/odometry/sliding_window.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/odometry/stereo_vo.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/camera_model/camera_model.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/optimizer/vo_estimator.cpp
   )
   target_include_directories(svo PRIVATE ${OpenCV_INCLUDE_DIRS})
   target_link_libraries(svo omni_utils omni_camera_model ${OpenCV_LIBS})
