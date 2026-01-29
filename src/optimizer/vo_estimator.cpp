@@ -5,6 +5,7 @@
 #include "utils/eigen_utils.hpp"
 #include "utils/logger.hpp"
 #include "optimizer/parameterization.hpp"
+#include "optimizer/cost_function.hpp"
 #include "optimizer/vo_estimator.hpp"
 
 namespace omni_slam {
@@ -20,6 +21,8 @@ void VOEstimator::OptimizeSingleFrame(std::shared_ptr<Frame> frame,
   ceres::Problem problem;
 
   problem.AddParameterBlock(box_w_b.data(), kPoseSize);
+
+  // auto cost = PoseOnlyReprojectionCost(Eigen::Vector2d::Zero());
 }
 
 }  // namespace omni_slam

@@ -32,6 +32,15 @@ public:
     return true;
   }
 
+  bool PlusJacobian(const double* x, double* jacobian) const override {
+    Eigen::Map<const Eigen::Vector3d> so3(x + 3);
+    Eigen::Map<Eigen::Matrix<double, 6, 6, Eigen::RowMajor>> J(jacobian);
+    J.setZero();
+    J.topLeftCorner<3, 3>().setIdentity();
+    J.bottomRightCorner<3, 3>() = Sophus::SO3d::leftJacobianInverse(-so3);
+    return true;
+  }
+
   bool Minus(const double* y, const double* x, double* y_minus_x) const override {
     Eigen::Map<const Eigen::Vector3d> t_y(y);
     Eigen::Map<const Eigen::Vector3d> so3_y(y + 3);
@@ -45,6 +54,17 @@ public:
     Eigen::Map<Eigen::Vector3d> dtheta(y_minus_x + 3);
     dt     = t_y - t_x;
     dtheta = (R_y * R_x.inverse()).log();
+    return true;
+  }
+
+  bool MinusJacobian(const double* x, double* jacobian) const override {
+    Eigen::Map<const Eigen::Vector3d> so3_x(x + 3);
+    const Sophus::SO3d R_x = Sophus::SO3d::exp(so3_x);
+    Eigen::Map<Eigen::Matrix<double, 6, 6, Eigen::RowMajor>> J(jacobian);
+    J.setZero();
+    J.topLeftCorner<3, 3>().setIdentity();
+    J.bottomRightCorner<3, 3>() =
+        R_x.matrix() * Sophus::SO3d::leftJacobianInverse(-so3_x);
     return true;
   }
 
