@@ -8,6 +8,7 @@
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -76,15 +77,20 @@ public:
   template <typename T, typename... Args>
   static void Error(const char* file, int line, const T& fmt, Args&&... args) {
     Init();
+    const std::string_view fmt_view(fmt);
     if constexpr (sizeof...(args) == 0) {
-      logger_->error("[{}:{}] {}", file, line, fmt);
+      logger_->error("[{}:{}] {}", file, line, fmt_view);
     }
     else {
+      auto arg_tuple =
+        std::tuple<std::decay_t<Args>...>(std::forward<Args>(args)...);
+      auto format_args = std::apply(
+        [](auto&... unpacked) { return std::make_format_args(unpacked...); },
+        arg_tuple);
       logger_->error("[{}:{}] {}",
                      file,
                      line,
-                     std::vformat(fmt,
-                                  std::make_format_args(std::forward<Args>(args)...)));
+                     std::vformat(fmt_view, format_args));
     }
   }
 

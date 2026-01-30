@@ -23,10 +23,11 @@ public:
 
   virtual Eigen::Vector2d Distort(const Eigen::Vector2d& n_uv) = 0;
 
-  virtual void UndistortPoints(std::vector<cv::Point2f>& pts,
-                               std::vector<cv::Point2f>& upts) = 0;
+  virtual void Unproject(const std::vector<cv::Point2f> uvs,
+                         std::vector<Eigen::Vector3d>&  bearings,
+                         std::vector<bool>&             status) = 0;
 
-  virtual bool Unproject(const Eigen::Vector2d& uv, Eigen::Vector3d& P_c_x) = 0;
+  virtual bool Unproject(const cv::Point2f& uv, Eigen::Vector3d& bearing_) = 0;
 
 protected:
   void SetIntrinsics(const std::array<double, 4>& intrinsics) {

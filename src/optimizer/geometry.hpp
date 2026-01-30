@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cmath>
+#include <limits>
 #include <sophus/se3.hpp>
 
 namespace omni_slam {
@@ -19,14 +21,34 @@ public:
     A.row(3) = r1[1] * P2.row(2) - r1[2] * P2.row(1);
 
     Eigen::JacobiSVD<Eigen::Matrix<double, 4, 4>> mySVD(A, Eigen::ComputeFullV);
-    Eigen::Vector4d                               worldPoint = mySVD.matrixV().col(3);
-    worldPoint /= worldPoint.template head<3>().norm();
+    Eigen::Vector4d world_point = mySVD.matrixV().col(3);
+
+    const double w         = world_point[3];
+    const double head_norm = world_point.template head<3>().norm();
+    if (head_norm <= std::numeric_limits<double>::epsilon() ||
+        std::abs(w) <= std::numeric_limits<double>::epsilon()) {
+      return Eigen::Vector4d::Constant(std::numeric_limits<double>::quiet_NaN());
+    }
+
+    const Eigen::Vector3d p_c0 = world_point.template head<3>() / w;
+    const double          dist = p_c0.norm();
+    if (dist <= std::numeric_limits<double>::epsilon()) {
+      return Eigen::Vector4d::Constant(std::numeric_limits<double>::quiet_NaN());
+    }
+
+    Eigen::Vector3d bearing  = p_c0 / dist;
+    double          inv_dist = 1.0 / dist;
 
     // Enforce same direction of bearing vector and initial point
-    if (r0.dot(worldPoint.template head<3>()) < 0)
-      worldPoint *= -1;
+    if (r0.dot(bearing) < 0.0) {
+      bearing *= -1.0;
+      inv_dist *= -1.0;
+    }
 
-    return worldPoint;
+    Eigen::Vector4d bearing_inv_dist;
+    bearing_inv_dist.template head<3>() = bearing;
+    bearing_inv_dist[3]                 = inv_dist;
+    return bearing_inv_dist;
   }
 };
 }  // namespace omni_slam

@@ -14,7 +14,7 @@ static constexpr int kPoseSize = 6;
 
 void VOEstimator::OptimizeSingleFrame(std::shared_ptr<Frame> frame,
                                       SlidingWindow*         window) {
-  auto&           mp_id_to_uv = frame->GetMapPointIdToUv(0u);
+  auto&           mp_id_to_uv = frame->GetObservation(0u);
   auto&           T_w_b       = frame->GetTwb();
   Eigen::Vector6d box_w_b     = SE3BoxplusManifold::ToParams(frame->GetTwb());
 

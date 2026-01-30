@@ -5,7 +5,6 @@
 
 #include "utils/logger.hpp"
 #include "config/svo_config.hpp"
-#include "camera_model/stereographic_param.hpp"
 #include "database/Frame.hpp"
 #include "database/MapPoint.hpp"
 #include "feature_tracking/optical_flow.hpp"
@@ -104,13 +103,18 @@ void StereoVO::EstimatorLoop() {
     size_t connected = 0;
 
     for (size_t i = 0; i < kCamNum; ++i) {
-      auto&                    ids      = tracking_result->GetIds(i);
-      auto&                    uv_dists = tracking_result->GetUvs(i);
-      std::vector<cv::Point2f> uvs;
-      frame->GetCam(i)->UndistortPoints(uv_dists, uvs);
+      auto&                        ids = tracking_result->GetIds(i);
+      auto&                        uvs = tracking_result->GetUvs(i);
+      std::vector<Eigen::Vector3d> bearings;
+      std::vector<bool>            valid;
+
+      frame->GetCam(i)->Unproject(uvs, bearings, valid);
 
       const auto& point_num = tracking_result->GetSize(i);
       for (size_t j = 0; j < point_num; j++) {
+        if (!valid[j]) {
+          continue;
+        }
         const auto&     id = ids[j];
         std::shared_ptr mp = sliding_window_->GetMapPoint(ids[j]);
         if (mp) {
@@ -122,12 +126,10 @@ void StereoVO::EstimatorLoop() {
           mp = sliding_window_->GetOrCreateMapPointCandidate(id);
         }
 
-        Eigen::Vector2d uv{uvs[j].x, uvs[j].y};
-
-        frame->AddObservation(i, id, uv);
+        frame->AddObservation(i, id, bearings[j]);
 
         FrameCamId frame_cam_id{frame->GetId(), i};
-        mp->AddObservation(frame_cam_id, uv);
+        mp->AddObservation(frame_cam_id, bearings[j]);
       }
     }
 
@@ -137,7 +139,7 @@ void StereoVO::EstimatorLoop() {
                        : 1.0f;
 
     if (ratio < SVOConfig::keyframe_min_mp_ratio) {
-      LogD("{}th frame, mp ratio : {}= {} /{}",
+      LogD("{}th frame, mp ratio : {} = {} /{}",
            frame->GetId(),
            ratio,
            connected,
@@ -214,7 +216,7 @@ OdometryResult StereoVO::BuildOdometryResult(const std::shared_ptr<Frame>& frame
       continue;
     }
 
-    const Eigen::Vector3d bearing = StereographicParam::unproject(mp->GetDirection());
+    const Eigen::Vector3d bearing = mp->GetBearing();
     const Eigen::Vector3d p_c     = bearing / inv_dist;
     const Eigen::Vector3d p_w     = host_frame->GetTwc(0) * p_c;
 
@@ -249,47 +251,35 @@ int StereoVO::InitializeMapPoints(std::shared_ptr<Frame>& frame) {
 
   // add map points in SlidingWindow
   for (auto& [mp_id, mp] : candidates) {
-    auto& factor_map = mp->GetFrameCamIdToUv();
+    auto& frame_id_to_bearing = mp->GetObservation();
 
-    if (factor_map.count(frame_cam_id0) == 0) {
+    if (frame_id_to_bearing.count(frame_cam_id0) == 0) {
       old_count++;
       erase_mp_ids.insert(mp_id);
       continue;
     }
 
-    Eigen::Vector2d uv0 = factor_map[frame_cam_id0];
-    Eigen::Vector3d b0;
-    bool            valid0 = frame->GetCam(0)->Unproject(uv0, b0);
-
-    if (!valid0) {
-      break;
-    }
+    Eigen::Vector3d bearing0 = frame_id_to_bearing[frame_cam_id0];
 
     bool success = false;
-    for (auto& [frame_cam_id1, uv1] : factor_map) {
+    for (auto& [frame_cam_id1, bearing1] : frame_id_to_bearing) {
       if (frame_cam_id0 == frame_cam_id1) {
         continue;
       }
 
       std::shared_ptr<Frame> frame1 = sliding_window_->GetFrame(frame_cam_id1.frame_id);
 
-      Eigen::Vector3d b1;
-      bool            valid1 = frame->GetCam(frame_cam_id1.cam_id)->Unproject(uv1, b1);
-
-      if (!valid1) {
-        break;
-      }
-
       auto T_w_c0  = frame->GetTwc(frame_cam_id0.cam_id);
       auto T_w_c1  = frame1->GetTwc(frame_cam_id1.cam_id);
       auto T_c0_c1 = T_w_c0.inverse() * T_w_c1;
 
-      if (T_c0_c1.translation().squaredNorm() < SVOConfig::triangulation_dist_threshold)
+      if (T_c0_c1.translation().squaredNorm() < SVOConfig::triangulation_dist_threshold) {
         continue;
+      }
 
-      Eigen::Vector4d t_c0_x = Geometry::triangulate(b0, b1, T_c0_c1);
+      Eigen::Vector4d t_c0_x = Geometry::triangulate(bearing0, bearing1, T_c0_c1);
       if (t_c0_x.array().isFinite().all() && t_c0_x[3] > 0 && t_c0_x[3] < 3.0) {
-        mp->GetDirection()   = StereographicParam::project(t_c0_x);
+        mp->GetBearing()     = t_c0_x.head<3>();
         mp->GetInvDist()     = t_c0_x[3];
         mp->GetHostFrameId() = frame->GetId();
         erase_mp_ids.insert(mp_id);
@@ -309,6 +299,7 @@ int StereoVO::InitializeMapPoints(std::shared_ptr<Frame>& frame) {
        old_count,
        try_count,
        candidates.size());
+
   return init_count;
 }
 }  // namespace omni_slam

@@ -49,26 +49,37 @@ public:
     return Eigen::Vector2d(x_dist - x, y_dist - y);
   }
 
-  virtual void UndistortPoints(std::vector<cv::Point2f>& pts,
-                               std::vector<cv::Point2f>& undists) override {
+  virtual void Unproject(const std::vector<cv::Point2f> uvs,
+                         std::vector<Eigen::Vector3d>&  bearings,
+                         std::vector<bool>&             status) override {
     // cv::undistortPoints(pts, undists, cv_K_, cv_D_);
-    cv::undistortImagePoints(pts, undists, cv_K_, cv_D_);
+    std::vector<cv::Point2f> undists;
+    cv::undistortImagePoints(uvs, undists, cv_K_, cv_D_);
+
+    bearings.reserve(uvs.size());
+    status.reserve(uvs.size());
+
+    Eigen::Vector3d bearing;
+    bool            valid = false;
+    for (const auto& uv : uvs) {
+      status.push_back(Unproject(uv, bearing));
+      bearings.push_back(bearing);
+    }
   }
 
-  virtual bool Unproject(const Eigen::Vector2d& uv,
-                         Eigen::Vector3d&       bearing_vec) override {
-    const double mx = (uv.x() - cx_) / fx_;
-    const double my = (uv.y() - cy_) / fy_;
+  virtual bool Unproject(const cv::Point2f& uv, Eigen::Vector3d& bearing) override {
+    const double mx = (uv.x - cx_) / fx_;
+    const double my = (uv.y - cy_) / fy_;
 
     const double r2 = mx * mx + my * my;
 
     const double norm     = sqrt(1.0 + r2);
     const double norm_inv = 1.0 / norm;
 
-    bearing_vec.setZero();
-    bearing_vec[0] = mx * norm_inv;
-    bearing_vec[1] = my * norm_inv;
-    bearing_vec[2] = norm_inv;
+    bearing.setZero();
+    bearing[0] = mx * norm_inv;
+    bearing[1] = my * norm_inv;
+    bearing[2] = norm_inv;
 
     return true;
   };
