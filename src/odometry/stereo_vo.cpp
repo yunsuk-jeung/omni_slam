@@ -1,4 +1,5 @@
 #include <chrono>
+#include <cmath>
 #include <set>
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
@@ -205,6 +206,17 @@ OdometryResult StereoVO::BuildOdometryResult(const std::shared_ptr<Frame>& frame
 
   const auto& map_points = sliding_window_->GetMapPoints();
   result.map_points.reserve(map_points.size());
+  result.map_point_uvs.resize(cam_num);
+  std::vector<CameraModelBase*> cams(cam_num, nullptr);
+  std::vector<Sophus::SE3d>     T_c_w(cam_num);
+  std::vector<cv::Size>         img_sizes(cam_num);
+  for (size_t cam_idx = 0; cam_idx < cam_num; ++cam_idx) {
+    cams[cam_idx]      = frame->GetCam(cam_idx);
+    T_c_w[cam_idx]     = frame->GetTwc(cam_idx).inverse();
+    const cv::Mat& img = frame->GetImage(cam_idx);
+    img_sizes[cam_idx] = cv::Size(img.cols, img.rows);
+    result.map_point_uvs[cam_idx].reserve(map_points.size());
+  }
   for (const auto& [mp_id, mp] : map_points) {
     const double inv_dist = mp->GetInvDist();
     if (inv_dist <= 0.0) {
@@ -224,6 +236,24 @@ OdometryResult StereoVO::BuildOdometryResult(const std::shared_ptr<Frame>& frame
     packed << static_cast<float>(p_w.x()), static_cast<float>(p_w.y()),
       static_cast<float>(p_w.z()), static_cast<float>(mp_id);
     result.map_points.push_back(packed);
+
+    for (size_t cam_idx = 0; cam_idx < cam_num; ++cam_idx) {
+      if (!cams[cam_idx]) {
+        continue;
+      }
+      const Eigen::Vector3d p_c = T_c_w[cam_idx] * p_w;
+      if (!p_c.array().isFinite().all() || p_c.z() <= 0.0) {
+        continue;
+      }
+      const cv::Point2d uv       = cams[cam_idx]->Project(p_c);
+      const cv::Size&   img_size = img_sizes[cam_idx];
+      if ((img_size.width == 0 && img_size.height == 0)
+          || (uv.x >= 0.0 && uv.y >= 0.0 && uv.x < img_size.width
+              && uv.y < img_size.height)) {
+        result.map_point_uvs[cam_idx].emplace_back(static_cast<float>(uv.x),
+                                                   static_cast<float>(uv.y));
+      }
+    }
   }
 
   return result;
@@ -249,6 +279,8 @@ int StereoVO::InitializeMapPoints(std::shared_ptr<Frame>& frame) {
   FrameCamId         frame_cam_id0{frame->GetId(), 0};
   std::set<uint64_t> erase_mp_ids;
 
+  std::vector<std::shared_ptr<MapPoint>> new_map_points;
+
   // add map points in SlidingWindow
   for (auto& [mp_id, mp] : candidates) {
     auto& frame_id_to_bearing = mp->GetObservation();
@@ -271,19 +303,20 @@ int StereoVO::InitializeMapPoints(std::shared_ptr<Frame>& frame) {
 
       auto T_w_c0  = frame->GetTwc(frame_cam_id0.cam_id);
       auto T_w_c1  = frame1->GetTwc(frame_cam_id1.cam_id);
-      auto T_c0_c1 = T_w_c0.inverse() * T_w_c1;
+      auto T_c1_c0 = T_w_c1.inverse() * T_w_c0;
 
-      if (T_c0_c1.translation().squaredNorm() < SVOConfig::triangulation_dist_threshold) {
+      if (T_c1_c0.translation().squaredNorm() < SVOConfig::triangulation_dist_threshold) {
         continue;
       }
 
-      Eigen::Vector4d t_c0_x = Geometry::triangulate(bearing0, bearing1, T_c0_c1);
+      Eigen::Vector4d t_c0_x = Geometry::triangulate(bearing0, bearing1, T_c1_c0);
       if (t_c0_x.array().isFinite().all() && t_c0_x[3] > 0 && t_c0_x[3] < 3.0) {
         mp->GetBearing()     = t_c0_x.head<3>();
         mp->GetInvDist()     = t_c0_x[3];
         mp->GetHostFrameId() = frame->GetId();
         erase_mp_ids.insert(mp_id);
         sliding_window_->AddMapPoint(mp);
+        new_map_points.push_back(mp);
         init_count++;
         break;
       }
@@ -299,6 +332,52 @@ int StereoVO::InitializeMapPoints(std::shared_ptr<Frame>& frame) {
        old_count,
        try_count,
        candidates.size());
+
+  // if (!new_map_points.empty()) {
+  //   const cv::Mat& src = frame->GetImage(0);
+  //   if (!src.empty()) {
+  //     cv::Mat vis;
+  //     if (src.channels() == 1) {
+  //       cv::cvtColor(src, vis, cv::COLOR_GRAY2BGR);
+  //     }
+  //     else {
+  //       src.copyTo(vis);
+  //     }
+
+  // auto* cam = frame->GetCam(0);
+  // const int width = vis.cols;
+  // const int height = vis.rows;
+
+  // int drawn = 0;
+  // for (const auto& mp : new_map_points) {
+  //   const double inv_dist = mp->GetInvDist();
+  //   if (!std::isfinite(inv_dist) || std::abs(inv_dist) <= 1e-12) {
+  //     continue;
+  //   }
+  //   const Eigen::Vector3d p_c0 = mp->GetBearing() / inv_dist;
+  //   if (!p_c0.array().isFinite().all() || p_c0.z() <= 0.0) {
+  //     continue;
+  //   }
+  //   const cv::Point2d uv = cam->Project(p_c0);
+  //   if (uv.x < 0.0 || uv.y < 0.0 || uv.x >= width || uv.y >= height) {
+  //     continue;
+  //   }
+  //   cv::circle(vis, uv, 2, cv::Scalar(0, 255, 255), -1, cv::LINE_AA);
+  //   ++drawn;
+  // }
+
+  // cv::putText(vis,
+  //             "init mp proj: " + std::to_string(drawn),
+  //             cv::Point(12, 24),
+  //             cv::FONT_HERSHEY_SIMPLEX,
+  //             0.6,
+  //             cv::Scalar(0, 255, 0),
+  //             1,
+  //             cv::LINE_AA);
+  // cv::imshow("init_map_points_proj", vis);
+  // cv::waitKey(1);
+  // }
+  // }
 
   return init_count;
 }

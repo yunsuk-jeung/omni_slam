@@ -9,10 +9,10 @@ class Geometry {
 public:
   static Eigen::Matrix<double, 4, 1> triangulate(const Eigen::Vector3d& r0,
                                                  const Eigen::Vector3d& r1,
-                                                 const Sophus::SE3d&    T_0_1) {
+                                                 const Sophus::SE3d&    T_1_0) {
     Eigen::Matrix<double, 3, 4> P1, P2;
     P1.setIdentity();
-    P2 = T_0_1.inverse().matrix3x4();
+    P2 = T_1_0.matrix3x4();
 
     Eigen::Matrix<double, 4, 4> A(4, 4);
     A.row(0) = r0[0] * P1.row(2) - r0[2] * P1.row(0);
@@ -21,12 +21,12 @@ public:
     A.row(3) = r1[1] * P2.row(2) - r1[2] * P2.row(1);
 
     Eigen::JacobiSVD<Eigen::Matrix<double, 4, 4>> mySVD(A, Eigen::ComputeFullV);
-    Eigen::Vector4d world_point = mySVD.matrixV().col(3);
+    Eigen::Vector4d                               world_point = mySVD.matrixV().col(3);
 
     const double w         = world_point[3];
     const double head_norm = world_point.template head<3>().norm();
-    if (head_norm <= std::numeric_limits<double>::epsilon() ||
-        std::abs(w) <= std::numeric_limits<double>::epsilon()) {
+    if (head_norm <= std::numeric_limits<double>::epsilon()
+        || std::abs(w) <= std::numeric_limits<double>::epsilon()) {
       return Eigen::Vector4d::Constant(std::numeric_limits<double>::quiet_NaN());
     }
 
@@ -48,6 +48,7 @@ public:
     Eigen::Vector4d bearing_inv_dist;
     bearing_inv_dist.template head<3>() = bearing;
     bearing_inv_dist[3]                 = inv_dist;
+
     return bearing_inv_dist;
   }
 };

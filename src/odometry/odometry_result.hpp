@@ -23,6 +23,7 @@ struct OdometryResult {
   std::vector<uint64_t>        window_frame_ids;
   TrackingData                 tracking;
   std::vector<Eigen::Vector4f> map_points;
+  std::vector<std::vector<cv::Point2f>> map_point_uvs;
 };
 
 }  // namespace omni_slam

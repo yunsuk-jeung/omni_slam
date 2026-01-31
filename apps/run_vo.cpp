@@ -20,6 +20,17 @@
 
 namespace {
 
+constexpr float kTrackPointRadiusUi = 3.0f;
+constexpr float kMapPointRadiusUi   = 1.5f;
+constexpr float kAxisLength         = 0.2f;
+constexpr float kAxisRadius         = 0.01f;
+
+const rerun::components::Color kTrackColor(255, 255, 0, 200);
+const rerun::components::Color kMapColor(0, 255, 255, 200);
+const rerun::components::Color kAxisXColor(255, 0, 0, 255);
+const rerun::components::Color kAxisYColor(0, 255, 0, 255);
+const rerun::components::Color kAxisZColor(0, 0, 255, 255);
+
 rerun::Image MakeRerunImage(const cv::Mat& image) {
   if (image.empty()) {
     return rerun::Image::clear_fields();
@@ -139,22 +150,49 @@ int main(int argc, char** argv) {
         rec.log("cam1/image", MakeRerunImage(result.images[1]));
       }
 
-      if (!result.tracking.uvs.empty()) {
-        const auto&                            uvs = result.tracking.uvs[0];
+      auto log_overlay = [&](size_t cam_idx, const std::string& points_path) {
         std::vector<std::array<float, 2>>      points2d;
         std::vector<rerun::components::Radius> radii;
         std::vector<rerun::components::Color>  colors;
-        points2d.reserve(uvs.size());
-        radii.reserve(uvs.size());
-        colors.reserve(uvs.size());
-        for (const auto& uv : uvs) {
-          points2d.push_back({uv.x, uv.y});
-          radii.emplace_back(rerun::components::Radius::ui_points(2.0f));
-          colors.emplace_back(255, 255, 0, 200);
+
+        if (cam_idx < result.tracking.uvs.size()) {
+          const auto&  uvs     = result.tracking.uvs[cam_idx];
+          const size_t reserve = uvs.size()
+                                 + ((cam_idx < result.map_point_uvs.size())
+                                      ? result.map_point_uvs[cam_idx].size()
+                                      : 0);
+          points2d.reserve(reserve);
+          radii.reserve(reserve);
+          colors.reserve(reserve);
+          for (const auto& uv : uvs) {
+            points2d.push_back({uv.x, uv.y});
+            radii.emplace_back(rerun::components::Radius::ui_points(kTrackPointRadiusUi));
+            colors.emplace_back(kTrackColor);
+          }
         }
-        rec.log("cam0/points",
-                rerun::Points2D(points2d).with_radii(radii).with_colors(colors));
-      }
+
+        if (cam_idx < result.map_point_uvs.size()) {
+          const auto& mp_uvs = result.map_point_uvs[cam_idx];
+          if (points2d.empty()) {
+            points2d.reserve(mp_uvs.size());
+            radii.reserve(mp_uvs.size());
+            colors.reserve(mp_uvs.size());
+          }
+          for (const auto& uv : mp_uvs) {
+            points2d.push_back({uv.x, uv.y});
+            radii.emplace_back(rerun::components::Radius::ui_points(kMapPointRadiusUi));
+            colors.emplace_back(kMapColor);
+          }
+        }
+
+        if (!points2d.empty()) {
+          rec.log(points_path,
+                  rerun::Points2D(points2d).with_radii(radii).with_colors(colors));
+        }
+      };
+
+      log_overlay(0, "cam0/image");
+      log_overlay(1, "cam1/image");
 
       if (!result.map_points.empty()) {
         std::vector<std::array<float, 3>> points3d;
@@ -176,9 +214,6 @@ int main(int argc, char** argv) {
         std::vector<rerun::components::Color>      colors;
         std::vector<rerun::components::Radius>     radii;
 
-        const float axis_length = 0.2f;
-        const float axis_radius = 0.01f;
-
         origins.reserve(result.T_w_b_window.size() * 3);
         vectors.reserve(result.T_w_b_window.size() * 3);
         colors.reserve(result.T_w_b_window.size() * 3);
@@ -188,9 +223,9 @@ int main(int argc, char** argv) {
           const Eigen::Vector3d t = T_w_b.translation();
           const Eigen::Matrix3d R = T_w_b.so3().matrix();
 
-          const Eigen::Vector3d x = R.col(0) * axis_length;
-          const Eigen::Vector3d y = R.col(1) * axis_length;
-          const Eigen::Vector3d z = R.col(2) * axis_length;
+          const Eigen::Vector3d x = R.col(0) * kAxisLength;
+          const Eigen::Vector3d y = R.col(1) * kAxisLength;
+          const Eigen::Vector3d z = R.col(2) * kAxisLength;
 
           const rerun::components::Position3D origin(static_cast<float>(t.x()),
                                                      static_cast<float>(t.y()),
@@ -200,22 +235,22 @@ int main(int argc, char** argv) {
           vectors.emplace_back(static_cast<float>(x.x()),
                                static_cast<float>(x.y()),
                                static_cast<float>(x.z()));
-          colors.emplace_back(255, 0, 0, 255);
-          radii.emplace_back(rerun::components::Radius::scene_units(axis_radius));
+          colors.emplace_back(kAxisXColor);
+          radii.emplace_back(rerun::components::Radius::scene_units(kAxisRadius));
 
           origins.push_back(origin);
           vectors.emplace_back(static_cast<float>(y.x()),
                                static_cast<float>(y.y()),
                                static_cast<float>(y.z()));
-          colors.emplace_back(0, 255, 0, 255);
-          radii.emplace_back(rerun::components::Radius::scene_units(axis_radius));
+          colors.emplace_back(kAxisYColor);
+          radii.emplace_back(rerun::components::Radius::scene_units(kAxisRadius));
 
           origins.push_back(origin);
           vectors.emplace_back(static_cast<float>(z.x()),
                                static_cast<float>(z.y()),
                                static_cast<float>(z.z()));
-          colors.emplace_back(0, 0, 255, 255);
-          radii.emplace_back(rerun::components::Radius::scene_units(axis_radius));
+          colors.emplace_back(kAxisZColor);
+          radii.emplace_back(rerun::components::Radius::scene_units(kAxisRadius));
         }
 
         rec.log("world/body_axes",

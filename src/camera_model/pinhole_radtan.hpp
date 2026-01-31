@@ -52,24 +52,49 @@ public:
   virtual void Unproject(const std::vector<cv::Point2f> uvs,
                          std::vector<Eigen::Vector3d>&  bearings,
                          std::vector<bool>&             status) override {
-    // cv::undistortPoints(pts, undists, cv_K_, cv_D_);
-    std::vector<cv::Point2f> undists;
-    cv::undistortImagePoints(uvs, undists, cv_K_, cv_D_);
+    const size_t count = uvs.size();
+    bearings.resize(count);
+    status.assign(count, true);
 
-    bearings.reserve(uvs.size());
-    status.reserve(uvs.size());
+    auto fill_bearing = [](double mx, double my, Eigen::Vector3d& out) {
+      const double r2       = mx * mx + my * my;
+      const double norm_inv = 1.0 / std::sqrt(1.0 + r2);
+      out[0]                = mx * norm_inv;
+      out[1]                = my * norm_inv;
+      out[2]                = norm_inv;
+    };
 
-    Eigen::Vector3d bearing;
-    bool            valid = false;
-    for (const auto& uv : uvs) {
-      status.push_back(Unproject(uv, bearing));
-      bearings.push_back(bearing);
+    if (has_distortion_) {
+      std::vector<cv::Point2f> norm_uvs;
+      cv::undistortPoints(uvs, norm_uvs, cv_K_, cv_D_);
+      for (size_t i = 0; i < count; ++i) {
+        const auto& uv = norm_uvs[i];
+        fill_bearing(uv.x, uv.y, bearings[i]);
+      }
+      return;
+    }
+
+    for (size_t i = 0; i < count; ++i) {
+      const auto& uv = uvs[i];
+      const double mx = (uv.x - cx_) / fx_;
+      const double my = (uv.y - cy_) / fy_;
+      fill_bearing(mx, my, bearings[i]);
     }
   }
 
   virtual bool Unproject(const cv::Point2f& uv, Eigen::Vector3d& bearing) override {
-    const double mx = (uv.x - cx_) / fx_;
-    const double my = (uv.y - cy_) / fy_;
+    double mx = (uv.x - cx_) / fx_;
+    double my = (uv.y - cy_) / fy_;
+    if (has_distortion_) {
+      std::vector<cv::Point2f> src;
+      std::vector<cv::Point2f> dst;
+      src.reserve(1);
+      dst.reserve(1);
+      src.emplace_back(uv);
+      cv::undistortPoints(src, dst, cv_K_, cv_D_);
+      mx = dst.front().x;
+      my = dst.front().y;
+    }
 
     const double r2 = mx * mx + my * my;
 
