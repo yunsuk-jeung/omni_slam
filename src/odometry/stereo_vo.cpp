@@ -180,7 +180,12 @@ OdometryResult StereoVO::BuildOdometryResult(const std::shared_ptr<Frame>& frame
                                              TrackingResult* tracking_result) {
   OdometryResult result;
   result.timestamp_ns = frame->GetTimestampNs();
-  result.T_b_c        = frame->GetTbc();
+
+  const size_t cam_num = frame->GetCamNum();
+  result.T_b_c.reserve(cam_num);
+  for (size_t i = 0; i < cam_num; i++) {
+    result.T_b_c.push_back(frame->GetTbc(i));
+  }
 
   result.window_frame_ids = sliding_window_->GetFrameIds();
   result.T_w_b_window.reserve(result.window_frame_ids.size());
@@ -194,7 +199,6 @@ OdometryResult StereoVO::BuildOdometryResult(const std::shared_ptr<Frame>& frame
     }
   }
 
-  const size_t cam_num = frame->GetCamNum();
   result.images.reserve(cam_num);
   result.tracking.ids.resize(cam_num);
   result.tracking.uvs.resize(cam_num);
@@ -210,12 +214,12 @@ OdometryResult StereoVO::BuildOdometryResult(const std::shared_ptr<Frame>& frame
   std::vector<CameraModelBase*> cams(cam_num, nullptr);
   std::vector<Sophus::SE3d>     T_c_w(cam_num);
   std::vector<cv::Size>         img_sizes(cam_num);
-  for (size_t cam_idx = 0; cam_idx < cam_num; ++cam_idx) {
-    cams[cam_idx]      = frame->GetCam(cam_idx);
-    T_c_w[cam_idx]     = frame->GetTwc(cam_idx).inverse();
-    const cv::Mat& img = frame->GetImage(cam_idx);
-    img_sizes[cam_idx] = cv::Size(img.cols, img.rows);
-    result.map_point_uvs[cam_idx].reserve(map_points.size());
+  for (size_t i = 0; i < cam_num; ++i) {
+    cams[i]            = frame->GetCam(i);
+    T_c_w[i]           = frame->GetTwc(i).inverse();
+    const cv::Mat& img = frame->GetImage(i);
+    img_sizes[i]       = cv::Size(img.cols, img.rows);
+    result.map_point_uvs[i].reserve(map_points.size());
   }
   for (const auto& [mp_id, mp] : map_points) {
     const double inv_dist = mp->GetInvDist();
@@ -237,21 +241,21 @@ OdometryResult StereoVO::BuildOdometryResult(const std::shared_ptr<Frame>& frame
       static_cast<float>(p_w.z()), static_cast<float>(mp_id);
     result.map_points.push_back(packed);
 
-    for (size_t cam_idx = 0; cam_idx < cam_num; ++cam_idx) {
-      if (!cams[cam_idx]) {
+    for (size_t i = 0; i < cam_num; ++i) {
+      if (!cams[i]) {
         continue;
       }
-      const Eigen::Vector3d p_c = T_c_w[cam_idx] * p_w;
+      const Eigen::Vector3d p_c = T_c_w[i] * p_w;
       if (!p_c.array().isFinite().all() || p_c.z() <= 0.0) {
         continue;
       }
-      const cv::Point2d uv       = cams[cam_idx]->Project(p_c);
-      const cv::Size&   img_size = img_sizes[cam_idx];
+      const cv::Point2d uv       = cams[i]->Project(p_c);
+      const cv::Size&   img_size = img_sizes[i];
       if ((img_size.width == 0 && img_size.height == 0)
           || (uv.x >= 0.0 && uv.y >= 0.0 && uv.x < img_size.width
               && uv.y < img_size.height)) {
-        result.map_point_uvs[cam_idx].emplace_back(static_cast<float>(uv.x),
-                                                   static_cast<float>(uv.y));
+        result.map_point_uvs[i].emplace_back(static_cast<float>(uv.x),
+                                             static_cast<float>(uv.y));
       }
     }
   }
@@ -314,6 +318,7 @@ int StereoVO::InitializeMapPoints(std::shared_ptr<Frame>& frame) {
         mp->GetBearing()     = t_c0_x.head<3>();
         mp->GetInvDist()     = t_c0_x[3];
         mp->GetHostFrameId() = frame->GetId();
+        mp->SetStatus(MapPoint::Status::TRACKING);
         erase_mp_ids.insert(mp_id);
         sliding_window_->AddMapPoint(mp);
         new_map_points.push_back(mp);

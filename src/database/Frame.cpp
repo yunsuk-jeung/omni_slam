@@ -29,10 +29,10 @@ Frame::Frame(int64_t                             timestamp_ns,
   }
   tracking_result_ = std::make_unique<TrackingResult>(images_.size());
 
-  T_bcs_.resize(images.size());
+  T_b_cs_.resize(images.size());
   for (size_t i = 0; i < images.size(); ++i) {
     if (i < SVOConfig::camera_T_b_c.size()) {
-      T_bcs_[i] = SVOConfig::camera_T_b_c[i];
+      T_b_cs_[i] = SVOConfig::camera_T_b_c[i];
     }
   }
   mp_id_to_bearings_.resize(images.size());

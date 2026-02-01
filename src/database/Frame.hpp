@@ -36,10 +36,11 @@ public:
 
   CameraModelBase* GetCam(size_t cam_idx) { return cams_[cam_idx].get(); }
 
-  const Sophus::SE3d&              GetTwb() const { return T_wb_; }
-  Sophus::SE3d&                    GetTwb() { return T_wb_; }
-  Sophus::SE3d                     GetTwc(size_t i) { return T_wb_ * T_bcs_[i]; }
-  const std::vector<Sophus::SE3d>& GetTbc() const { return T_bcs_; }
+  const Sophus::SE3d& GetTwb() const { return T_w_b_; }
+  Sophus::SE3d&       GetTwb() { return T_w_b_; }
+  void                SetTwb(const Sophus::SE3d T_wb) { T_w_b_ = T_wb; }
+  Sophus::SE3d        GetTwc(size_t i) { return T_w_b_ * T_b_cs_[i]; }
+  const Sophus::SE3d& GetTbc(size_t i) const { return T_b_cs_[i]; }
 
   void       SetKeyframe() { is_keyframe_ = true; }
   const bool IsKeyframe() const { return is_keyframe_; }
@@ -60,9 +61,9 @@ private:
 
   std::unique_ptr<TrackingResult> tracking_result_;
 
-  Sophus::SE3d                                  T_wb_;
+  Sophus::SE3d                                  T_w_b_;
   std::vector<std::unique_ptr<CameraModelBase>> cams_;
-  std::vector<Sophus::SE3d>                     T_bcs_;
+  std::vector<Sophus::SE3d>                     T_b_cs_;
 
   bool is_keyframe_;
 
