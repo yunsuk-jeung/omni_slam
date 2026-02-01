@@ -33,11 +33,13 @@ public:
   }
 
   bool PlusJacobian(const double* x, double* jacobian) const override {
-    Eigen::Map<const Eigen::Vector3d> so3(x + 3);
+    Eigen::Map<const Eigen::Vector3d>                        so3(x + 3);
     Eigen::Map<Eigen::Matrix<double, 6, 6, Eigen::RowMajor>> J(jacobian);
+
     J.setZero();
-    J.topLeftCorner<3, 3>().setIdentity();
-    J.bottomRightCorner<3, 3>() = Sophus::SO3d::leftJacobianInverse(-so3);
+    J.topLeftCorner<3, 3>().setIdentity();  // ∂t_new/∂dt = I
+    J.bottomRightCorner<3, 3>() = Sophus::SO3d::leftJacobianInverse(
+      so3);  // ∂so3_new/∂dtheta
     return true;
   }
 
@@ -58,13 +60,13 @@ public:
   }
 
   bool MinusJacobian(const double* x, double* jacobian) const override {
-    Eigen::Map<const Eigen::Vector3d> so3_x(x + 3);
-    const Sophus::SO3d R_x = Sophus::SO3d::exp(so3_x);
+    Eigen::Map<const Eigen::Vector3d>                        so3_x(x + 3);
     Eigen::Map<Eigen::Matrix<double, 6, 6, Eigen::RowMajor>> J(jacobian);
+
     J.setZero();
-    J.topLeftCorner<3, 3>().setIdentity();
-    J.bottomRightCorner<3, 3>() =
-        R_x.matrix() * Sophus::SO3d::leftJacobianInverse(-so3_x);
+    J.topLeftCorner<3, 3>()     = -Eigen::Matrix3d::Identity();  // ∂dt/∂t_x = -I
+    J.bottomRightCorner<3, 3>() = -Sophus::SO3d::leftJacobianInverse(
+      so3_x);  // ∂dtheta/∂so3_x
     return true;
   }
 
@@ -80,6 +82,62 @@ public:
     out.template tail<3>() = T.so3().log();
     return out;
   }
+};
+
+class BearingTangentManifold : public ceres::Manifold {
+public:
+  // f ∈ R^3
+  int AmbientSize() const override { return 3; }
+  //
+  // δ ∈ R^2
+  int TangentSize() const override { return 2; }
+
+  // ---------------------------------------------
+  // Plus: f ⊞ δ = Exp(B(f)δ) f
+  // ---------------------------------------------
+  bool Plus(const double* x, const double* delta, double* x_plus_delta) const override {
+    Eigen::Vector3d f = Eigen::Map<const Eigen::Vector3d>(x).normalized();
+
+    // tangent basis at f
+    Eigen::Matrix<double, 3, 2> B;
+    TangentBasis(f, B);
+
+    // lift 2D delta → 3D tangent vector
+    Eigen::Vector3d w = B * Eigen::Vector2d(delta[0], delta[1]);
+
+    // rotate f using Sophus Exp
+    Sophus::SO3d dR = Sophus::SO3d::exp(w);
+
+    Eigen::Vector3d f_new = dR * f;
+
+    Eigen::Map<Eigen::Vector3d> out(x_plus_delta);
+    out = f_new.normalized();
+    return true;
+  }
+
+  // ---------------------------------------------
+  // PlusJacobian: ∂(f ⊞ δ)/∂δ at δ=0
+  //
+  // At δ=0:
+  // f ⊞ δ ≈ f + B δ
+  //
+  // so Jacobian = B(f)
+  // ---------------------------------------------
+  bool PlusJacobian(const double* x, double* jacobian) const override {
+    Eigen::Vector3d f = Eigen::Map<const Eigen::Vector3d>(x).normalized();
+
+    Eigen::Matrix<double, 3, 2> B;
+    TangentBasis(f, B);
+
+    Eigen::Map<Eigen::Matrix<double, 3, 2, Eigen::RowMajor>> J(jacobian);
+    J = B;
+    return true;
+  }
+
+  // Minus not required unless you implement marginalization manually
+  bool Minus(const double*, const double*, double*) const override { return false; }
+
+  bool MinusJacobian(const double*, double*) const override { return false; }
 };
 
 }  // namespace omni_slam

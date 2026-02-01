@@ -13,7 +13,7 @@ public:
   TrackingResult(const size_t& cam_num)
     : kCamNum{cam_num}
     , ids_(cam_num)
-    , uvs_(cam_num){};
+    , uvs_(cam_num) {};
 
   ~TrackingResult() = default;
 

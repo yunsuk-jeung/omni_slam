@@ -82,15 +82,11 @@ public:
       logger_->error("[{}:{}] {}", file, line, fmt_view);
     }
     else {
-      auto arg_tuple =
-        std::tuple<std::decay_t<Args>...>(std::forward<Args>(args)...);
-      auto format_args = std::apply(
-        [](auto&... unpacked) { return std::make_format_args(unpacked...); },
-        arg_tuple);
-      logger_->error("[{}:{}] {}",
-                     file,
-                     line,
-                     std::vformat(fmt_view, format_args));
+      auto arg_tuple = std::tuple<std::decay_t<Args>...>(std::forward<Args>(args)...);
+      auto format_args =
+        std::apply([](auto&... unpacked) { return std::make_format_args(unpacked...); },
+                   arg_tuple);
+      logger_->error("[{}:{}] {}", file, line, std::vformat(fmt_view, format_args));
     }
   }
 

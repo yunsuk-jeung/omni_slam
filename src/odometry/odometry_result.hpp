@@ -16,13 +16,13 @@ struct OdometryResult {
     std::vector<std::vector<cv::Point2f>> uvs;
   };
 
-  int64_t                      timestamp_ns = 0;
-  std::vector<cv::Mat>         images;
-  std::vector<Sophus::SE3d>    T_w_b_window;
-  std::vector<Sophus::SE3d>    T_b_c;
-  std::vector<uint64_t>        window_frame_ids;
-  TrackingData                 tracking;
-  std::vector<Eigen::Vector4f> map_points;
+  int64_t                               timestamp_ns = 0;
+  std::vector<cv::Mat>                  images;
+  std::vector<Sophus::SE3d>             T_w_b_window;
+  std::vector<Sophus::SE3d>             T_b_c;
+  std::vector<uint64_t>                 window_frame_ids;
+  TrackingData                          tracking;
+  std::vector<Eigen::Vector4f>          map_points;
   std::vector<std::vector<cv::Point2f>> map_point_uvs;
 };
 

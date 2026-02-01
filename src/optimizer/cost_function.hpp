@@ -7,130 +7,161 @@
 #include "optimizer/parameterization.hpp"
 
 namespace omni_slam {
-class PoseOnlyBearingCost : public ceres::SizedCostFunction<2, 6> {
+class PoseOnlyBearingCost final : public ceres::SizedCostFunction<2, 6> {
 public:
-  PoseOnlyBearingCost() = delete;
-
-  PoseOnlyBearingCost(const Eigen::Vector3d& bearing,
-                      const Eigen::Vector3d& p_w,
+  PoseOnlyBearingCost(const Eigen::Vector3d& p_w,
+                      const Eigen::Vector3d& b_obs,
                       const Sophus::SE3d&    T_b_c)
-    : b_{bearing}
-    , p_w_{p_w}
-    , T_b_c_{T_b_c} {}
+    : p_w_(p_w)
+    , b_obs_(b_obs.normalized())
+    , T_b_c_(T_b_c) {}
 
   bool Evaluate(double const* const* params,
                 double*              residuals,
                 double**             jacobians) const override {
-    // pose (world -> body)
-    const Sophus::SE3d T_w_b = SE3BoxplusManifold::FromParams(params[0]);
+    // -----------------------------
+    // Pose: world -> body
+    // -----------------------------
+    Sophus::SE3d T_w_b = SE3BoxplusManifold::FromParams(params[0]);
 
     // world -> camera
-    const Sophus::SE3d T_w_c = T_w_b * T_b_c_;
+    Sophus::SE3d T_w_c = T_w_b * T_b_c_;
+
+    // camera -> world rotation
+    Eigen::Matrix3d R_c_w = T_w_c.so3().matrix().transpose();
+    Eigen::Vector3d t_w_c = T_w_c.translation();
 
     // point in camera frame
-    const Eigen::Vector3d p_c = T_w_c.inverse() * p_w_;
+    Eigen::Vector3d p_c = R_c_w * (p_w_ - t_w_c);
 
-    if (p_c.norm() < 1e-8) {
+    // reject invalid depth
+    if (p_c.z() <= 1e-6) {
       residuals[0] = residuals[1] = 0.0;
+      if (jacobians && jacobians[0]) {
+        Eigen::Map<Eigen::Matrix<double, 2, 6, Eigen::RowMajor>> J(jacobians[0]);
+        J.setZero();
+      }
       return true;
     }
 
+    // -----------------------------
     // predicted bearing
-    const Eigen::Vector3d b = p_c.normalized();
+    // -----------------------------
+    Eigen::Vector3d b = p_c.normalized();
 
     // tangent basis at observed bearing
     Eigen::Matrix<double, 3, 2> B;
-    TangentBasis(b_, B);
+    TangentBasis(b_obs_, B);
 
-    // residual: 2D bearing error
+    // residual: 2D tangent error
     Eigen::Map<Eigen::Vector2d> r(residuals);
-    r = B.transpose() * (b - b_);
+    r = B.transpose() * (b - b_obs_);
 
-    // Jacobian (optional – Ceres can numeric-diff if nullptr)
+    // -----------------------------
+    // Jacobian
+    // -----------------------------
     if (jacobians && jacobians[0]) {
       Eigen::Map<Eigen::Matrix<double, 2, 6, Eigen::RowMajor>> J(jacobians[0]);
       J.setZero();
 
-      // db / dp_c
-      const double    inv_norm = 1.0 / p_c.norm();
-      Eigen::Matrix3d J_norm   = (Eigen::Matrix3d::Identity() - b * b.transpose())
+      // ---- (1) db/dp_c ----
+      double inv_norm = 1.0 / p_c.norm();
+
+      Eigen::Matrix3d J_norm = (Eigen::Matrix3d::Identity() - b * b.transpose())
                                * inv_norm;
 
-      // dp_c / dpose
-      Eigen::Matrix<double, 3, 6> J_p_c;
-      J_p_c.leftCols<3>()  = -T_w_c.so3().matrix().transpose();
-      J_p_c.rightCols<3>() = T_w_c.so3().matrix().transpose()
-                             * Sophus::SO3d::hat(p_w_ - T_w_c.translation());
+      // ---- (2) dp_c/dt ----
+      // p_c = R_c_w (p_w - t)
+      Eigen::Matrix3d dp_dt = -R_c_w;
 
-      // chain rule
-      J = B.transpose() * J_norm * J_p_c;
+      // ---- (3) dp_c/dtheta ----
+      //
+      // Under your manifold:
+      //   t += dt
+      //   R <- Exp(dθ) R
+      //
+      // Perturbation is applied on body rotation (left-mult),
+      // so camera point variation:
+      //
+      //   dp_c ≈ R_c_w * hat(p_w - t) * dθ
+      //
+      Eigen::Matrix3d dp_dtheta = R_c_w * Sophus::SO3d::hat(p_w_ - t_w_c);
+
+      // assemble dp_c/dpose
+      Eigen::Matrix<double, 3, 6> J_p;
+      J_p.leftCols<3>()  = dp_dt;
+      J_p.rightCols<3>() = dp_dtheta;
+
+      // chain rule: r = Bᵀ * b(p_c)
+      J = B.transpose() * J_norm * J_p;
     }
 
     return true;
   }
 
-  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-
 private:
-  const Eigen::Vector3d& b_;  // bearing
-  const Eigen::Vector3d& p_w_;
-  const Sophus::SE3d&    T_b_c_;
+  Eigen::Vector3d p_w_;
+  Eigen::Vector3d b_obs_;
+  Sophus::SE3d    T_b_c_;
 };
 
-class BearingTangentManifold : public ceres::Manifold {
-public:
-  // f ∈ R^3
-  int AmbientSize() const override { return 3; }
+struct PoseOnlyBearingCostFunctor {
+  PoseOnlyBearingCostFunctor(const Eigen::Vector3d& p_w,
+                             const Eigen::Vector3d& b_obs,
+                             const Sophus::SE3d&    T_b_c)
+    : p_w_(p_w)
+    , b_obs_(b_obs.normalized())
+    , T_b_c_(T_b_c) {}
 
-  // δ ∈ R^2
-  int TangentSize() const override { return 2; }
+  template <typename T>
+  bool operator()(const T* const pose, T* residuals) const {
+    // pose = [t(3), so3(3)]
+    Eigen::Map<const Eigen::Matrix<T, 3, 1>> t(pose);
+    Eigen::Map<const Eigen::Matrix<T, 3, 1>> so3(pose + 3);
 
-  // ---------------------------------------------
-  // Plus: f ⊞ δ = Exp(B(f)δ) f
-  // ---------------------------------------------
-  bool Plus(const double* x, const double* delta, double* x_plus_delta) const override {
-    Eigen::Vector3d f = Eigen::Map<const Eigen::Vector3d>(x).normalized();
+    // world -> body
+    Sophus::SO3<T> R_w_b = Sophus::SO3<T>::exp(so3);
+    Sophus::SE3<T> T_w_b(R_w_b, t);
 
-    // tangent basis at f
-    Eigen::Matrix<double, 3, 2> B;
-    TangentBasis(f, B);
+    // body -> camera extrinsic (constant)
+    Sophus::SE3<T> T_b_c = T_b_c_.cast<T>();
 
-    // lift 2D delta → 3D tangent vector
-    Eigen::Vector3d w = B * Eigen::Vector2d(delta[0], delta[1]);
+    // world -> camera
+    Sophus::SE3<T> T_w_c = T_w_b * T_b_c;
 
-    // rotate f using Sophus Exp
-    Sophus::SO3d dR = Sophus::SO3d::exp(w);
+    // camera frame point: p_c = R_c_w (p_w - t)
+    Eigen::Matrix<T, 3, 1> p_w = p_w_.cast<T>();
+    Eigen::Matrix<T, 3, 1> p_c = T_w_c.inverse() * p_w;
 
-    Eigen::Vector3d f_new = dR * f;
+    // depth check
+    if (p_c.z() <= T(1e-6)) {
+      residuals[0] = T(0);
+      residuals[1] = T(0);
+      return true;
+    }
 
-    Eigen::Map<Eigen::Vector3d> out(x_plus_delta);
-    out = f_new.normalized();
+    // predicted bearing
+    Eigen::Matrix<T, 3, 1> b = p_c.normalized();
+
+    // tangent basis at observed bearing (constant)
+    Eigen::Matrix<double, 3, 2> B_d;
+    TangentBasis(b_obs_, B_d);
+
+    Eigen::Matrix<T, 3, 2> B = B_d.cast<T>();
+
+    // residual = Bᵀ (b - b_obs)
+    Eigen::Matrix<T, 3, 1> b_obs = b_obs_.cast<T>();
+
+    Eigen::Matrix<T, 2, 1> r = B.transpose() * (b - b_obs);
+
+    residuals[0] = r[0];
+    residuals[1] = r[1];
+
     return true;
   }
 
-  // ---------------------------------------------
-  // PlusJacobian: ∂(f ⊞ δ)/∂δ at δ=0
-  //
-  // At δ=0:
-  // f ⊞ δ ≈ f + B δ
-  //
-  // so Jacobian = B(f)
-  // ---------------------------------------------
-  bool PlusJacobian(const double* x, double* jacobian) const override {
-    Eigen::Vector3d f = Eigen::Map<const Eigen::Vector3d>(x).normalized();
-
-    Eigen::Matrix<double, 3, 2> B;
-    TangentBasis(f, B);
-
-    Eigen::Map<Eigen::Matrix<double, 3, 2, Eigen::RowMajor>> J(jacobian);
-    J = B;
-    return true;
-  }
-
-  // Minus not required unless you implement marginalization manually
-  bool Minus(const double*, const double*, double*) const override { return false; }
-
-  bool MinusJacobian(const double*, double*) const override { return false; }
+  Eigen::Vector3d p_w_;
+  Eigen::Vector3d b_obs_;
+  Sophus::SE3d    T_b_c_;
 };
-
 }  // namespace omni_slam

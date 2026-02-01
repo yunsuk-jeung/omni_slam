@@ -31,7 +31,6 @@ void VOEstimator::OptimizeSingleFrame(std::shared_ptr<Frame> frame,
     std::shared_ptr<MapPoint> mp = window->GetMapPoint(mp_id);
 
     if (!mp) {
-      LogE("Missing map point id {}", mp_id);
       continue;
     }
 
@@ -48,20 +47,29 @@ void VOEstimator::OptimizeSingleFrame(std::shared_ptr<Frame> frame,
     const Eigen::Vector3d p_w = Twc0 * p_c0;
 
     // bearing residual (pose-only)
-    ceres::CostFunction* cost = new PoseOnlyBearingCost(bearing, p_w, T_b_c);
+    ceres::CostFunction* cost = new PoseOnlyBearingCost(p_w, bearing, T_b_c);
 
+    // auto* cost = new ceres::AutoDiffCostFunction<PoseOnlyBearingCostFunctor,
+    //                                              2,  // residual dim
+    //                                              6   // pose dim
+    //                                              >(
+    //   new PoseOnlyBearingCostFunctor(p_w, bearing, T_b_c));
+
+    ceres::LossFunction* loss = new ceres::HuberLoss(0.01);
     problem.AddResidualBlock(cost,
-                             nullptr,  // no robust loss for now
+                             loss,  // no robust loss for now
                              box_w_b.data());
   }
   // solver options
   ceres::Solver::Options options;
   options.linear_solver_type           = ceres::DENSE_QR;
   options.minimizer_progress_to_stdout = false;
-  options.max_num_iterations           = 2;
+  options.max_num_iterations           = 10;
 
   ceres::Solver::Summary summary;
   ceres::Solve(options, &problem, &summary);
+
+  LogD("{}", summary.FullReport());
 
   // update pose
   frame->SetTwb(SE3BoxplusManifold::FromParams(box_w_b.data()));

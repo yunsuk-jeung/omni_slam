@@ -75,7 +75,7 @@ public:
     }
 
     for (size_t i = 0; i < count; ++i) {
-      const auto& uv = uvs[i];
+      const auto&  uv = uvs[i];
       const double mx = (uv.x - cx_) / fx_;
       const double my = (uv.y - cy_) / fy_;
       fill_bearing(mx, my, bearings[i]);
