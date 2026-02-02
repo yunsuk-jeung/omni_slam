@@ -14,7 +14,6 @@ SlidingWindow::SlidingWindow(size_t max_size)
 
 void SlidingWindow::SetMaxSize(size_t max_size) {
   max_size_ = max_size;
-  frame_ids_.reserve(max_size);
 }
 
 size_t SlidingWindow::GetMaxSize() const {
@@ -36,8 +35,11 @@ void SlidingWindow::AddFrame(std::shared_ptr<Frame>& frame) {
   const size_t id = frame->GetId();
   auto         it = frames_.find(id);
 
-  frame_ids_.push_back(id);
+  frame_ids_.insert(id);
   frames_.emplace(id, frame);
+  if (frame->IsKeyframe()) {
+    MarkKeyframe(id);
+  }
 }
 
 std::shared_ptr<Frame> SlidingWindow::GetFrame(const uint64_t& id) {
@@ -53,13 +55,20 @@ std::shared_ptr<Frame> SlidingWindow::RemoveFrame(uint64_t id) {
   auto removed = it->second;
   frames_.erase(it);
 
-  for (size_t i = 0; i < frame_ids_.size(); ++i) {
-    if (frame_ids_[i] == id) {
-      frame_ids_.erase(frame_ids_.begin() + static_cast<long>(i));
-      break;
-    }
-  }
+  frame_ids_.erase(id);
+  RemoveKeyframe(id);
   return removed;
+}
+
+void SlidingWindow::MarkKeyframe(uint64_t id) {
+  if (frames_.find(id) == frames_.end()) {
+    return;
+  }
+  keyframe_ids_.insert(id);
+}
+
+void SlidingWindow::RemoveKeyframe(uint64_t id) {
+  keyframe_ids_.erase(id);
 }
 
 void SlidingWindow::AddMapPoint(std::shared_ptr<MapPoint>& map_point) {
@@ -94,6 +103,7 @@ bool SlidingWindow::GetHasMapPoint(const uint64_t& id) const {
 
 void SlidingWindow::Clear() {
   frame_ids_.clear();
+  keyframe_ids_.clear();
   frames_.clear();
   map_points_.clear();
   map_point_candidates_.clear();

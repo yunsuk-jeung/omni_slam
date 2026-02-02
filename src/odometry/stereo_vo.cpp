@@ -154,6 +154,7 @@ void StereoVO::EstimatorLoop() {
       if (created_map_point_num > 0) {
         created_map_point_nums_[frame->GetId()] = created_map_point_num;
         frame->SetKeyframe();
+        sliding_window_->MarkKeyframe(frame->GetId());
       }
     }
 
@@ -187,7 +188,8 @@ OdometryResult StereoVO::BuildOdometryResult(const std::shared_ptr<Frame>& frame
     result.T_b_c.push_back(frame->GetTbc(i));
   }
 
-  result.window_frame_ids = sliding_window_->GetFrameIds();
+  const auto& window_ids = sliding_window_->GetFrameIds();
+  result.window_frame_ids.assign(window_ids.begin(), window_ids.end());
   result.T_w_b_window.reserve(result.window_frame_ids.size());
   for (const auto frame_id : result.window_frame_ids) {
     std::shared_ptr<Frame> window_frame = sliding_window_->GetFrame(frame_id);
@@ -338,52 +340,13 @@ int StereoVO::InitializeMapPoints(std::shared_ptr<Frame>& frame) {
        try_count,
        candidates.size());
 
-  // if (!new_map_points.empty()) {
-  //   const cv::Mat& src = frame->GetImage(0);
-  //   if (!src.empty()) {
-  //     cv::Mat vis;
-  //     if (src.channels() == 1) {
-  //       cv::cvtColor(src, vis, cv::COLOR_GRAY2BGR);
-  //     }
-  //     else {
-  //       src.copyTo(vis);
-  //     }
-
-  // auto* cam = frame->GetCam(0);
-  // const int width = vis.cols;
-  // const int height = vis.rows;
-
-  // int drawn = 0;
-  // for (const auto& mp : new_map_points) {
-  //   const double inv_dist = mp->GetInvDist();
-  //   if (!std::isfinite(inv_dist) || std::abs(inv_dist) <= 1e-12) {
-  //     continue;
-  //   }
-  //   const Eigen::Vector3d p_c0 = mp->GetBearing() / inv_dist;
-  //   if (!p_c0.array().isFinite().all() || p_c0.z() <= 0.0) {
-  //     continue;
-  //   }
-  //   const cv::Point2d uv = cam->Project(p_c0);
-  //   if (uv.x < 0.0 || uv.y < 0.0 || uv.x >= width || uv.y >= height) {
-  //     continue;
-  //   }
-  //   cv::circle(vis, uv, 2, cv::Scalar(0, 255, 255), -1, cv::LINE_AA);
-  //   ++drawn;
-  // }
-
-  // cv::putText(vis,
-  //             "init mp proj: " + std::to_string(drawn),
-  //             cv::Point(12, 24),
-  //             cv::FONT_HERSHEY_SIMPLEX,
-  //             0.6,
-  //             cv::Scalar(0, 255, 0),
-  //             1,
-  //             cv::LINE_AA);
-  // cv::imshow("init_map_points_proj", vis);
-  // cv::waitKey(1);
-  // }
-  // }
-
   return init_count;
 }
+
+void StereoVO::SelectMarginalFrames() {
+  std::vector<std::shared_ptr<Frame>> keyframes;
+
+  auto& frames = sliding_window_->GetFrames();
+}
+
 }  // namespace omni_slam

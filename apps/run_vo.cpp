@@ -22,11 +22,13 @@ namespace {
 
 constexpr float kTrackPointRadiusUi = 3.0f;
 constexpr float kMapPointRadiusUi   = 1.5f;
+constexpr float kTrajectoryRadiusUi = 1.0f;
 constexpr float kAxisLength         = 0.2f;
 constexpr float kAxisRadius         = 0.01f;
 
 const rerun::components::Color kTrackColor(255, 255, 0, 200);
 const rerun::components::Color kMapColor(0, 255, 255, 200);
+const rerun::components::Color kTrajectoryColor(255, 255, 255, 200);
 const rerun::components::Color kAxisXColor(255, 0, 0, 255);
 const rerun::components::Color kAxisYColor(0, 255, 0, 255);
 const rerun::components::Color kAxisZColor(0, 0, 255, 255);
@@ -137,6 +139,7 @@ int main(int argc, char** argv) {
 
   int64_t                   last_timestamp = std::numeric_limits<int64_t>::min();
   omni_slam::OdometryResult result;
+  std::vector<std::array<float, 3>> trajectory_points;
 
   while (loader.HasCameraData()) {
     if (stereo_vo.FetchResult(result) && result.timestamp_ns != last_timestamp) {
@@ -203,9 +206,35 @@ int main(int argc, char** argv) {
         rec.log("world/map_points", rerun::Points3D(points3d));
       }
 
+      if (!result.T_w_b_window.empty()) {
+        const auto&        T_w_b = result.T_w_b_window.back();
+        const Eigen::Vector3d t = T_w_b.translation();
+        trajectory_points.push_back({static_cast<float>(t.x()),
+                                     static_cast<float>(t.y()),
+                                     static_cast<float>(t.z())});
+        rerun::LineStrip3D strip(trajectory_points);
+        rec.log("world/trajectory",
+                rerun::LineStrips3D(strip)
+                  .with_colors({kTrajectoryColor})
+                  .with_radii({rerun::components::Radius::ui_points(kTrajectoryRadiusUi)}));
+      }
+
+      rec.log("world/window", rerun::Clear::RECURSIVE);
       for (size_t i = 0; i < result.T_w_b_window.size(); ++i) {
         const std::string path = "world/window/body_" + std::to_string(i);
         rec.log(path, MakeTransform(result.T_w_b_window[i]));
+      }
+
+      if (!result.T_w_b_window.empty() && !result.T_b_c.empty()) {
+        for (size_t i = 0; i < result.T_w_b_window.size(); ++i) {
+          const auto& T_w_b = result.T_w_b_window[i];
+          for (size_t cam_idx = 0; cam_idx < result.T_b_c.size(); ++cam_idx) {
+            const auto T_w_c = T_w_b * result.T_b_c[cam_idx];
+            const std::string path = "world/window/cam_" + std::to_string(i) + "_"
+                                     + std::to_string(cam_idx);
+            rec.log(path, MakeTransform(T_w_c));
+          }
+        }
       }
 
       if (!result.T_w_b_window.empty()) {

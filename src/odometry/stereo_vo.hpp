@@ -44,6 +44,8 @@ private:
                                      TrackingResult*               tracking_result);
   int            InitializeMapPoints(std::shared_ptr<Frame>& frame);
 
+  void SelectMarginalFrames();
+
 private:
   static constexpr size_t kCamNum = 2;
 
@@ -60,6 +62,8 @@ private:
   bool                    make_keyframe_;
   int                     new_keyframe_after_;
   std::map<uint64_t, int> created_map_point_nums_;
+
+  std::vector<uint64_t> marginal_frame_ids_;
 
   std::mutex     result_mutex_;
   bool           has_result_;

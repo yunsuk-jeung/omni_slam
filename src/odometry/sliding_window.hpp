@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <memory>
 #include <vector>
+#include <set>
 #include <unordered_map>
 
 namespace omni_slam {
@@ -23,13 +24,19 @@ public:
   void                   AddFrame(std::shared_ptr<Frame>& frame);
   std::shared_ptr<Frame> GetFrame(const uint64_t& id);
   std::shared_ptr<Frame> RemoveFrame(uint64_t id);
+  void                   MarkKeyframe(uint64_t id);
+  void                   RemoveKeyframe(uint64_t id);
 
   void                      AddMapPoint(std::shared_ptr<MapPoint>& map_point);
   std::shared_ptr<MapPoint> GetMapPoint(const uint64_t& id) const;
   std::shared_ptr<MapPoint> GetOrCreateMapPointCandidate(const uint64_t& id);
   bool                      GetHasMapPoint(const uint64_t& id) const;
 
-  const std::vector<uint64_t>& GetFrameIds() const { return frame_ids_; };
+  const std::unordered_map<uint64_t, std::shared_ptr<Frame>>& GetFrames() const {
+    return frames_;
+  }
+  const std::set<uint64_t>& GetFrameIds() const { return frame_ids_; };
+  const std::set<uint64_t>&    GetKeyframeIds() const { return keyframe_ids_; }
   const std::unordered_map<uint64_t, std::shared_ptr<MapPoint>>& GetMapPoints() const {
     return map_points_;
   };
@@ -43,7 +50,8 @@ public:
 private:
   size_t                                                  max_size_;
   uint64_t                                                next_map_point_id_;
-  std::vector<uint64_t>                                   frame_ids_;
+  std::set<uint64_t>                                      frame_ids_;
+  std::set<uint64_t>                                      keyframe_ids_;
   std::unordered_map<uint64_t, std::shared_ptr<Frame>>    frames_;
   std::unordered_map<uint64_t, std::shared_ptr<MapPoint>> map_points_;
   std::unordered_map<uint64_t, std::shared_ptr<MapPoint>> map_point_candidates_;
