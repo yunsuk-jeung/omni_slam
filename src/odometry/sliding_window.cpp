@@ -1,4 +1,6 @@
 
+#include <unordered_set>
+
 #include "database/Frame.hpp"
 #include "database/MapPoint.hpp"
 #include "feature_tracking/tracking_result.hpp"
@@ -37,9 +39,6 @@ void SlidingWindow::AddFrame(std::shared_ptr<Frame>& frame) {
 
   frame_ids_.insert(id);
   frames_.emplace(id, frame);
-  if (frame->IsKeyframe()) {
-    MarkKeyframe(id);
-  }
 }
 
 std::shared_ptr<Frame> SlidingWindow::GetFrame(const uint64_t& id) {
@@ -47,28 +46,66 @@ std::shared_ptr<Frame> SlidingWindow::GetFrame(const uint64_t& id) {
   return (it == frames_.end()) ? nullptr : it->second;
 }
 
-std::shared_ptr<Frame> SlidingWindow::RemoveFrame(uint64_t id) {
-  auto it = frames_.find(id);
-  if (it == frames_.end()) {
-    return nullptr;
-  }
-  auto removed = it->second;
-  frames_.erase(it);
-
-  frame_ids_.erase(id);
-  RemoveKeyframe(id);
-  return removed;
-}
-
 void SlidingWindow::MarkKeyframe(uint64_t id) {
-  if (frames_.find(id) == frames_.end()) {
-    return;
-  }
   keyframe_ids_.insert(id);
 }
 
-void SlidingWindow::RemoveKeyframe(uint64_t id) {
-  keyframe_ids_.erase(id);
+void SlidingWindow::RemoveFrames(const std::vector<uint64_t>& frame_ids) {
+  if (frame_ids.empty()) {
+    return;
+  }
+  std::unordered_set<uint64_t> to_remove(frame_ids.begin(), frame_ids.end());
+  std::unordered_set<uint64_t> removed_map_point_ids;
+
+  auto prune_container = [&](auto& container) {
+    for (auto it = container.begin(); it != container.end();) {
+      auto& mp = it->second;
+      if (!mp) {
+        it = container.erase(it);
+        continue;
+      }
+
+      if (to_remove.find(mp->GetHostFrameId()) != to_remove.end()) {
+        removed_map_point_ids.insert(it->first);
+        continue;
+      }
+
+      auto& observations = mp->GetObservation();
+      for (auto obs_it = observations.begin(); obs_it != observations.end();) {
+        if (to_remove.find(obs_it->first.frame_id) != to_remove.end()) {
+          obs_it = observations.erase(obs_it);
+        }
+        else {
+          ++obs_it;
+        }
+      }
+
+      if (observations.empty()) {
+        removed_map_point_ids.insert(it->first);
+        it = container.erase(it);
+      }
+      else {
+        ++it;
+      }
+    }
+  };
+
+  prune_container(map_points_);
+  prune_container(map_point_candidates_);
+
+  for (const auto id : to_remove) {
+    frames_.erase(id);
+    frame_ids_.erase(id);
+    keyframe_ids_.erase(id);
+  }
+
+  if (!removed_map_point_ids.empty()) {
+    for (auto& [frame_id, frame] : frames_) {
+      for (const auto mp_id : removed_map_point_ids) {
+        frame->RemoveObservation(mp_id);
+      }
+    }
+  }
 }
 
 void SlidingWindow::AddMapPoint(std::shared_ptr<MapPoint>& map_point) {

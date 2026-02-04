@@ -9,22 +9,23 @@
 #include "camera_model/camera_model.hpp"
 
 namespace omni_slam {
-bool                             SVOConfig::debug                        = false;
-bool                             SVOConfig::tbb                          = true;
-bool                             SVOConfig::equalize_histogram           = false;
-double                           SVOConfig::clahe_clip_limit             = 3.0;
-int                              SVOConfig::clahe_tile_size              = 8;
-int                              SVOConfig::optical_flow_patch_size      = 21;
-float                            SVOConfig::optical_flow_dist_threshold  = 5.0;
-int                              SVOConfig::fast_threshold               = 20;
-int                              SVOConfig::feature_grid_rows            = 4;
-int                              SVOConfig::feature_grid_cols            = 4;
-int                              SVOConfig::max_pyramid_level            = 3;
-size_t                           SVOConfig::max_window                   = 0;
-size_t                           SVOConfig::max_keyframe_size            = 8;
-float                            SVOConfig::keyframe_min_mp_ratio        = 0.8f;
-int                              SVOConfig::new_keyframe_after           = 1;
-double                           SVOConfig::triangulation_dist_threshold = 0.0025;
+bool                             SVOConfig::debug                         = false;
+bool                             SVOConfig::tbb                           = true;
+bool                             SVOConfig::equalize_histogram            = false;
+double                           SVOConfig::clahe_clip_limit              = 3.0;
+int                              SVOConfig::clahe_tile_size               = 8;
+int                              SVOConfig::optical_flow_patch_size       = 21;
+float                            SVOConfig::optical_flow_dist_threshold   = 5.0;
+int                              SVOConfig::fast_threshold                = 20;
+int                              SVOConfig::feature_grid_rows             = 4;
+int                              SVOConfig::feature_grid_cols             = 4;
+int                              SVOConfig::max_pyramid_level             = 3;
+size_t                           SVOConfig::max_window                    = 0;
+size_t                           SVOConfig::max_keyframe_size             = 8;
+float                            SVOConfig::keyframe_min_mp_ratio         = 0.8f;
+float                            SVOConfig::marg_feature_connection_ratio = 0.2f;
+int                              SVOConfig::new_keyframe_after            = 1;
+double                           SVOConfig::triangulation_dist_threshold  = 0.0025;
 std::vector<int>                 SVOConfig::camera_models;
 std::vector<std::vector<double>> SVOConfig::camera_intrinsics;
 std::vector<std::vector<double>> SVOConfig::camera_distortions;
@@ -110,24 +111,31 @@ void SVOConfig::ParseConfig(const std::string& file) {
     Logger::Init();
     spdlog::set_level(spdlog::level::debug);
   }
-  tbb                          = config.value("tbb", tbb);
-  equalize_histogram           = config.value("equalize_histogram", equalize_histogram);
-  clahe_clip_limit             = config.value("clahe_clip_limit", clahe_clip_limit);
-  clahe_tile_size              = config.value("clahe_tile_size", clahe_tile_size);
-  optical_flow_patch_size      = config.value("optical_flow_patch_size",
+  tbb                         = config.value("tbb", tbb);
+  equalize_histogram          = config.value("equalize_histogram", equalize_histogram);
+  clahe_clip_limit            = config.value("clahe_clip_limit", clahe_clip_limit);
+  clahe_tile_size             = config.value("clahe_tile_size", clahe_tile_size);
+  optical_flow_patch_size     = config.value("optical_flow_patch_size",
                                          optical_flow_patch_size);
-  optical_flow_dist_threshold  = config.value("optical_flow_dist_threshold",
+  optical_flow_dist_threshold = config.value("optical_flow_dist_threshold",
                                              optical_flow_dist_threshold);
-  fast_threshold               = config.value("fast_threshold", fast_threshold);
-  feature_grid_rows            = config.value("feature_grid_rows", feature_grid_rows);
-  feature_grid_cols            = config.value("feature_grid_cols", feature_grid_cols);
-  max_pyramid_level            = config.value("max_pyramid_level", max_pyramid_level);
-  max_window                   = config.value("max_window", max_window);
-  max_keyframe_size            = config.value("max_keyframe_size", max_keyframe_size);
+  fast_threshold              = config.value("fast_threshold", fast_threshold);
+  feature_grid_rows           = config.value("feature_grid_rows", feature_grid_rows);
+  feature_grid_cols           = config.value("feature_grid_cols", feature_grid_cols);
+  max_pyramid_level           = config.value("max_pyramid_level", max_pyramid_level);
+  max_window                  = config.value("max_window", max_window);
+  max_keyframe_size           = config.value("max_keyframe_size", max_keyframe_size);
+  if (max_keyframe_size < 3)
+    max_keyframe_size = 3;
+  if (max_window < max_keyframe_size) {
+    max_window = max_keyframe_size + 1;
+  }
   triangulation_dist_threshold = config.value("triangulation_dist_threshold",
                                               triangulation_dist_threshold);
   keyframe_min_mp_ratio = config.value("keyframe_min_mp_ratio", keyframe_min_mp_ratio);
-  new_keyframe_after    = config.value("new_keyframe_after", new_keyframe_after);
+  marg_feature_connection_ratio = config.value("marg_feature_connection_ratio",
+                                               marg_feature_connection_ratio);
+  new_keyframe_after            = config.value("new_keyframe_after", new_keyframe_after);
 
   camera_models.clear();
   camera_intrinsics.clear();
@@ -169,6 +177,8 @@ void SVOConfig::ParseConfig(const std::string& file) {
     Logger::Info("SVOConfig.triangulation_dist_threshold: {}",
                  triangulation_dist_threshold);
     Logger::Info("SVOConfig.keyframe_min_mp_ratio: {}", keyframe_min_mp_ratio);
+    Logger::Info("SVOConfig.marg_feature_connection_ratio: {}",
+                 marg_feature_connection_ratio);
     Logger::Info("SVOConfig.new_keyframe_after: {}", new_keyframe_after);
     Logger::Info("SVOConfig.camera_models: {}", camera_models.size());
   }

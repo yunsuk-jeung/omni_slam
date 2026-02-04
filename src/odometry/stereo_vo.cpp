@@ -1,6 +1,9 @@
 #include <chrono>
 #include <cmath>
+#include <limits>
 #include <set>
+#include <unordered_map>
+#include <unordered_set>
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
 
@@ -140,11 +143,7 @@ void StereoVO::EstimatorLoop() {
                        : 1.0f;
 
     if (ratio < SVOConfig::keyframe_min_mp_ratio) {
-      LogD("{}th frame, mp ratio : {} = {} /{}",
-           frame->GetId(),
-           ratio,
-           connected,
-           kpt_num);
+      LogD("frame {}, mp ratio : {} = {} /{}", frame->GetId(), ratio, connected, kpt_num);
       make_keyframe_ = true;
     }
 
@@ -154,18 +153,32 @@ void StereoVO::EstimatorLoop() {
       if (created_map_point_num > 0) {
         created_map_point_nums_[frame->GetId()] = created_map_point_num;
         frame->SetKeyframe();
-        sliding_window_->MarkKeyframe(frame->GetId());
       }
     }
 
     if (frame->IsKeyframe()) {
       new_keyframe_after_ = 0;
+      sliding_window_->MarkKeyframe(frame->GetId());
     }
     else {
       ++new_keyframe_after_;
     }
 
     VOEstimator::OptimizeSingleFrame(frame, this->sliding_window_.get());
+
+    // sldiing window bundle
+
+    // select marginal frames
+    std::vector<uint64_t> marginal_none_keyframe_ids;
+    std::vector<uint64_t> marginal_keyframe_ids;
+    SelectMarginalFrames(marginal_none_keyframe_ids, marginal_keyframe_ids);
+
+    // remove none keyframe
+    sliding_window_->RemoveFrames(marginal_none_keyframe_ids);
+
+    // marginalize
+
+    // remove keyframe
 
     OdometryResult result = BuildOdometryResult(frame, tracking_result);
 
@@ -174,6 +187,226 @@ void StereoVO::EstimatorLoop() {
       latest_result_ = std::move(result);
       has_result_    = true;
     }
+  }
+}
+
+bool StereoVO::FetchResult(OdometryResult& out) {
+  std::lock_guard<std::mutex> lock(result_mutex_);
+  if (!has_result_) {
+    return false;
+  }
+  out = latest_result_;
+  return true;
+}
+
+int StereoVO::InitializeMapPoints(std::shared_ptr<Frame>& frame) {
+  // triangulate
+  auto& candidates = sliding_window_->GetMapPointCandidates();
+
+  int init_count = 0;
+  int old_count  = 0;
+  int try_count  = candidates.size();
+
+  FrameCamId         frame_cam_id0{frame->GetId(), 0};
+  std::set<uint64_t> erase_mp_ids;
+
+  std::vector<std::shared_ptr<MapPoint>> new_map_points;
+
+  // add map points in SlidingWindow
+  for (auto& [mp_id, mp] : candidates) {
+    auto& frame_id_to_bearing = mp->GetObservation();
+
+    if (frame_id_to_bearing.count(frame_cam_id0) == 0) {
+      old_count++;
+      erase_mp_ids.insert(mp_id);
+      continue;
+    }
+
+    Eigen::Vector3d bearing0 = frame_id_to_bearing[frame_cam_id0];
+
+    bool success = false;
+    for (auto& [frame_cam_id1, bearing1] : frame_id_to_bearing) {
+      if (frame_cam_id0 == frame_cam_id1) {
+        continue;
+      }
+
+      std::shared_ptr<Frame> frame1 = sliding_window_->GetFrame(frame_cam_id1.frame_id);
+
+      auto T_w_c0  = frame->GetTwc(frame_cam_id0.cam_id);
+      auto T_w_c1  = frame1->GetTwc(frame_cam_id1.cam_id);
+      auto T_c1_c0 = T_w_c1.inverse() * T_w_c0;
+
+      if (T_c1_c0.translation().squaredNorm() < SVOConfig::triangulation_dist_threshold) {
+        continue;
+      }
+
+      Eigen::Vector4d t_c0_x = Geometry::triangulate(bearing0, bearing1, T_c1_c0);
+      if (t_c0_x.array().isFinite().all() && t_c0_x[3] > 0 && t_c0_x[3] < 3.0) {
+        mp->GetBearing()     = t_c0_x.head<3>();
+        mp->GetInvDist()     = t_c0_x[3];
+        mp->GetHostFrameId() = frame->GetId();
+        mp->SetStatus(MapPoint::Status::TRACKING);
+        erase_mp_ids.insert(mp_id);
+        sliding_window_->AddMapPoint(mp);
+        new_map_points.push_back(mp);
+        init_count++;
+        break;
+      }
+    }
+  }
+
+  for (auto& id : erase_mp_ids) {
+    candidates.erase(id);
+  }
+
+  LogD("init : {}, oldCount :{}, cand : {} -> {}",
+       init_count,
+       old_count,
+       try_count,
+       candidates.size());
+
+  return init_count;
+}
+
+void StereoVO::SelectMarginalFrames(std::vector<uint64_t>& marginal_non_keyframe_ids,
+                                    std::vector<uint64_t>& marginal_keyframe_ids) {
+  marginal_non_keyframe_ids.clear();
+  marginal_keyframe_ids.clear();
+
+  const auto& frame_ids    = sliding_window_->GetFrameIds();
+  const auto& keyframe_ids = sliding_window_->GetKeyframeIds();
+
+  if (frame_ids.empty()) {
+    return;
+  }
+
+  if (frame_ids.size() > keyframe_ids.size()) {
+    marginal_non_keyframe_ids.reserve(frame_ids.size() - keyframe_ids.size());
+  }
+  if (keyframe_ids.size() > SVOConfig::max_keyframe_size) {
+    marginal_keyframe_ids.reserve(keyframe_ids.size() - SVOConfig::max_keyframe_size);
+  }
+
+  const uint64_t latest_id = *frame_ids.rbegin();
+  for (const auto id : frame_ids) {
+    if (id == latest_id) {
+      continue;
+    }
+    if (keyframe_ids.find(id) != keyframe_ids.end()) {
+      continue;
+    }
+    marginal_non_keyframe_ids.push_back(id);
+  }
+
+  if (SVOConfig::max_keyframe_size == 0
+      || keyframe_ids.size() <= SVOConfig::max_keyframe_size || keyframe_ids.size() < 2) {
+    return;
+  }
+
+  std::map<uint64_t, int> connected_map_points;
+  std::shared_ptr<Frame>  latest_frame = sliding_window_->GetFrame(latest_id);
+  if (latest_frame) {
+    std::unordered_set<uint64_t> latest_observed_ids;
+    const size_t                 cam_num = latest_frame->GetCamNum();
+    for (size_t cam = 0; cam < cam_num; ++cam) {
+      const auto& obs = latest_frame->GetObservation(cam);
+      for (const auto& [mp_id, bearing] : obs) {
+        latest_observed_ids.insert(mp_id);
+      }
+    }
+
+    const auto& map_points = sliding_window_->GetMapPoints();
+    for (const auto& [mp_id, mp] : map_points) {
+      if (!mp || mp->GetStatus() < MapPoint::Status::TRACKING) {
+        continue;
+      }
+      if (!latest_observed_ids.empty()
+          && latest_observed_ids.find(mp_id) == latest_observed_ids.end()) {
+        continue;
+      }
+      connected_map_points[mp->GetHostFrameId()]++;
+    }
+  }
+
+  auto kf_ids = keyframe_ids;
+  while (kf_ids.size() > SVOConfig::max_keyframe_size) {
+    if (kf_ids.size() <= 2) {
+      break;
+    }
+
+    bool     selected   = false;
+    uint64_t id_to_marg = 0;
+
+    auto end_minus_2 = std::prev(kf_ids.end(), 2);
+    for (auto it = kf_ids.begin(); it != end_minus_2; ++it) {
+      const uint64_t kf_id = *it;
+      const int      count = (connected_map_points.count(kf_id) > 0)
+                               ? connected_map_points.at(kf_id)
+                               : 0;
+
+      int  created    = 0;
+      auto created_it = created_map_point_nums_.find(kf_id);
+      if (created_it != created_map_point_nums_.end()) {
+        created = created_it->second;
+      }
+
+      if (created <= 0) {
+        continue;
+      }
+
+      const double ratio = static_cast<double>(count) / static_cast<double>(created);
+      if (ratio < static_cast<double>(SVOConfig::marg_feature_connection_ratio)) {
+        id_to_marg = kf_id;
+        selected   = true;
+        break;
+      }
+    }
+
+    if (!selected) {
+      const uint64_t last_kf_id   = *kf_ids.rbegin();
+      uint64_t       min_score_id = 0;
+      double         min_score    = std::numeric_limits<double>::max();
+
+      for (auto it1 = kf_ids.begin(); it1 != end_minus_2; ++it1) {
+        std::shared_ptr<Frame> frame_i = sliding_window_->GetFrame(*it1);
+        if (!frame_i) {
+          continue;
+        }
+        double denom = 0.0;
+        for (auto it2 = kf_ids.begin(); it2 != end_minus_2; ++it2) {
+          std::shared_ptr<Frame> frame_j = sliding_window_->GetFrame(*it2);
+          if (!frame_j) {
+            continue;
+          }
+          denom += 1.0
+                   / ((frame_i->GetTwb().translation() - frame_j->GetTwb().translation())
+                        .norm()
+                      + 1e-5);
+        }
+
+        std::shared_ptr<Frame> last_kf = sliding_window_->GetFrame(last_kf_id);
+        if (!last_kf) {
+          continue;
+        }
+        double score = std::sqrt((frame_i->GetTwb().translation()
+                                  - last_kf->GetTwb().translation())
+                                   .norm())
+                       * denom;
+
+        if (score < min_score) {
+          min_score_id = *it1;
+          min_score    = score;
+        }
+      }
+      id_to_marg = min_score_id;
+    }
+
+    if (id_to_marg == 0) {
+      break;
+    }
+
+    kf_ids.erase(id_to_marg);
+    marginal_keyframe_ids.push_back(id_to_marg);
   }
 }
 
@@ -263,90 +496,6 @@ OdometryResult StereoVO::BuildOdometryResult(const std::shared_ptr<Frame>& frame
   }
 
   return result;
-}
-
-bool StereoVO::FetchResult(OdometryResult& out) {
-  std::lock_guard<std::mutex> lock(result_mutex_);
-  if (!has_result_) {
-    return false;
-  }
-  out = latest_result_;
-  return true;
-}
-
-int StereoVO::InitializeMapPoints(std::shared_ptr<Frame>& frame) {
-  // triangulate
-  auto& candidates = sliding_window_->GetMapPointCandidates();
-
-  int init_count = 0;
-  int old_count  = 0;
-  int try_count  = candidates.size();
-
-  FrameCamId         frame_cam_id0{frame->GetId(), 0};
-  std::set<uint64_t> erase_mp_ids;
-
-  std::vector<std::shared_ptr<MapPoint>> new_map_points;
-
-  // add map points in SlidingWindow
-  for (auto& [mp_id, mp] : candidates) {
-    auto& frame_id_to_bearing = mp->GetObservation();
-
-    if (frame_id_to_bearing.count(frame_cam_id0) == 0) {
-      old_count++;
-      erase_mp_ids.insert(mp_id);
-      continue;
-    }
-
-    Eigen::Vector3d bearing0 = frame_id_to_bearing[frame_cam_id0];
-
-    bool success = false;
-    for (auto& [frame_cam_id1, bearing1] : frame_id_to_bearing) {
-      if (frame_cam_id0 == frame_cam_id1) {
-        continue;
-      }
-
-      std::shared_ptr<Frame> frame1 = sliding_window_->GetFrame(frame_cam_id1.frame_id);
-
-      auto T_w_c0  = frame->GetTwc(frame_cam_id0.cam_id);
-      auto T_w_c1  = frame1->GetTwc(frame_cam_id1.cam_id);
-      auto T_c1_c0 = T_w_c1.inverse() * T_w_c0;
-
-      if (T_c1_c0.translation().squaredNorm() < SVOConfig::triangulation_dist_threshold) {
-        continue;
-      }
-
-      Eigen::Vector4d t_c0_x = Geometry::triangulate(bearing0, bearing1, T_c1_c0);
-      if (t_c0_x.array().isFinite().all() && t_c0_x[3] > 0 && t_c0_x[3] < 3.0) {
-        mp->GetBearing()     = t_c0_x.head<3>();
-        mp->GetInvDist()     = t_c0_x[3];
-        mp->GetHostFrameId() = frame->GetId();
-        mp->SetStatus(MapPoint::Status::TRACKING);
-        erase_mp_ids.insert(mp_id);
-        sliding_window_->AddMapPoint(mp);
-        new_map_points.push_back(mp);
-        init_count++;
-        break;
-      }
-    }
-  }
-
-  for (auto& id : erase_mp_ids) {
-    candidates.erase(id);
-  }
-
-  LogD("init : {}, oldCount :{}, cand : {} -> {}",
-       init_count,
-       old_count,
-       try_count,
-       candidates.size());
-
-  return init_count;
-}
-
-void StereoVO::SelectMarginalFrames() {
-  std::vector<std::shared_ptr<Frame>> keyframes;
-
-  auto& frames = sliding_window_->GetFrames();
 }
 
 }  // namespace omni_slam

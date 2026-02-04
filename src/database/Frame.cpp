@@ -4,6 +4,7 @@
 #include "feature_tracking/tracking_result.hpp"
 #include "database/Frame.hpp"
 #include "config/svo_config.hpp"
+#include "Frame.hpp"
 
 namespace omni_slam {
 namespace {
@@ -49,4 +50,9 @@ void Frame::AddObservation(size_t cam_idx, size_t mp_id, const Eigen::Vector3d& 
   mp_id_to_bearings_[cam_idx][mp_id] = bearing;
 }
 
+void Frame::RemoveObservation(const uint64_t& mp_id) {
+  for (auto& mp_id_to_bearing : mp_id_to_bearings_) {
+    mp_id_to_bearing.erase(mp_id);
+  }
+}
 }  // namespace omni_slam

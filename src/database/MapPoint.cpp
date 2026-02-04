@@ -17,5 +17,7 @@ void MapPoint::AddObservation(const FrameCamId&      frame_cam_id,
   frame_cam_id_to_bearing_.insert({frame_cam_id, bearing});
 }
 
-void MapPoint::RemoveObservation(const FrameCamId& frame_cam_id) {}
+void MapPoint::RemoveObservation(const FrameCamId& frame_cam_id) {
+  frame_cam_id_to_bearing_.erase(frame_cam_id);
+}
 }  // namespace omni_slam

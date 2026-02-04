@@ -23,6 +23,7 @@ public:
   static size_t max_window;
   static size_t max_keyframe_size;
   static float  keyframe_min_mp_ratio;
+  static float  marg_feature_connection_ratio;
   static int    new_keyframe_after;
   static double triangulation_dist_threshold;
 

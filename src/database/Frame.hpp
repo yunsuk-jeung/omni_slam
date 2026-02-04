@@ -49,6 +49,7 @@ public:
   std::unordered_map<size_t, Eigen::Vector3d>& GetObservation(size_t i) {
     return mp_id_to_bearings_[i];
   }
+  void RemoveObservation(const uint64_t& mp_id);
 
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
