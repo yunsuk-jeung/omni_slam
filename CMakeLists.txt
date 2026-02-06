@@ -14,14 +14,18 @@ option(OMNI_BUILD_VIEWER "Build Vulkan viewer app" OFF)
 option(OMNI_BUILD_TESTS "Build tests" OFF)
 
 # Set installation paths based on build type
+# For RelWithDebInfo, use Release libraries (no need for debug symbols in external deps)
 string(TOLOWER "${CMAKE_BUILD_TYPE}" BUILD_TYPE_LOWER)
 if(BUILD_TYPE_LOWER STREQUAL "debug")
   set(DEPS_INSTALL_DIR "${CMAKE_SOURCE_DIR}/libs/debug")
-elseif(BUILD_TYPE_LOWER STREQUAL "release")
-  set(DEPS_INSTALL_DIR "${CMAKE_SOURCE_DIR}/libs/release")
 else()
-  set(DEPS_INSTALL_DIR "${CMAKE_SOURCE_DIR}/libs/relwithdebinfo")
+  # Use Release libraries for both Release and RelWithDebInfo builds
+  set(DEPS_INSTALL_DIR "${CMAKE_SOURCE_DIR}/libs/release")
 endif()
+
+# Map RelWithDebInfo to Release for all imported targets
+# This tells CMake to use Release configuration when RelWithDebInfo is not available
+set(CMAKE_MAP_IMPORTED_CONFIG_RELWITHDEBINFO Release "")
 
 # Find installed dependencies
 set(CMAKE_PREFIX_PATH "${DEPS_INSTALL_DIR}" ${CMAKE_PREFIX_PATH})
