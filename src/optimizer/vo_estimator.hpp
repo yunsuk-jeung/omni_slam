@@ -15,6 +15,8 @@ public:
    */
   static void OptimizeSingleFrame(std::shared_ptr<Frame> frame, SlidingWindow* window);
 
+  void OptimizeWindow(SlidingWindow* window);
+
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
 private:

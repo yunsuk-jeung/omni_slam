@@ -22,6 +22,7 @@ class OpticalFlow;
 class Frame;
 class MapPoint;
 class SlidingWindow;
+class VOEstimator;
 class StereoVO : public Odometry {
 public:
   StereoVO();
@@ -59,6 +60,8 @@ private:
   std::unique_ptr<OpticalFlow>                  optical_flow_;
 
   std::unique_ptr<SlidingWindow> sliding_window_;
+
+  std::unique_ptr<VOEstimator> estimator_;
 
   bool                    make_keyframe_;
   int                     new_keyframe_after_;

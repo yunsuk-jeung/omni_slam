@@ -31,6 +31,7 @@ StereoVO::StereoVO()
   , has_result_{false}
   , latest_result_{} {
   sliding_window_ = std::make_unique<SlidingWindow>();
+  estimator_      = std::make_unique<VOEstimator>();
 }
 
 StereoVO::~StereoVO() {}
@@ -97,6 +98,15 @@ void StereoVO::EstimatorLoop() {
 
     if (!frame || !frame->GetTrackingResultPtr()) {
       continue;
+    }
+
+    const auto& frame_ids = sliding_window_->GetFrameIds();
+    if (!frame_ids.empty()) {
+      const uint64_t         latest_id    = *frame_ids.rbegin();
+      std::shared_ptr<Frame> latest_frame = sliding_window_->GetFrame(latest_id);
+      if (latest_frame) {
+        frame->GetTwb() = latest_frame->GetTwb();
+      }
     }
 
     sliding_window_->AddFrame(frame);
@@ -167,6 +177,7 @@ void StereoVO::EstimatorLoop() {
     VOEstimator::OptimizeSingleFrame(frame, this->sliding_window_.get());
 
     // sldiing window bundle
+    estimator_->OptimizeWindow(this->sliding_window_.get());
 
     // select marginal frames
     std::vector<uint64_t> marginal_none_keyframe_ids;
@@ -179,6 +190,7 @@ void StereoVO::EstimatorLoop() {
     // marginalize
 
     // remove keyframe
+    sliding_window_->RemoveFrames(marginal_keyframe_ids);
 
     OdometryResult result = BuildOdometryResult(frame, tracking_result);
 
@@ -242,9 +254,9 @@ int StereoVO::InitializeMapPoints(std::shared_ptr<Frame>& frame) {
 
       Eigen::Vector4d t_c0_x = Geometry::triangulate(bearing0, bearing1, T_c1_c0);
       if (t_c0_x.array().isFinite().all() && t_c0_x[3] > 0 && t_c0_x[3] < 3.0) {
-        mp->GetBearing()     = t_c0_x.head<3>();
-        mp->GetInvDist()     = t_c0_x[3];
-        mp->GetHostFrameId() = frame->GetId();
+        mp->GetBearing()        = t_c0_x.head<3>();
+        mp->GetInvDist()        = t_c0_x[3];
+        mp->GetHostFrameCamId() = frame_cam_id0;
         mp->SetStatus(MapPoint::Status::TRACKING);
         erase_mp_ids.insert(mp_id);
         sliding_window_->AddMapPoint(mp);
@@ -324,7 +336,7 @@ void StereoVO::SelectMarginalFrames(std::vector<uint64_t>& marginal_non_keyframe
           && latest_observed_ids.find(mp_id) == latest_observed_ids.end()) {
         continue;
       }
-      connected_map_points[mp->GetHostFrameId()]++;
+      connected_map_points[mp->GetHostFrameCamId().frame_id]++;
     }
   }
 
@@ -462,7 +474,8 @@ OdometryResult StereoVO::BuildOdometryResult(const std::shared_ptr<Frame>& frame
       continue;
     }
 
-    std::shared_ptr<Frame> host_frame = sliding_window_->GetFrame(mp->GetHostFrameId());
+    std::shared_ptr<Frame> host_frame = sliding_window_->GetFrame(
+      mp->GetHostFrameCamId().frame_id);
     if (!host_frame) {
       continue;
     }

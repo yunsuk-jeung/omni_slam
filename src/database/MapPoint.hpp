@@ -29,7 +29,8 @@ public:
   double&          GetInvDist() { return inv_dist_; }
   void             SetInvDist(const double& inv_dist) { inv_dist_ = inv_dist; };
   auto&            GetObservation() { return frame_cam_id_to_bearing_; }
-  uint64_t&        GetHostFrameId() { return host_frame_id_; }
+  FrameCamId       GetHostFrameCamId() { return host_frame_cam_id_; }
+  const FrameCamId GetHostFrameCamId() const { return host_frame_cam_id_; }
 
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
@@ -40,7 +41,7 @@ private:
   Eigen::Vector3d bearing_;
   double          inv_dist_;
 
-  uint64_t host_frame_id_;
+  FrameCamId host_frame_cam_id_;
 
   std::unordered_map<FrameCamId, Eigen::Vector3d> frame_cam_id_to_bearing_;
 };

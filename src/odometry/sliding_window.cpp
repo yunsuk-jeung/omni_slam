@@ -65,8 +65,9 @@ void SlidingWindow::RemoveFrames(const std::vector<uint64_t>& frame_ids) {
         continue;
       }
 
-      if (to_remove.find(mp->GetHostFrameId()) != to_remove.end()) {
+      if (to_remove.find(mp->GetHostFrameCamId().frame_id) != to_remove.end()) {
         removed_map_point_ids.insert(it->first);
+        it = container.erase(it);
         continue;
       }
 

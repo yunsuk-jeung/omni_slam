@@ -105,8 +105,8 @@ private:
   Sophus::SE3d    T_b_c_;
 };
 
-struct PoseOnlyBearingCostFunctor {
-  PoseOnlyBearingCostFunctor(const Eigen::Vector3d& p_w,
+struct PoseOnlyBearingCostAuto {
+  PoseOnlyBearingCostAuto(const Eigen::Vector3d& p_w,
                              const Eigen::Vector3d& b_obs,
                              const Sophus::SE3d&    T_b_c)
     : p_w_(p_w)
@@ -163,5 +163,143 @@ struct PoseOnlyBearingCostFunctor {
   Eigen::Vector3d p_w_;
   Eigen::Vector3d b_obs_;
   Sophus::SE3d    T_b_c_;
+};
+
+struct BearingStereoCostAuto {
+  BearingStereoCostAuto(const Eigen::Vector3d& b_obs,
+                        const Sophus::SE3d&    T_b_c_obs,
+                        const Sophus::SE3d&    T_b_c_host,
+                        double                 inv_dist)
+    : b_obs_(b_obs.normalized())
+    , T_b_c_obs_(T_b_c_obs)
+    , T_b_c_host_(T_b_c_host)
+    , inv_dist_(inv_dist) {
+    TangentBasis(b_obs_, B_);
+  }
+
+  template <typename T>
+  bool operator()(const T* const pose_obs,
+                  const T* const pose_host,
+                  const T* const bearing_param,
+                  T*             residuals) const {
+    Eigen::Map<const Eigen::Matrix<T, 3, 1>> t_obs(pose_obs);
+    Eigen::Map<const Eigen::Matrix<T, 3, 1>> so3_obs(pose_obs + 3);
+    Sophus::SO3<T>                           R_w_b_obs = Sophus::SO3<T>::exp(so3_obs);
+    Sophus::SE3<T>                           T_w_b_obs(R_w_b_obs, t_obs);
+
+    Eigen::Map<const Eigen::Matrix<T, 3, 1>> t_host(pose_host);
+    Eigen::Map<const Eigen::Matrix<T, 3, 1>> so3_host(pose_host + 3);
+    Sophus::SO3<T>                           R_w_b_host = Sophus::SO3<T>::exp(so3_host);
+    Sophus::SE3<T>                           T_w_b_host(R_w_b_host, t_host);
+
+    const Sophus::SE3<T> T_b_c_obs  = T_b_c_obs_.template cast<T>();
+    const Sophus::SE3<T> T_b_c_host = T_b_c_host_.template cast<T>();
+
+    const Sophus::SE3<T> T_w_c_obs  = T_w_b_obs * T_b_c_obs;
+    const Sophus::SE3<T> T_w_c_host = T_w_b_host * T_b_c_host;
+
+    Eigen::Matrix<T, 3, 1> b_h(bearing_param[0], bearing_param[1], bearing_param[2]);
+    const T                b_norm = b_h.norm();
+    if (b_norm > T(0)) {
+      b_h /= b_norm;
+    }
+
+    const T inv_d = T(inv_dist_);
+    if (inv_d <= T(0)) {
+      residuals[0] = T(0);
+      residuals[1] = T(0);
+      return true;
+    }
+
+    const Eigen::Matrix<T, 3, 1> p_c_host = b_h / inv_d;
+    const Eigen::Matrix<T, 3, 1> p_w      = T_w_c_host * p_c_host;
+    const Eigen::Matrix<T, 3, 1> p_c_obs  = T_w_c_obs.inverse() * p_w;
+
+    if (p_c_obs.z() <= T(1e-6)) {
+      residuals[0] = T(0);
+      residuals[1] = T(0);
+      return true;
+    }
+
+    const Eigen::Matrix<T, 3, 1> b_pred = p_c_obs.normalized();
+    const Eigen::Matrix<T, 3, 2> B      = B_.template cast<T>();
+    const Eigen::Matrix<T, 3, 1> b_obs  = b_obs_.template cast<T>();
+    const Eigen::Matrix<T, 2, 1> r      = B.transpose() * (b_pred - b_obs);
+
+    residuals[0] = r[0];
+    residuals[1] = r[1];
+    return true;
+  }
+
+  Eigen::Vector3d             b_obs_;
+  Sophus::SE3d                T_b_c_obs_;
+  Sophus::SE3d                T_b_c_host_;
+  double                      inv_dist_;
+  Eigen::Matrix<double, 3, 2> B_;
+};
+
+struct StereoBearingCostAuto {
+  StereoBearingCostAuto(const Eigen::Vector3d& b_obs,
+                        const Sophus::SE3d&    T_b_c_obs,
+                        const Sophus::SE3d&    T_b_c_host,
+                        double                 inv_dist)
+    : b_obs_(b_obs.normalized())
+    , T_b_c_obs_(T_b_c_obs)
+    , T_b_c_host_(T_b_c_host)
+    , inv_dist_(inv_dist) {
+    TangentBasis(b_obs_, B_);
+  }
+
+  template <typename T>
+  bool operator()(const T* const pose, const T* const bearing_param, T* residuals) const {
+    Eigen::Map<const Eigen::Matrix<T, 3, 1>> t(pose);
+    Eigen::Map<const Eigen::Matrix<T, 3, 1>> so3(pose + 3);
+    Sophus::SO3<T>                           R_w_b = Sophus::SO3<T>::exp(so3);
+    Sophus::SE3<T>                           T_w_b(R_w_b, t);
+
+    const Sophus::SE3<T> T_b_c_obs  = T_b_c_obs_.template cast<T>();
+    const Sophus::SE3<T> T_b_c_host = T_b_c_host_.template cast<T>();
+
+    const Sophus::SE3<T> T_w_c_obs  = T_w_b * T_b_c_obs;
+    const Sophus::SE3<T> T_w_c_host = T_w_b * T_b_c_host;
+
+    Eigen::Matrix<T, 3, 1> b_h(bearing_param[0], bearing_param[1], bearing_param[2]);
+    const T                b_norm = b_h.norm();
+    if (b_norm > T(0)) {
+      b_h /= b_norm;
+    }
+
+    const T inv_d = T(inv_dist_);
+    if (inv_d <= T(0)) {
+      residuals[0] = T(0);
+      residuals[1] = T(0);
+      return true;
+    }
+
+    const Eigen::Matrix<T, 3, 1> p_c_host = b_h / inv_d;
+    const Eigen::Matrix<T, 3, 1> p_w      = T_w_c_host * p_c_host;
+    const Eigen::Matrix<T, 3, 1> p_c_obs  = T_w_c_obs.inverse() * p_w;
+
+    if (p_c_obs.z() <= T(1e-6)) {
+      residuals[0] = T(0);
+      residuals[1] = T(0);
+      return true;
+    }
+
+    const Eigen::Matrix<T, 3, 1> b_pred = p_c_obs.normalized();
+    const Eigen::Matrix<T, 3, 2> B      = B_.template cast<T>();
+    const Eigen::Matrix<T, 3, 1> b_obs  = b_obs_.template cast<T>();
+    const Eigen::Matrix<T, 2, 1> r      = B.transpose() * (b_pred - b_obs);
+
+    residuals[0] = r[0];
+    residuals[1] = r[1];
+    return true;
+  }
+
+  Eigen::Vector3d             b_obs_;
+  Sophus::SE3d                T_b_c_obs_;
+  Sophus::SE3d                T_b_c_host_;
+  double                      inv_dist_;
+  Eigen::Matrix<double, 3, 2> B_;
 };
 }  // namespace omni_slam
