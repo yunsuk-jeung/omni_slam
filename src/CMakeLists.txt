@@ -14,6 +14,11 @@ target_link_libraries(omni_utils INTERFACE
   Ceres::ceres
 )
 
+target_compile_options(omni_utils INTERFACE
+  $<$<CONFIG:Release>:-O3>
+  $<$<CONFIG:RelWithDebInfo>:-O2>
+)
+
 target_compile_features(omni_utils INTERFACE cxx_std_20)
 
 # Dataset loader library
@@ -52,6 +57,10 @@ if(OMNI_BUILD_STEREO_VO)
   )
   target_include_directories(svo PRIVATE ${OpenCV_INCLUDE_DIRS})
   target_link_libraries(svo omni_utils omni_camera_model ${OpenCV_LIBS})
+  target_compile_options(svo PRIVATE
+    $<$<CONFIG:Release>:-O3>
+    $<$<CONFIG:RelWithDebInfo>:-O2>
+  )
   target_compile_features(svo INTERFACE cxx_std_20)
 endif()
 

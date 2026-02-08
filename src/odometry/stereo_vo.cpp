@@ -8,6 +8,7 @@
 #include <opencv2/imgproc.hpp>
 
 #include "utils/logger.hpp"
+#include "utils/timer.hpp"
 #include "config/svo_config.hpp"
 #include "database/Frame.hpp"
 #include "database/MapPoint.hpp"
@@ -91,6 +92,8 @@ void StereoVO::OpticalFlowLoop() {
 void StereoVO::EstimatorLoop() {
   std::shared_ptr<Frame> frame;
   while (running_.load(std::memory_order_acquire)) {
+    ScopedTimer loop_timer0("estimator loop timer");
+
     if (!result_queue_.try_pop(frame)) {
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
       continue;
@@ -100,6 +103,7 @@ void StereoVO::EstimatorLoop() {
       continue;
     }
 
+    ScopedTimer loop_timer("loop_timer");
     const auto& frame_ids = sliding_window_->GetFrameIds();
     if (!frame_ids.empty()) {
       const uint64_t         latest_id    = *frame_ids.rbegin();
@@ -174,10 +178,16 @@ void StereoVO::EstimatorLoop() {
       ++new_keyframe_after_;
     }
 
-    VOEstimator::OptimizeSingleFrame(frame, this->sliding_window_.get());
+    {
+      ScopedTimer timer("optimize_frame");
+      VOEstimator::OptimizeSingleFrame(frame, this->sliding_window_.get());
+    }
 
     // sldiing window bundle
-    estimator_->OptimizeWindow(this->sliding_window_.get());
+    {
+      ScopedTimer timer("optimize_window");
+      estimator_->OptimizeWindow(this->sliding_window_.get());
+    }
 
     // select marginal frames
     std::vector<uint64_t> marginal_none_keyframe_ids;
@@ -185,20 +195,28 @@ void StereoVO::EstimatorLoop() {
     SelectMarginalFrames(marginal_none_keyframe_ids, marginal_keyframe_ids);
 
     // remove none keyframe
-    sliding_window_->RemoveFrames(marginal_none_keyframe_ids);
+    {
+      ScopedTimer timer("remove frame");
+      sliding_window_->RemoveFrames(marginal_none_keyframe_ids);
+    }
 
     // marginalize
 
     // remove keyframe
-    sliding_window_->RemoveFrames(marginal_keyframe_ids);
-
-    OdometryResult result = BuildOdometryResult(frame, tracking_result);
+    {
+      ScopedTimer timer("remove keyframe");
+      sliding_window_->RemoveFrames(marginal_keyframe_ids);
+    }
+    LogI("current frame size: {}", sliding_window_->GetFrames().size());
 
     {
+      ScopedTimer                 timer("build result");
+      OdometryResult              result = BuildOdometryResult(frame, tracking_result);
       std::lock_guard<std::mutex> lock(result_mutex_);
       latest_result_ = std::move(result);
       has_result_    = true;
     }
+    Statistics::reportAll();
   }
 }
 
@@ -221,8 +239,6 @@ int StereoVO::InitializeMapPoints(std::shared_ptr<Frame>& frame) {
 
   FrameCamId         frame_cam_id0{frame->GetId(), 0};
   std::set<uint64_t> erase_mp_ids;
-
-  std::vector<std::shared_ptr<MapPoint>> new_map_points;
 
   // add map points in SlidingWindow
   for (auto& [mp_id, mp] : candidates) {
@@ -260,7 +276,6 @@ int StereoVO::InitializeMapPoints(std::shared_ptr<Frame>& frame) {
         mp->SetStatus(MapPoint::Status::TRACKING);
         erase_mp_ids.insert(mp_id);
         sliding_window_->AddMapPoint(mp);
-        new_map_points.push_back(mp);
         init_count++;
         break;
       }

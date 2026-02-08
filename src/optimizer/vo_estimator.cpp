@@ -128,6 +128,7 @@ void VOEstimator::OptimizeWindow(SlidingWindow* window) {
     problem.AddParameterBlock(bearing.data(), kBearingSize, bearing_manifold);
   }
 
+  int factor_count = 0;
   for (const auto& [mp_id, mp] : map_points) {
     if (!mp || mp->GetStatus() < MapPoint::Status::TRACKING) {
       continue;
@@ -164,19 +165,20 @@ void VOEstimator::OptimizeWindow(SlidingWindow* window) {
       ceres::LossFunction* loss = new ceres::HuberLoss(0.01);
       if (frame_cam_id0.frame_id == frame_cam_id1.frame_id) {
         // Stereo within the same frame: use a single pose parameter block.
-        ceres::CostFunction*
-          cost = new ceres::AutoDiffCostFunction<StereoBearingCostAuto, 2, 6, 3>(
-            new StereoBearingCostAuto(bearing, T_b_c1, T_b_c0, inv_dist));
+        ceres::CostFunction* cost = new BearingCost(bearing, T_b_c1, T_b_c0, inv_dist);
         problem.AddResidualBlock(cost, loss, pose_param0, bearing_param);
       }
       else {
-        ceres::CostFunction*
-          cost = new ceres::AutoDiffCostFunction<BearingStereoCostAuto, 2, 6, 6, 3>(
-            new BearingStereoCostAuto(bearing, T_b_c1, T_b_c0, inv_dist));
+        ceres::CostFunction* cost = new BearingStereoCost(bearing,
+                                                          T_b_c1,
+                                                          T_b_c0,
+                                                          inv_dist);
         problem.AddResidualBlock(cost, loss, pose_param1, pose_param0, bearing_param);
       }
+      factor_count++;
     }
   }
+  LogI("window_factor_count: {}", factor_count);
 
   const auto& frame_ids_set = window->GetFrameIds();
   if (!frame_ids_set.empty()) {
@@ -188,14 +190,15 @@ void VOEstimator::OptimizeWindow(SlidingWindow* window) {
   }
 
   ceres::Solver::Options options;
-  options.linear_solver_type           = ceres::DENSE_QR;
+  options.linear_solver_type           = ceres::SPARSE_SCHUR;
+  options.num_threads                  = 2;
   options.minimizer_progress_to_stdout = false;
   options.max_num_iterations           = 10;
 
   ceres::Solver::Summary summary;
   ceres::Solve(options, &problem, &summary);
 
-  LogD("OptimizeWindow: {}", summary.BriefReport());
+  // LogD("OptimizeWindow: {}", summary.BriefReport());
 
   for (const auto& [frame_id, frame] : frames) {
     if (!frame) {

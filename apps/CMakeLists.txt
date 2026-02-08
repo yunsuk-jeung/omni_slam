@@ -28,4 +28,8 @@ if(OMNI_BUILD_STEREO_VO)
   )
   target_include_directories(stereo_vo PRIVATE ${OpenCV_INCLUDE_DIRS})
   target_link_libraries(stereo_vo omni_utils omni_device svo ${OpenCV_LIBS} rerun_sdk)
+  target_compile_options(stereo_vo PRIVATE
+    $<$<CONFIG:Release>:-O3>
+    $<$<CONFIG:RelWithDebInfo>:-O2>
+  )
 endif()
