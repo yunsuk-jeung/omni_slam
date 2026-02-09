@@ -24,7 +24,7 @@ public:
   void                   AddFrame(std::shared_ptr<Frame>& frame);
   std::shared_ptr<Frame> GetFrame(const uint64_t& id);
   void                   MarkKeyframe(uint64_t id);
-  void                   RemoveFrames(const std::vector<uint64_t>& ids);
+  void                   RemoveFrames(const std::set<uint64_t>& ids);
 
   void                      AddMapPoint(std::shared_ptr<MapPoint>& map_point);
   std::shared_ptr<MapPoint> GetMapPoint(const uint64_t& id) const;

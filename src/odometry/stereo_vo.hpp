@@ -7,6 +7,7 @@
 #include <thread>
 #include <vector>
 #include <map>
+#include <set>
 #include <mutex>
 
 #include <tbb/concurrent_queue.h>
@@ -45,8 +46,8 @@ private:
                                      TrackingResult*               tracking_result);
   int            InitializeMapPoints(std::shared_ptr<Frame>& frame);
 
-  void SelectMarginalFrames(std::vector<uint64_t>& marginal_frame_ids,
-                            std::vector<uint64_t>& marginal_keyframe_ids);
+  void SelectMarginalFrames(std::set<uint64_t>& marginal_none_frame_ids,
+                            std::set<uint64_t>& marginal_keyframe_ids);
 
 private:
   static constexpr size_t kCamNum = 2;

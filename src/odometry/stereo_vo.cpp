@@ -178,29 +178,28 @@ void StereoVO::EstimatorLoop() {
       ++new_keyframe_after_;
     }
 
+    // single frame pose estimation
     {
       ScopedTimer timer("optimize_frame");
       VOEstimator::OptimizeSingleFrame(frame, this->sliding_window_.get());
     }
 
-    // sldiing window bundle
+    // sliding window bundle
     {
       ScopedTimer timer("optimize_window");
       estimator_->OptimizeWindow(this->sliding_window_.get());
     }
 
     // select marginal frames
-    std::vector<uint64_t> marginal_none_keyframe_ids;
-    std::vector<uint64_t> marginal_keyframe_ids;
+    std::set<uint64_t> marginal_none_keyframe_ids;
+    std::set<uint64_t> marginal_keyframe_ids;
     SelectMarginalFrames(marginal_none_keyframe_ids, marginal_keyframe_ids);
 
-    // remove none keyframe
-    {
-      ScopedTimer timer("remove frame");
-      sliding_window_->RemoveFrames(marginal_none_keyframe_ids);
-    }
+    // remove none keyframes before marginalize
+    sliding_window_->RemoveFrames(marginal_none_keyframe_ids);
 
     // marginalize
+    estimator_->Marginalize(this->sliding_window_.get(), marginal_keyframe_ids);
 
     // remove keyframe
     {
@@ -295,9 +294,9 @@ int StereoVO::InitializeMapPoints(std::shared_ptr<Frame>& frame) {
   return init_count;
 }
 
-void StereoVO::SelectMarginalFrames(std::vector<uint64_t>& marginal_non_keyframe_ids,
-                                    std::vector<uint64_t>& marginal_keyframe_ids) {
-  marginal_non_keyframe_ids.clear();
+void StereoVO::SelectMarginalFrames(std::set<uint64_t>& marginal_none_keyframe_ids,
+                                    std::set<uint64_t>& marginal_keyframe_ids) {
+  marginal_none_keyframe_ids.clear();
   marginal_keyframe_ids.clear();
 
   const auto& frame_ids    = sliding_window_->GetFrameIds();
@@ -305,13 +304,6 @@ void StereoVO::SelectMarginalFrames(std::vector<uint64_t>& marginal_non_keyframe
 
   if (frame_ids.empty()) {
     return;
-  }
-
-  if (frame_ids.size() > keyframe_ids.size()) {
-    marginal_non_keyframe_ids.reserve(frame_ids.size() - keyframe_ids.size());
-  }
-  if (keyframe_ids.size() > SVOConfig::max_keyframe_size) {
-    marginal_keyframe_ids.reserve(keyframe_ids.size() - SVOConfig::max_keyframe_size);
   }
 
   const uint64_t latest_id = *frame_ids.rbegin();
@@ -322,7 +314,7 @@ void StereoVO::SelectMarginalFrames(std::vector<uint64_t>& marginal_non_keyframe
     if (keyframe_ids.find(id) != keyframe_ids.end()) {
       continue;
     }
-    marginal_non_keyframe_ids.push_back(id);
+    marginal_none_keyframe_ids.insert(id);
   }
 
   if (SVOConfig::max_keyframe_size == 0
@@ -433,7 +425,7 @@ void StereoVO::SelectMarginalFrames(std::vector<uint64_t>& marginal_non_keyframe
     }
 
     kf_ids.erase(id_to_marg);
-    marginal_keyframe_ids.push_back(id_to_marg);
+    marginal_keyframe_ids.insert(id_to_marg);
   }
 }
 

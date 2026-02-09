@@ -50,7 +50,7 @@ void SlidingWindow::MarkKeyframe(uint64_t id) {
   keyframe_ids_.insert(id);
 }
 
-void SlidingWindow::RemoveFrames(const std::vector<uint64_t>& frame_ids) {
+void SlidingWindow::RemoveFrames(const std::set<uint64_t>& frame_ids) {
   if (frame_ids.empty()) {
     return;
   }

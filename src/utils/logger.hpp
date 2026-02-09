@@ -22,7 +22,7 @@ namespace omni_slam {
 
 class Logger {
 public:
-  static void Init(bool enable_file_logging = false) {
+  static void Init(bool enable_file_logging = true) {
     if (!logger_) {
       if (enable_file_logging) {
         // Create logs directory if it doesn't exist
