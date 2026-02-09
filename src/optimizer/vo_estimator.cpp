@@ -75,7 +75,7 @@ void VOEstimator::OptimizeSingleFrame(std::shared_ptr<Frame> frame,
   ceres::Solver::Summary summary;
   ceres::Solve(options, &problem, &summary);
 
-  LogD("{}", summary.FullReport());
+  // LogD("{}", summary.FullReport());
 
   // update pose
   frame->SetTwb(SE3BoxplusManifold::FromParams(box_w_b.data()));

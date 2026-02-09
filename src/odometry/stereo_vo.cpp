@@ -362,7 +362,7 @@ void StereoVO::SelectMarginalFrames(std::vector<uint64_t>& marginal_non_keyframe
     }
 
     bool     selected   = false;
-    uint64_t id_to_marg = 0;
+    uint64_t id_to_marg = std::numeric_limits<uint64_t>::max();
 
     auto end_minus_2 = std::prev(kf_ids.end(), 2);
     for (auto it = kf_ids.begin(); it != end_minus_2; ++it) {
@@ -391,7 +391,7 @@ void StereoVO::SelectMarginalFrames(std::vector<uint64_t>& marginal_non_keyframe
 
     if (!selected) {
       const uint64_t last_kf_id   = *kf_ids.rbegin();
-      uint64_t       min_score_id = 0;
+      uint64_t       min_score_id = std::numeric_limits<uint64_t>::max();
       double         min_score    = std::numeric_limits<double>::max();
 
       for (auto it1 = kf_ids.begin(); it1 != end_minus_2; ++it1) {
@@ -428,7 +428,7 @@ void StereoVO::SelectMarginalFrames(std::vector<uint64_t>& marginal_non_keyframe
       id_to_marg = min_score_id;
     }
 
-    if (id_to_marg == 0) {
+    if (id_to_marg == std::numeric_limits<uint64_t>::max()) {
       break;
     }
 
