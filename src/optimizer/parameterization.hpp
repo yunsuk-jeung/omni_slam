@@ -116,12 +116,10 @@ public:
   }
 
   // ---------------------------------------------
-  // PlusJacobian: ∂(f ⊞ δ)/∂δ at δ=0
+  // PlusJacobian: ∂(Exp(B·δ)·f)/∂δ at δ=0
   //
-  // At δ=0:
-  // f ⊞ δ ≈ f + B δ
-  //
-  // so Jacobian = B(f)
+  // d/dδ [Exp(Bδ)·f] = (Bδ)×f = -[f]× Bδ
+  // so Jacobian = -[f]× B
   // ---------------------------------------------
   bool PlusJacobian(const double* x, double* jacobian) const override {
     Eigen::Vector3d f = Eigen::Map<const Eigen::Vector3d>(x).normalized();
@@ -129,15 +127,50 @@ public:
     Eigen::Matrix<double, 3, 2> B;
     TangentBasis(f, B);
 
+    // ∂(Exp(B·δ)·f)/∂δ|_{δ=0} = -[f]× B
     Eigen::Map<Eigen::Matrix<double, 3, 2, Eigen::RowMajor>> J(jacobian);
-    J = B;
+    J = -Sophus::SO3d::hat(f) * B;
     return true;
   }
 
-  // Minus not required unless you implement marginalization manually
-  bool Minus(const double*, const double*, double*) const override { return false; }
+  bool Minus(const double* y, const double* x, double* y_minus_x) const override {
+    Eigen::Vector3d fx = Eigen::Map<const Eigen::Vector3d>(x).normalized();
+    Eigen::Vector3d fy = Eigen::Map<const Eigen::Vector3d>(y).normalized();
 
-  bool MinusJacobian(const double*, double*) const override { return false; }
+    // Rotation vector w such that Exp(w)*fx = fy, w ⊥ fx
+    Eigen::Vector3d cross     = fx.cross(fy);
+    double          sin_theta = cross.norm();
+    double          cos_theta = fx.dot(fy);
+
+    Eigen::Vector3d w;
+    if (sin_theta < 1e-10) {
+      w = cross;  // theta/sin(theta) → 1 for small angles
+    }
+    else {
+      double theta = std::atan2(sin_theta, cos_theta);
+      w            = (theta / sin_theta) * cross;
+    }
+
+    // Project onto 2D tangent coordinates
+    Eigen::Matrix<double, 3, 2> B;
+    TangentBasis(fx, B);
+
+    Eigen::Map<Eigen::Vector2d> delta(y_minus_x);
+    delta = B.transpose() * w;
+    return true;
+  }
+
+  bool MinusJacobian(const double* x, double* jacobian) const override {
+    Eigen::Vector3d f = Eigen::Map<const Eigen::Vector3d>(x).normalized();
+
+    Eigen::Matrix<double, 3, 2> B;
+    TangentBasis(f, B);
+
+    // ∂(y ⊟ x)/∂y|_{y=x} = Bᵀ [f]×
+    Eigen::Map<Eigen::Matrix<double, 2, 3, Eigen::RowMajor>> J(jacobian);
+    J = B.transpose() * Sophus::SO3d::hat(f);
+    return true;
+  }
 };
 
 }  // namespace omni_slam

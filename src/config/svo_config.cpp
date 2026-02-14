@@ -26,6 +26,12 @@ float                            SVOConfig::keyframe_min_mp_ratio         = 0.8f
 float                            SVOConfig::marg_feature_connection_ratio = 0.2f;
 int                              SVOConfig::new_keyframe_after            = 1;
 double                           SVOConfig::triangulation_dist_threshold  = 0.0025;
+double                           SVOConfig::bearing_huber_const           = 0.01;
+int                              SVOConfig::single_frame_max_iterations   = 10;
+int                              SVOConfig::window_max_iterations         = 10;
+int                              SVOConfig::window_num_threads            = 2;
+double                           SVOConfig::inv_dist_initial_value        = 1e-3;
+double                           SVOConfig::inv_dist_min_value            = 1e-6;
 std::vector<int>                 SVOConfig::camera_models;
 std::vector<std::vector<double>> SVOConfig::camera_intrinsics;
 std::vector<std::vector<double>> SVOConfig::camera_distortions;
@@ -136,6 +142,35 @@ void SVOConfig::ParseConfig(const std::string& file) {
   marg_feature_connection_ratio = config.value("marg_feature_connection_ratio",
                                                marg_feature_connection_ratio);
   new_keyframe_after            = config.value("new_keyframe_after", new_keyframe_after);
+  bearing_huber_const         = config.value("bearing_huber_const", bearing_huber_const);
+  single_frame_max_iterations = config.value("single_frame_max_iterations",
+                                             single_frame_max_iterations);
+  window_max_iterations  = config.value("window_max_iterations", window_max_iterations);
+  window_num_threads     = config.value("window_num_threads", window_num_threads);
+  inv_dist_initial_value = config.value("inv_dist_initial_value", inv_dist_initial_value);
+  inv_dist_min_value     = config.value("inv_dist_min_value", inv_dist_min_value);
+
+  if (bearing_huber_const <= 0.0) {
+    bearing_huber_const = 0.01;
+  }
+  if (bearing_huber_const <= 0.0) {
+    bearing_huber_const = 0.01;
+  }
+  if (single_frame_max_iterations < 1) {
+    single_frame_max_iterations = 1;
+  }
+  if (window_max_iterations < 1) {
+    window_max_iterations = 1;
+  }
+  if (window_num_threads < 1) {
+    window_num_threads = 1;
+  }
+  if (inv_dist_min_value <= 0.0) {
+    inv_dist_min_value = 1e-6;
+  }
+  if (inv_dist_initial_value <= inv_dist_min_value) {
+    inv_dist_initial_value = inv_dist_min_value * 10.0;
+  }
 
   camera_models.clear();
   camera_intrinsics.clear();
@@ -180,6 +215,13 @@ void SVOConfig::ParseConfig(const std::string& file) {
     Logger::Info("SVOConfig.marg_feature_connection_ratio: {}",
                  marg_feature_connection_ratio);
     Logger::Info("SVOConfig.new_keyframe_after: {}", new_keyframe_after);
+    Logger::Info("SVOConfig.bearing_huber_const: {}", bearing_huber_const);
+    Logger::Info("SVOConfig.single_frame_max_iterations: {}",
+                 single_frame_max_iterations);
+    Logger::Info("SVOConfig.window_max_iterations: {}", window_max_iterations);
+    Logger::Info("SVOConfig.window_num_threads: {}", window_num_threads);
+    Logger::Info("SVOConfig.inv_dist_initial_value: {}", inv_dist_initial_value);
+    Logger::Info("SVOConfig.inv_dist_min_value: {}", inv_dist_min_value);
     Logger::Info("SVOConfig.camera_models: {}", camera_models.size());
   }
 }

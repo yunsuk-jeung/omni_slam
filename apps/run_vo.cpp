@@ -102,7 +102,8 @@ int main(int argc, char** argv) {
 
   const auto project_root = std::filesystem::path(__FILE__).parent_path().parent_path();
 
-  std::filesystem::path dataset_path = project_root / "datasets/EUROC/V1_02_medium";
+  // std::filesystem::path dataset_path = project_root / "datasets/EUROC/V1_02_medium";
+  std::filesystem::path dataset_path = project_root / "datasets/EUROC/V1_01_easy";
 
   omni_slam::EurocLoader loader;
   if (!loader.Initialize(dataset_path.string())) {
@@ -137,8 +138,8 @@ int main(int argc, char** argv) {
   simulator.Start();
   stereo_vo.Run();
 
-  int64_t                   last_timestamp = std::numeric_limits<int64_t>::min();
-  omni_slam::OdometryResult result;
+  int64_t                           last_timestamp = std::numeric_limits<int64_t>::min();
+  omni_slam::OdometryResult         result;
   std::vector<std::array<float, 3>> trajectory_points;
 
   while (loader.HasCameraData()) {
@@ -207,8 +208,8 @@ int main(int argc, char** argv) {
       }
 
       if (!result.T_w_b_window.empty()) {
-        const auto&        T_w_b = result.T_w_b_window.back();
-        const Eigen::Vector3d t = T_w_b.translation();
+        const auto&           T_w_b = result.T_w_b_window.back();
+        const Eigen::Vector3d t     = T_w_b.translation();
         trajectory_points.push_back({static_cast<float>(t.x()),
                                      static_cast<float>(t.y()),
                                      static_cast<float>(t.z())});
@@ -216,7 +217,8 @@ int main(int argc, char** argv) {
         rec.log("world/trajectory",
                 rerun::LineStrips3D(strip)
                   .with_colors({kTrajectoryColor})
-                  .with_radii({rerun::components::Radius::ui_points(kTrajectoryRadiusUi)}));
+                  .with_radii(
+                    {rerun::components::Radius::ui_points(kTrajectoryRadiusUi)}));
       }
 
       rec.log("world/window", rerun::Clear::RECURSIVE);
@@ -229,8 +231,8 @@ int main(int argc, char** argv) {
         for (size_t i = 0; i < result.T_w_b_window.size(); ++i) {
           const auto& T_w_b = result.T_w_b_window[i];
           for (size_t cam_idx = 0; cam_idx < result.T_b_c.size(); ++cam_idx) {
-            const auto T_w_c = T_w_b * result.T_b_c[cam_idx];
-            const std::string path = "world/window/cam_" + std::to_string(i) + "_"
+            const auto        T_w_c = T_w_b * result.T_b_c[cam_idx];
+            const std::string path  = "world/window/cam_" + std::to_string(i) + "_"
                                      + std::to_string(cam_idx);
             rec.log(path, MakeTransform(T_w_c));
           }

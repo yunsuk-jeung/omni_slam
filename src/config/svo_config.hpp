@@ -26,6 +26,12 @@ public:
   static float  marg_feature_connection_ratio;
   static int    new_keyframe_after;
   static double triangulation_dist_threshold;
+  static double bearing_huber_const;
+  static int    single_frame_max_iterations;
+  static int    window_max_iterations;
+  static int    window_num_threads;
+  static double inv_dist_initial_value;
+  static double inv_dist_min_value;
 
   static std::vector<int>                 camera_models;
   static std::vector<std::vector<double>> camera_intrinsics;

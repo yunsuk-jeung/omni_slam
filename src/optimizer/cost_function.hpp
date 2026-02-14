@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cmath>
 #include <Sophus/se3.hpp>
 #include <ceres/ceres.h>
 
@@ -165,25 +166,65 @@ struct PoseOnlyBearingCostAuto {
   Sophus::SE3d    T_b_c_;
 };
 
-class BearingStereoCost final : public ceres::SizedCostFunction<2, 6, 6, 3> {
+class BearingPriorCost final : public ceres::SizedCostFunction<2, 3> {
 public:
-  BearingStereoCost(const Eigen::Vector3d& b_obs,
-                    const Sophus::SE3d&    T_b_c_obs,
-                    const Sophus::SE3d&    T_b_c_host,
-                    double                 inv_dist)
+  explicit BearingPriorCost(const Eigen::Vector3d& b_prior)
+    : b_prior_(b_prior.normalized()) {
+    TangentBasis(b_prior_, B_);
+  }
+
+  bool Evaluate(double const* const* params,
+                double*              residuals,
+                double**             jacobians) const override {
+    Eigen::Vector3d b(params[0][0], params[0][1], params[0][2]);
+    const double    b_norm = b.norm();
+    if (b_norm <= 0.0) {
+      residuals[0] = 0.0;
+      residuals[1] = 0.0;
+      if (jacobians && jacobians[0]) {
+        Eigen::Map<Eigen::Matrix<double, 2, 3, Eigen::RowMajor>> J(jacobians[0]);
+        J.setZero();
+      }
+      return true;
+    }
+
+    b /= b_norm;
+    const Eigen::Vector2d r = B_.transpose() * (b - b_prior_);
+    residuals[0]            = r[0];
+    residuals[1]            = r[1];
+
+    if (jacobians && jacobians[0]) {
+      Eigen::Map<Eigen::Matrix<double, 2, 3, Eigen::RowMajor>> J(jacobians[0]);
+      const Eigen::Matrix3d J_bearing = (Eigen::Matrix3d::Identity() - b * b.transpose())
+                                        / b_norm;
+      J = B_.transpose() * J_bearing;
+    }
+    return true;
+  }
+
+private:
+  Eigen::Vector3d             b_prior_;
+  Eigen::Matrix<double, 3, 2> B_;
+};
+
+class BearingCost final : public ceres::SizedCostFunction<2, 6, 6, 3, 1> {
+public:
+  BearingCost(const Eigen::Vector3d& b_obs,
+              const Sophus::SE3d&    T_b_c_obs,
+              const Sophus::SE3d&    T_b_c_host)
     : b_obs_(b_obs.normalized())
     , T_b_c_obs_(T_b_c_obs)
-    , T_b_c_host_(T_b_c_host)
-    , inv_dist_(inv_dist) {
+    , T_b_c_host_(T_b_c_host) {
     TangentBasis(b_obs_, B_);
   }
 
   bool Evaluate(double const* const* params,
                 double*              residuals,
                 double**             jacobians) const override {
-    const double* pose_obs      = params[0];
-    const double* pose_host     = params[1];
-    const double* bearing_param = params[2];
+    const double* pose_obs       = params[0];
+    const double* pose_host      = params[1];
+    const double* bearing_param  = params[2];
+    const double* inv_dist_param = params[3];
 
     const Sophus::SE3d T_w_b_obs  = SE3BoxplusManifold::FromParams(pose_obs);
     const Sophus::SE3d T_w_b_host = SE3BoxplusManifold::FromParams(pose_host);
@@ -201,14 +242,15 @@ public:
     }
     b_h /= b_norm;
 
-    if (inv_dist_ <= 0.0) {
+    const double inv_dist = inv_dist_param[0];
+    if (!std::isfinite(inv_dist) || inv_dist <= 0.0) {
       residuals[0] = 0.0;
       residuals[1] = 0.0;
       zeroJacobians(jacobians);
       return true;
     }
 
-    const Eigen::Vector3d p_c_host = b_h / inv_dist_;
+    const Eigen::Vector3d p_c_host = b_h / inv_dist;
     const Eigen::Vector3d p_w      = T_w_c_host * p_c_host;
     const Eigen::Vector3d p_c_obs  = T_w_c_obs.inverse() * p_w;
 
@@ -232,8 +274,9 @@ public:
         return true;
       }
 
-      const Eigen::Matrix3d J_norm =
-        (Eigen::Matrix3d::Identity() - b_pred * b_pred.transpose()) / p_norm;
+      const Eigen::Matrix3d J_norm = (Eigen::Matrix3d::Identity()
+                                      - b_pred * b_pred.transpose())
+                                     / p_norm;
       const Eigen::Matrix<double, 2, 3> J_r_pc = B_.transpose() * J_norm;
 
       const Eigen::Matrix3d R_w_c_obs = T_w_c_obs.so3().matrix();
@@ -242,9 +285,8 @@ public:
 
       if (jacobians[0]) {
         Eigen::Map<Eigen::Matrix<double, 2, 6, Eigen::RowMajor>> J(jacobians[0]);
-        const Eigen::Matrix3d dp_dt = -R_c_obs_w;
-        const Eigen::Matrix3d dp_dtheta =
-          R_c_obs_w * Sophus::SO3d::hat(p_w - t_w_c_obs);
+        const Eigen::Matrix3d                                    dp_dt = -R_c_obs_w;
+        const Eigen::Matrix3d dp_dtheta = R_c_obs_w * Sophus::SO3d::hat(p_w - t_w_c_obs);
 
         J.leftCols<3>()  = J_r_pc * dp_dt;
         J.rightCols<3>() = J_r_pc * dp_dtheta;
@@ -254,8 +296,8 @@ public:
         Eigen::Map<Eigen::Matrix<double, 2, 6, Eigen::RowMajor>> J(jacobians[1]);
         const Eigen::Vector3d t_w_b_host = T_w_b_host.translation();
         const Eigen::Matrix3d dp_dt      = R_c_obs_w;
-        const Eigen::Matrix3d dp_dtheta =
-          -R_c_obs_w * Sophus::SO3d::hat(p_w - t_w_b_host);
+        const Eigen::Matrix3d dp_dtheta  = -R_c_obs_w
+                                          * Sophus::SO3d::hat(p_w - t_w_b_host);
 
         J.leftCols<3>()  = J_r_pc * dp_dt;
         J.rightCols<3>() = J_r_pc * dp_dtheta;
@@ -264,11 +306,19 @@ public:
       if (jacobians[2]) {
         Eigen::Map<Eigen::Matrix<double, 2, 3, Eigen::RowMajor>> J(jacobians[2]);
         const Eigen::Matrix3d R_w_c_host = T_w_c_host.so3().matrix();
-        const Eigen::Matrix3d dp_dbh =
-          (1.0 / inv_dist_) * (R_c_obs_w * R_w_c_host);
-        const Eigen::Matrix3d J_bearing =
-          (Eigen::Matrix3d::Identity() - b_h * b_h.transpose()) / b_norm;
+        const Eigen::Matrix3d dp_dbh     = (1.0 / inv_dist) * (R_c_obs_w * R_w_c_host);
+        const Eigen::Matrix3d J_bearing  = (Eigen::Matrix3d::Identity()
+                                           - b_h * b_h.transpose())
+                                          / b_norm;
         J = J_r_pc * dp_dbh * J_bearing;
+      }
+
+      if (jacobians[3]) {
+        Eigen::Map<Eigen::Matrix<double, 2, 1>> J(jacobians[3]);
+        const Eigen::Matrix3d                   R_w_c_host = T_w_c_host.so3().matrix();
+        const Eigen::Vector3d dp_dinv_dist = -(R_c_obs_w * R_w_c_host * b_h)
+                                             / (inv_dist * inv_dist);
+        J = J_r_pc * dp_dinv_dist;
       }
     }
 
@@ -292,32 +342,34 @@ private:
       Eigen::Map<Eigen::Matrix<double, 2, 3, Eigen::RowMajor>> J(jacobians[2]);
       J.setZero();
     }
+    if (jacobians[3]) {
+      Eigen::Map<Eigen::Matrix<double, 2, 1>> J(jacobians[3]);
+      J.setZero();
+    }
   }
 
   Eigen::Vector3d             b_obs_;
   Sophus::SE3d                T_b_c_obs_;
   Sophus::SE3d                T_b_c_host_;
-  double                      inv_dist_;
   Eigen::Matrix<double, 3, 2> B_;
 };
 
-class BearingCost final : public ceres::SizedCostFunction<2, 6, 3> {
+class BearingStereoCost final : public ceres::SizedCostFunction<2, 6, 3, 1> {
 public:
-  BearingCost(const Eigen::Vector3d& b_obs,
-              const Sophus::SE3d&    T_b_c_obs,
-              const Sophus::SE3d&    T_b_c_host,
-              double                 inv_dist)
+  BearingStereoCost(const Eigen::Vector3d& b_obs,
+                    const Sophus::SE3d&    T_b_c_obs,
+                    const Sophus::SE3d&    T_b_c_host)
     : b_obs_(b_obs.normalized())
     , T_b_c_obs_(T_b_c_obs)
-    , T_b_c_host_(T_b_c_host)
-    , inv_dist_(inv_dist) {
+    , T_b_c_host_(T_b_c_host) {
     TangentBasis(b_obs_, B_);
   }
 
   bool Evaluate(double const* const* params,
                 double*              residuals,
                 double**             jacobians) const override {
-    const double* bearing_param = params[1];
+    const double* bearing_param  = params[1];
+    const double* inv_dist_param = params[2];
 
     Eigen::Vector3d b_h(bearing_param[0], bearing_param[1], bearing_param[2]);
     const double    b_norm = b_h.norm();
@@ -329,17 +381,18 @@ public:
     }
     b_h /= b_norm;
 
-    if (inv_dist_ <= 0.0) {
+    const double inv_dist = inv_dist_param[0];
+    if (!std::isfinite(inv_dist) || inv_dist <= 0.0) {
       residuals[0] = 0.0;
       residuals[1] = 0.0;
       zeroJacobians(jacobians);
       return true;
     }
 
-    const Eigen::Vector3d p_c_host = b_h / inv_dist_;
-    const Sophus::SE3d    T_c_obs_b = T_b_c_obs_.inverse();
+    const Eigen::Vector3d p_c_host       = b_h / inv_dist;
+    const Sophus::SE3d    T_c_obs_b      = T_b_c_obs_.inverse();
     const Sophus::SE3d    T_c_obs_c_host = T_c_obs_b * T_b_c_host_;
-    const Eigen::Vector3d p_c_obs = T_c_obs_c_host * p_c_host;
+    const Eigen::Vector3d p_c_obs        = T_c_obs_c_host * p_c_host;
 
     if (p_c_obs.z() <= 1e-6) {
       residuals[0] = 0.0;
@@ -361,8 +414,9 @@ public:
         return true;
       }
 
-      const Eigen::Matrix3d J_norm =
-        (Eigen::Matrix3d::Identity() - b_pred * b_pred.transpose()) / p_norm;
+      const Eigen::Matrix3d J_norm = (Eigen::Matrix3d::Identity()
+                                      - b_pred * b_pred.transpose())
+                                     / p_norm;
       const Eigen::Matrix<double, 2, 3> J_r_pc = B_.transpose() * J_norm;
 
       if (jacobians[0]) {
@@ -373,10 +427,19 @@ public:
       if (jacobians[1]) {
         Eigen::Map<Eigen::Matrix<double, 2, 3, Eigen::RowMajor>> J(jacobians[1]);
         const Eigen::Matrix3d R_c_obs_c_host = T_c_obs_c_host.so3().matrix();
-        const Eigen::Matrix3d dp_dbh = (1.0 / inv_dist_) * R_c_obs_c_host;
-        const Eigen::Matrix3d J_bearing =
-          (Eigen::Matrix3d::Identity() - b_h * b_h.transpose()) / b_norm;
+        const Eigen::Matrix3d dp_dbh         = (1.0 / inv_dist) * R_c_obs_c_host;
+        const Eigen::Matrix3d J_bearing      = (Eigen::Matrix3d::Identity()
+                                           - b_h * b_h.transpose())
+                                          / b_norm;
         J = J_r_pc * dp_dbh * J_bearing;
+      }
+
+      if (jacobians[2]) {
+        Eigen::Map<Eigen::Matrix<double, 2, 1>> J(jacobians[2]);
+        const Eigen::Matrix3d R_c_obs_c_host = T_c_obs_c_host.so3().matrix();
+        const Eigen::Vector3d dp_dinv_dist   = -(R_c_obs_c_host * b_h)
+                                             / (inv_dist * inv_dist);
+        J = J_r_pc * dp_dinv_dist;
       }
     }
 
@@ -396,24 +459,25 @@ private:
       Eigen::Map<Eigen::Matrix<double, 2, 3, Eigen::RowMajor>> J(jacobians[1]);
       J.setZero();
     }
+    if (jacobians[2]) {
+      Eigen::Map<Eigen::Matrix<double, 2, 1>> J(jacobians[2]);
+      J.setZero();
+    }
   }
 
   Eigen::Vector3d             b_obs_;
   Sophus::SE3d                T_b_c_obs_;
   Sophus::SE3d                T_b_c_host_;
-  double                      inv_dist_;
   Eigen::Matrix<double, 3, 2> B_;
 };
 
 struct BearingStereoCostAuto {
   BearingStereoCostAuto(const Eigen::Vector3d& b_obs,
                         const Sophus::SE3d&    T_b_c_obs,
-                        const Sophus::SE3d&    T_b_c_host,
-                        double                 inv_dist)
+                        const Sophus::SE3d&    T_b_c_host)
     : b_obs_(b_obs.normalized())
     , T_b_c_obs_(T_b_c_obs)
-    , T_b_c_host_(T_b_c_host)
-    , inv_dist_(inv_dist) {
+    , T_b_c_host_(T_b_c_host) {
     TangentBasis(b_obs_, B_);
   }
 
@@ -421,6 +485,7 @@ struct BearingStereoCostAuto {
   bool operator()(const T* const pose_obs,
                   const T* const pose_host,
                   const T* const bearing_param,
+                  const T* const inv_dist_param,
                   T*             residuals) const {
     Eigen::Map<const Eigen::Matrix<T, 3, 1>> t_obs(pose_obs);
     Eigen::Map<const Eigen::Matrix<T, 3, 1>> so3_obs(pose_obs + 3);
@@ -444,7 +509,7 @@ struct BearingStereoCostAuto {
       b_h /= b_norm;
     }
 
-    const T inv_d = T(inv_dist_);
+    const T inv_d = inv_dist_param[0];
     if (inv_d <= T(0)) {
       residuals[0] = T(0);
       residuals[1] = T(0);
@@ -474,24 +539,24 @@ struct BearingStereoCostAuto {
   Eigen::Vector3d             b_obs_;
   Sophus::SE3d                T_b_c_obs_;
   Sophus::SE3d                T_b_c_host_;
-  double                      inv_dist_;
   Eigen::Matrix<double, 3, 2> B_;
 };
 
 struct BearingCostAuto {
   BearingCostAuto(const Eigen::Vector3d& b_obs,
                   const Sophus::SE3d&    T_b_c_obs,
-                  const Sophus::SE3d&    T_b_c_host,
-                  double                 inv_dist)
+                  const Sophus::SE3d&    T_b_c_host)
     : b_obs_(b_obs.normalized())
     , T_b_c_obs_(T_b_c_obs)
-    , T_b_c_host_(T_b_c_host)
-    , inv_dist_(inv_dist) {
+    , T_b_c_host_(T_b_c_host) {
     TangentBasis(b_obs_, B_);
   }
 
   template <typename T>
-  bool operator()(const T* const pose, const T* const bearing_param, T* residuals) const {
+  bool operator()(const T* const pose,
+                  const T* const bearing_param,
+                  const T* const inv_dist_param,
+                  T*             residuals) const {
     Eigen::Map<const Eigen::Matrix<T, 3, 1>> t(pose);
     Eigen::Map<const Eigen::Matrix<T, 3, 1>> so3(pose + 3);
     Sophus::SO3<T>                           R_w_b = Sophus::SO3<T>::exp(so3);
@@ -509,7 +574,7 @@ struct BearingCostAuto {
       b_h /= b_norm;
     }
 
-    const T inv_d = T(inv_dist_);
+    const T inv_d = inv_dist_param[0];
     if (inv_d <= T(0)) {
       residuals[0] = T(0);
       residuals[1] = T(0);
@@ -539,7 +604,6 @@ struct BearingCostAuto {
   Eigen::Vector3d             b_obs_;
   Sophus::SE3d                T_b_c_obs_;
   Sophus::SE3d                T_b_c_host_;
-  double                      inv_dist_;
   Eigen::Matrix<double, 3, 2> B_;
 };
 }  // namespace omni_slam
