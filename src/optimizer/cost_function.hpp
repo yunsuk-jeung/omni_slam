@@ -354,7 +354,7 @@ private:
   Eigen::Matrix<double, 3, 2> B_;
 };
 
-class BearingStereoCost final : public ceres::SizedCostFunction<2, 6, 3, 1> {
+class BearingStereoCost final : public ceres::SizedCostFunction<2, 3, 1> {
 public:
   BearingStereoCost(const Eigen::Vector3d& b_obs,
                     const Sophus::SE3d&    T_b_c_obs,
@@ -368,8 +368,8 @@ public:
   bool Evaluate(double const* const* params,
                 double*              residuals,
                 double**             jacobians) const override {
-    const double* bearing_param  = params[1];
-    const double* inv_dist_param = params[2];
+    const double* bearing_param  = params[0];
+    const double* inv_dist_param = params[1];
 
     Eigen::Vector3d b_h(bearing_param[0], bearing_param[1], bearing_param[2]);
     const double    b_norm = b_h.norm();
@@ -420,12 +420,7 @@ public:
       const Eigen::Matrix<double, 2, 3> J_r_pc = B_.transpose() * J_norm;
 
       if (jacobians[0]) {
-        Eigen::Map<Eigen::Matrix<double, 2, 6, Eigen::RowMajor>> J(jacobians[0]);
-        J.setZero();
-      }
-
-      if (jacobians[1]) {
-        Eigen::Map<Eigen::Matrix<double, 2, 3, Eigen::RowMajor>> J(jacobians[1]);
+        Eigen::Map<Eigen::Matrix<double, 2, 3, Eigen::RowMajor>> J(jacobians[0]);
         const Eigen::Matrix3d R_c_obs_c_host = T_c_obs_c_host.so3().matrix();
         const Eigen::Matrix3d dp_dbh         = (1.0 / inv_dist) * R_c_obs_c_host;
         const Eigen::Matrix3d J_bearing      = (Eigen::Matrix3d::Identity()
@@ -434,8 +429,8 @@ public:
         J = J_r_pc * dp_dbh * J_bearing;
       }
 
-      if (jacobians[2]) {
-        Eigen::Map<Eigen::Matrix<double, 2, 1>> J(jacobians[2]);
+      if (jacobians[1]) {
+        Eigen::Map<Eigen::Matrix<double, 2, 1>> J(jacobians[1]);
         const Eigen::Matrix3d R_c_obs_c_host = T_c_obs_c_host.so3().matrix();
         const Eigen::Vector3d dp_dinv_dist   = -(R_c_obs_c_host * b_h)
                                              / (inv_dist * inv_dist);
@@ -452,15 +447,11 @@ private:
       return;
     }
     if (jacobians[0]) {
-      Eigen::Map<Eigen::Matrix<double, 2, 6, Eigen::RowMajor>> J(jacobians[0]);
+      Eigen::Map<Eigen::Matrix<double, 2, 3, Eigen::RowMajor>> J(jacobians[0]);
       J.setZero();
     }
     if (jacobians[1]) {
-      Eigen::Map<Eigen::Matrix<double, 2, 3, Eigen::RowMajor>> J(jacobians[1]);
-      J.setZero();
-    }
-    if (jacobians[2]) {
-      Eigen::Map<Eigen::Matrix<double, 2, 1>> J(jacobians[2]);
+      Eigen::Map<Eigen::Matrix<double, 2, 1>> J(jacobians[1]);
       J.setZero();
     }
   }
@@ -482,26 +473,13 @@ struct BearingStereoCostAuto {
   }
 
   template <typename T>
-  bool operator()(const T* const pose_obs,
-                  const T* const pose_host,
-                  const T* const bearing_param,
+  bool operator()(const T* const bearing_param,
                   const T* const inv_dist_param,
                   T*             residuals) const {
-    Eigen::Map<const Eigen::Matrix<T, 3, 1>> t_obs(pose_obs);
-    Eigen::Map<const Eigen::Matrix<T, 3, 1>> so3_obs(pose_obs + 3);
-    Sophus::SO3<T>                           R_w_b_obs = Sophus::SO3<T>::exp(so3_obs);
-    Sophus::SE3<T>                           T_w_b_obs(R_w_b_obs, t_obs);
-
-    Eigen::Map<const Eigen::Matrix<T, 3, 1>> t_host(pose_host);
-    Eigen::Map<const Eigen::Matrix<T, 3, 1>> so3_host(pose_host + 3);
-    Sophus::SO3<T>                           R_w_b_host = Sophus::SO3<T>::exp(so3_host);
-    Sophus::SE3<T>                           T_w_b_host(R_w_b_host, t_host);
-
     const Sophus::SE3<T> T_b_c_obs  = T_b_c_obs_.template cast<T>();
     const Sophus::SE3<T> T_b_c_host = T_b_c_host_.template cast<T>();
-
-    const Sophus::SE3<T> T_w_c_obs  = T_w_b_obs * T_b_c_obs;
-    const Sophus::SE3<T> T_w_c_host = T_w_b_host * T_b_c_host;
+    const Sophus::SE3<T> T_c_obs_b  = T_b_c_obs.inverse();
+    const Sophus::SE3<T> T_c_obs_c_host = T_c_obs_b * T_b_c_host;
 
     Eigen::Matrix<T, 3, 1> b_h(bearing_param[0], bearing_param[1], bearing_param[2]);
     const T                b_norm = b_h.norm();
@@ -517,8 +495,7 @@ struct BearingStereoCostAuto {
     }
 
     const Eigen::Matrix<T, 3, 1> p_c_host = b_h / inv_d;
-    const Eigen::Matrix<T, 3, 1> p_w      = T_w_c_host * p_c_host;
-    const Eigen::Matrix<T, 3, 1> p_c_obs  = T_w_c_obs.inverse() * p_w;
+    const Eigen::Matrix<T, 3, 1> p_c_obs  = T_c_obs_c_host * p_c_host;
 
     if (p_c_obs.z() <= T(1e-6)) {
       residuals[0] = T(0);

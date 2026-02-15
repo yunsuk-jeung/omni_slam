@@ -95,6 +95,7 @@ void VOEstimator::OptimizeSingleFrame(std::shared_ptr<Frame> frame,
   ceres::Solver::Options options;
   options.linear_solver_type           = ceres::DENSE_QR;
   options.minimizer_progress_to_stdout = false;
+  options.num_threads                  = 2;
   options.max_num_iterations           = SVOConfig::single_frame_max_iterations;
 
   ceres::Solver::Summary summary;
@@ -213,7 +214,7 @@ void VOEstimator::OptimizeWindow(SlidingWindow* window) {
       if (frame_cam_id0.frame_id == frame_cam_id1.frame_id) {
         // Stereo within the same frame: use a single pose parameter block.
         ceres::CostFunction* cost = new BearingStereoCost(bearing, T_b_c1, T_b_c0);
-        problem.AddResidualBlock(cost, loss, pose_param0, bearing_param, inv_dist_param);
+        problem.AddResidualBlock(cost, loss, bearing_param, inv_dist_param);
       }
       else {
         ceres::CostFunction* cost = new BearingCost(bearing, T_b_c1, T_b_c0);
@@ -355,11 +356,13 @@ void VOEstimator::Marginalize(SlidingWindow* window, std::set<uint64_t> marginal
     double*     bearing_param  = bearing_params[i].data();
     double*     inv_dist_param = &inv_dist_params[i];
 
+    auto* bearing_loss = new ceres::HuberLoss(SVOConfig::bearing_huber_const);
+
     const auto host_obs_it = observations.find(frame_cam_id0);
     if (host_obs_it != observations.end()) {
       ceres::CostFunction* host_bearing_prior_cost = new BearingPriorCost(
         host_obs_it->second);
-      problem.AddResidualBlock(host_bearing_prior_cost, nullptr, bearing_param);
+      problem.AddResidualBlock(host_bearing_prior_cost, bearing_loss, bearing_param);
     }
 
     for (const auto& [frame_cam_id1, bearing] : observations) {
@@ -374,16 +377,12 @@ void VOEstimator::Marginalize(SlidingWindow* window, std::set<uint64_t> marginal
       if (frame_cam_id0.frame_id == frame_cam_id1.frame_id) {
         // Stereo within the same frame: use a single pose parameter block.
         ceres::CostFunction* cost = new BearingStereoCost(bearing, T_b_c1, T_b_c0);
-        problem.AddResidualBlock(cost,
-                                 nullptr,
-                                 pose_param0,
-                                 bearing_param,
-                                 inv_dist_param);
+        problem.AddResidualBlock(cost, bearing_loss, bearing_param, inv_dist_param);
       }
       else {
         ceres::CostFunction* cost = new BearingCost(bearing, T_b_c1, T_b_c0);
         problem.AddResidualBlock(cost,
-                                 nullptr,
+                                 bearing_loss,
                                  pose_param1,
                                  pose_param0,
                                  bearing_param,
@@ -408,8 +407,9 @@ void VOEstimator::Marginalize(SlidingWindow* window, std::set<uint64_t> marginal
 
   // Evaluate Jacobian
   ceres::Problem::EvaluateOptions eval_opts;
-  ceres::CRSMatrix                ceres_J;
-  std::vector<double>             residuals;
+  eval_opts.apply_loss_function = true;
+  ceres::CRSMatrix    ceres_J;
+  std::vector<double> residuals;
   problem.Evaluate(eval_opts, nullptr, &residuals, nullptr, &ceres_J);
 
   // H = J(first)^T * J(first),  g = J(first)^T * r(current)
@@ -448,7 +448,6 @@ void VOEstimator::Marginalize(SlidingWindow* window, std::set<uint64_t> marginal
   b = brr - Arm * Amm_inv * bmm;
 
   A = 0.5 * (A + A.transpose());
-
   // FEJ: use first estimates as linearization point for frames that have them
 
   Eigen::VectorXd x0(r);
