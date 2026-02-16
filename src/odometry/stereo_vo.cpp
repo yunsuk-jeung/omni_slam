@@ -317,32 +317,20 @@ void StereoVO::SelectMarginalFrames(std::set<uint64_t>& marginal_none_keyframe_i
     marginal_none_keyframe_ids.insert(id);
   }
 
-  if (SVOConfig::max_keyframe_size == 0
-      || keyframe_ids.size() <= SVOConfig::max_keyframe_size || keyframe_ids.size() < 2) {
+  if (keyframe_ids.size() <= SVOConfig::max_keyframe_size) {
     return;
   }
 
   std::map<uint64_t, int> connected_map_points;
   std::shared_ptr<Frame>  latest_frame = sliding_window_->GetFrame(latest_id);
   if (latest_frame) {
-    std::unordered_set<uint64_t> latest_observed_ids;
-    const size_t                 cam_num = latest_frame->GetCamNum();
-    for (size_t cam = 0; cam < cam_num; ++cam) {
-      const auto& obs = latest_frame->GetObservation(cam);
-      for (const auto& [mp_id, bearing] : obs) {
-        latest_observed_ids.insert(mp_id);
-      }
-    }
-
-    const auto& map_points = sliding_window_->GetMapPoints();
-    for (const auto& [mp_id, mp] : map_points) {
+    const auto& obs = latest_frame->GetObservations().front();
+    for (const auto& [mp_id, _] : obs) {
+      auto mp = sliding_window_->GetMapPoint(mp_id);
       if (!mp || mp->GetStatus() < MapPoint::Status::TRACKING) {
         continue;
       }
-      if (!latest_observed_ids.empty()
-          && latest_observed_ids.find(mp_id) == latest_observed_ids.end()) {
-        continue;
-      }
+
       connected_map_points[mp->GetHostFrameCamId().frame_id]++;
     }
   }

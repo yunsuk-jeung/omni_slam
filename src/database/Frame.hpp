@@ -46,6 +46,9 @@ public:
   const bool IsKeyframe() const { return is_keyframe_; }
 
   void AddObservation(size_t cam_idx, size_t mp_id, const Eigen::Vector3d& bearing);
+  std::vector<std::unordered_map<size_t, Eigen::Vector3d>>& GetObservations() {
+    return mp_id_to_bearings_;
+  }
   std::unordered_map<size_t, Eigen::Vector3d>& GetObservation(size_t i) {
     return mp_id_to_bearings_[i];
   }
