@@ -157,7 +157,11 @@ void StereoVO::EstimatorLoop() {
                        : 1.0f;
 
     if (ratio < SVOConfig::keyframe_min_mp_ratio) {
-      LogD("frame {}, mp ratio : {} = {} /{}", frame->GetId(), ratio, connected, kpt_num);
+      LogD("frame {}, connected map point ratio : {} = {} /{}",
+           frame->GetId(),
+           ratio,
+           connected,
+           kpt_num);
       make_keyframe_ = true;
     }
 
@@ -206,7 +210,6 @@ void StereoVO::EstimatorLoop() {
       ScopedTimer timer("remove keyframe");
       sliding_window_->RemoveFrames(marginal_keyframe_ids);
     }
-    LogI("current frame size: {}", sliding_window_->GetFrames().size());
 
     {
       ScopedTimer                 timer("build result");

@@ -446,11 +446,11 @@ void VOEstimator::Marginalize(SlidingWindow* window, std::set<uint64_t> marginal
 
   marginalizer_->SetPrior(remain_frame_ids, A, b, x0);
 
-  LogD("ceres_J : {} x {} ", ceres_J.num_rows, ceres_J.num_cols);
-  LogD("margin frame size: {}", marginal_kf_ids.size());
-  LogD("total frame: {}", marginal_kf_ids.size() + remain_frame_ids.size());
-  LogD("margin map poitns size: {}", marginal_map_points.size());
-  LogD("Hessian : {} x {} ", H.rows(), H.cols());
+  // LogD("ceres_J : {} x {} ", ceres_J.num_rows, ceres_J.num_cols);
+  // LogD("margin frame size: {}", marginal_kf_ids.size());
+  // LogD("total frame: {}", marginal_kf_ids.size() + remain_frame_ids.size());
+  // LogD("margin map poitns size: {}", marginal_map_points.size());
+  // LogD("Hessian : {} x {} ", H.rows(), H.cols());
 }
 
 }  // namespace omni_slam
