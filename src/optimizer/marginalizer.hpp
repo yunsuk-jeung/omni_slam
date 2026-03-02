@@ -74,7 +74,6 @@ public:
     x0_ = Eigen::VectorXd::Zero(kPoseSize);
     J_ = std::sqrt(kInitialPriorWeight) * Eigen::MatrixXd::Identity(kPoseSize, kPoseSize);
     r_ = Eigen::VectorXd::Zero(kPoseSize);
-    first_estimates_[kInitialFrameId] = Eigen::Matrix<double, 6, 1>::Zero();
   }
   ~Marginalizer() = default;
 
@@ -83,7 +82,6 @@ public:
     r_.resize(0);
     x0_.resize(0);
     frame_ids_.clear();
-    first_estimates_.clear();
   }
 
   void SetPrior(const std::set<uint64_t>& frame_ids,
@@ -115,33 +113,9 @@ public:
 
     J_ = sqrt_vals.asDiagonal() * eig_vecs.transpose();
     r_ = inv_sqrt_vals.asDiagonal() * eig_vecs.transpose() * b;
-
-    // FEJ: store first estimate for frames entering the prior
-    Eigen::Index fe_offset = 0;
-    for (const uint64_t fid : frame_ids_) {
-      if (first_estimates_.find(fid) == first_estimates_.end()) {
-        first_estimates_[fid] = x0_.segment<kPoseSize>(fe_offset);
-      }
-      fe_offset += kPoseSize;
-    }
-
-    // Remove first estimates for frames no longer in the prior
-    for (auto it = first_estimates_.begin(); it != first_estimates_.end();) {
-      if (frame_ids_.count(it->first) == 0) {
-        it = first_estimates_.erase(it);
-      }
-      else {
-        ++it;
-      }
-    }
   }
 
   MarginalizationCost* CreateCost() const { return new MarginalizationCost(J_, r_, x0_); }
-
-  const std::unordered_map<uint64_t, Eigen::Matrix<double, 6, 1>>& GetFirstEstimates()
-    const {
-    return first_estimates_;
-  }
 
   const std::set<uint64_t>& GetFrameIds() const { return frame_ids_; }
   std::set<uint64_t>&       GetFrameIds() { return frame_ids_; }
@@ -151,7 +125,6 @@ private:
   Eigen::VectorXd r_;
   Eigen::VectorXd x0_;
 
-  std::set<uint64_t>                                        frame_ids_;
-  std::unordered_map<uint64_t, Eigen::Matrix<double, 6, 1>> first_estimates_;
+  std::set<uint64_t> frame_ids_;
 };
 }  // namespace omni_slam

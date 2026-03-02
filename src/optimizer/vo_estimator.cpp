@@ -391,20 +391,6 @@ void VOEstimator::Marginalize(SlidingWindow* window, std::set<uint64_t> marginal
     }
   }
 
-  // FEJ: save current estimates and set to first estimates for Jacobian evaluation
-  std::vector<Eigen::Vector6d> current_pose_params(pose_params.size());
-  for (size_t i = 0; i < pose_params.size(); ++i) {
-    current_pose_params[i] = pose_params[i];
-  }
-
-  const auto& first_ests = marginalizer_->GetFirstEstimates();
-  for (const auto& [frame_id, idx] : frame_id_to_index) {
-    auto fe_it = first_ests.find(frame_id);
-    if (fe_it != first_ests.end()) {
-      pose_params[idx] = fe_it->second;
-    }
-  }
-
   // Evaluate Jacobian
   ceres::Problem::EvaluateOptions eval_opts;
   eval_opts.apply_loss_function = true;
@@ -453,14 +439,8 @@ void VOEstimator::Marginalize(SlidingWindow* window, std::set<uint64_t> marginal
   Eigen::VectorXd x0(r);
   Eigen::Index    offset = 0;
   for (const uint64_t& frame_id : remain_frame_ids) {
-    auto fe_it = first_ests.find(frame_id);
-    if (fe_it != first_ests.end()) {
-      x0.segment<kPoseSize>(offset) = fe_it->second;
-    }
-    else {
-      size_t idx                    = frame_id_to_index[frame_id];
-      x0.segment<kPoseSize>(offset) = pose_params[idx];
-    }
+    size_t idx                    = frame_id_to_index[frame_id];
+    x0.segment<kPoseSize>(offset) = pose_params[idx];
     offset += kPoseSize;
   }
 
