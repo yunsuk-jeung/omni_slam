@@ -398,7 +398,6 @@ void VOEstimator::Marginalize(SlidingWindow* window, std::set<uint64_t> marginal
   std::vector<double> residuals;
   problem.Evaluate(eval_opts, nullptr, &residuals, nullptr, &ceres_J);
 
-  // H = J(first)^T * J(first),  g = J(first)^T * r(current)
   Eigen::MatrixXd H;
   Eigen::VectorXd Jt_R;
   CreateHessianFromCRSMatrix(ceres_J, residuals, H, Jt_R);
@@ -434,7 +433,6 @@ void VOEstimator::Marginalize(SlidingWindow* window, std::set<uint64_t> marginal
   b = brr - Arm * Amm_inv * bmm;
 
   A = 0.5 * (A + A.transpose());
-  // FEJ: use first estimates as linearization point for frames that have them
 
   Eigen::VectorXd x0(r);
   Eigen::Index    offset = 0;

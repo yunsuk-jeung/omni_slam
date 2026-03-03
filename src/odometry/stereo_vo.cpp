@@ -203,7 +203,10 @@ void StereoVO::EstimatorLoop() {
     sliding_window_->RemoveFrames(marginal_none_keyframe_ids);
 
     // marginalize
-    estimator_->Marginalize(this->sliding_window_.get(), marginal_keyframe_ids);
+    {
+      ScopedTimer timer("marginalize ");
+      estimator_->Marginalize(this->sliding_window_.get(), marginal_keyframe_ids);
+    }
 
     // remove keyframe
     {
