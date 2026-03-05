@@ -11,6 +11,7 @@
 #include "odometry/sliding_window.hpp"
 #include "utils/eigen_utils.hpp"
 #include "utils/logger.hpp"
+#include "utils/timer.hpp"
 #include "utils/ceres_utils.hpp"
 #include "optimizer/parameterization.hpp"
 #include "optimizer/cost_function.hpp"
@@ -229,7 +230,7 @@ void VOEstimator::OptimizeWindow(SlidingWindow* window) {
   }
 
   ceres::Solver::Options options;
-  options.linear_solver_type           = ceres::SPARSE_SCHUR;
+  options.linear_solver_type           = ceres::SPARSE_NORMAL_CHOLESKY;
   options.num_threads                  = SVOConfig::window_num_threads;
   options.minimizer_progress_to_stdout = false;
   options.max_num_iterations           = SVOConfig::window_max_iterations;
@@ -391,6 +392,7 @@ void VOEstimator::Marginalize(SlidingWindow* window, std::set<uint64_t> marginal
     }
   }
 
+  Statistics::startTimer("marginalize eval");
   // Evaluate Jacobian
   ceres::Problem::EvaluateOptions eval_opts;
   eval_opts.apply_loss_function = true;
@@ -401,6 +403,7 @@ void VOEstimator::Marginalize(SlidingWindow* window, std::set<uint64_t> marginal
   Eigen::MatrixXd H;
   Eigen::VectorXd Jt_R;
   CreateHessianFromCRSMatrix(ceres_J, residuals, H, Jt_R);
+  Statistics::stopTimer("marginalize eval");
 
   H = 0.5 * (H + H.transpose());
 
@@ -417,11 +420,15 @@ void VOEstimator::Marginalize(SlidingWindow* window, std::set<uint64_t> marginal
   const Eigen::VectorXd bmm = Jt_R.segment(0, m);
   const Eigen::VectorXd brr = Jt_R.segment(m, r);
 
+  Statistics::startTimer("marginalize saes");
+
   Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> saes(Amm);
   if (saes.info() != Eigen::Success) {
     marginalizer_->Clear();
     return;
   }
+
+  Statistics::stopTimer("marginalize saes");
 
   constexpr double eps         = 1e-8;
   Eigen::VectorXd  inv_eigvals = (saes.eigenvalues().array() > eps)
@@ -441,14 +448,16 @@ void VOEstimator::Marginalize(SlidingWindow* window, std::set<uint64_t> marginal
     x0.segment<kPoseSize>(offset) = pose_params[idx];
     offset += kPoseSize;
   }
+  Statistics::startTimer("marginalize saes2");
 
   marginalizer_->SetPrior(remain_frame_ids, A, b, x0);
+  Statistics::stopTimer("marginalize saes2");
 
-  // LogD("ceres_J : {} x {} ", ceres_J.num_rows, ceres_J.num_cols);
-  // LogD("margin frame size: {}", marginal_kf_ids.size());
-  // LogD("total frame: {}", marginal_kf_ids.size() + remain_frame_ids.size());
-  // LogD("margin map poitns size: {}", marginal_map_points.size());
-  // LogD("Hessian : {} x {} ", H.rows(), H.cols());
+  LogD("ceres_J : {} x {} ", ceres_J.num_rows, ceres_J.num_cols);
+  LogD("margin frame size: {}", marginal_kf_ids.size());
+  LogD("total frame: {}", marginal_kf_ids.size() + remain_frame_ids.size());
+  LogD("margin map poitns size: {}", marginal_map_points.size());
+  LogD("Hessian : {} x {} ", H.rows(), H.cols());
 }
 
 }  // namespace omni_slam
