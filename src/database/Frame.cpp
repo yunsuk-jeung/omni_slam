@@ -18,7 +18,8 @@ Frame::Frame(int64_t                             timestamp_ns,
   , timestamp_ns_(timestamp_ns)
   , images_(images)
   , image_pyramids_(images.size())
-  , kCamNum{images.size()} {
+  , kCamNum{images.size()}
+  , is_keyframe_{false} {
   cams_.clear();
   cams_.reserve(images.size());
 

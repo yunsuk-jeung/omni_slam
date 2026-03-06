@@ -426,6 +426,7 @@ void StereoVO::SelectMarginalFrames(std::set<uint64_t>& marginal_none_keyframe_i
 OdometryResult StereoVO::BuildOdometryResult(const std::shared_ptr<Frame>& frame,
                                              TrackingResult* tracking_result) {
   OdometryResult result;
+  result.frame_id     = frame->GetId();
   result.timestamp_ns = frame->GetTimestampNs();
 
   const size_t cam_num = frame->GetCamNum();

@@ -16,6 +16,7 @@ struct OdometryResult {
     std::vector<std::vector<cv::Point2f>> uvs;
   };
 
+  uint64_t                              frame_id = 0;
   int64_t                               timestamp_ns = 0;
   std::vector<cv::Mat>                  images;
   std::vector<Sophus::SE3d>             T_w_b_window;

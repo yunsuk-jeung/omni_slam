@@ -5,6 +5,10 @@ target_include_directories(omni_utils INTERFACE
   ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
+target_compile_definitions(omni_utils INTERFACE
+  OMNI_SLAM_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+)
+
 target_link_libraries(omni_utils INTERFACE
   Eigen3::Eigen
   Sophus::Sophus

@@ -146,6 +146,7 @@ int main(int argc, char** argv) {
     if (stereo_vo.FetchResult(result) && result.timestamp_ns != last_timestamp) {
       last_timestamp = result.timestamp_ns;
       rec.set_time_duration_nanos("t", result.timestamp_ns);
+      rec.set_time_sequence("frame_id", static_cast<int64_t>(result.frame_id));
 
       if (result.images.size() > 0) {
         rec.log("cam0/image", MakeRerunImage(result.images[0]));

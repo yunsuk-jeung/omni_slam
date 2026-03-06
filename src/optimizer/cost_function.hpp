@@ -1,7 +1,7 @@
 #pragma once
 
 #include <cmath>
-#include <Sophus/se3.hpp>
+#include <sophus/se3.hpp>
 #include <ceres/ceres.h>
 
 #include "utils/eigen_utils.hpp"
@@ -476,9 +476,9 @@ struct BearingStereoCostAuto {
   bool operator()(const T* const bearing_param,
                   const T* const inv_dist_param,
                   T*             residuals) const {
-    const Sophus::SE3<T> T_b_c_obs  = T_b_c_obs_.template cast<T>();
-    const Sophus::SE3<T> T_b_c_host = T_b_c_host_.template cast<T>();
-    const Sophus::SE3<T> T_c_obs_b  = T_b_c_obs.inverse();
+    const Sophus::SE3<T> T_b_c_obs      = T_b_c_obs_.template cast<T>();
+    const Sophus::SE3<T> T_b_c_host     = T_b_c_host_.template cast<T>();
+    const Sophus::SE3<T> T_c_obs_b      = T_b_c_obs.inverse();
     const Sophus::SE3<T> T_c_obs_c_host = T_c_obs_b * T_b_c_host;
 
     Eigen::Matrix<T, 3, 1> b_h(bearing_param[0], bearing_param[1], bearing_param[2]);

@@ -25,16 +25,21 @@ public:
   static void Init(bool enable_file_logging = true) {
     if (!logger_) {
       if (enable_file_logging) {
-        // Create logs directory if it doesn't exist
-        std::filesystem::create_directories("logs");
+        // Keep logs in project-root/logs regardless of process working directory.
+#ifdef OMNI_SLAM_SOURCE_DIR
+        const auto log_dir = std::filesystem::path(OMNI_SLAM_SOURCE_DIR) / "logs";
+#else
+        const auto log_dir = std::filesystem::path("logs");
+#endif
+        std::filesystem::create_directories(log_dir);
 
         // Generate filename with current timestamp
         auto              now  = std::chrono::system_clock::now();
         auto              time = std::chrono::system_clock::to_time_t(now);
         std::stringstream ss;
-        ss << "logs/omni_slam_" << std::put_time(std::localtime(&time), "%Y%m%d_%H%M%S")
+        ss << "omni_slam_" << std::put_time(std::localtime(&time), "%Y%m%d_%H%M%S")
            << ".log";
-        std::string log_file = ss.str();
+        const std::string log_file = (log_dir / ss.str()).string();
 
         // Create sinks for both console and file output
         auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
