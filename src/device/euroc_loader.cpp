@@ -5,7 +5,7 @@
 
 namespace omni_slam {
 
-bool EurocLoader::Init(const std::string& dataset_path) {
+bool EurocLoader::Setup(const std::string& dataset_path) {
   dataset_path_ = dataset_path;
 
   // Extract dataset name from path

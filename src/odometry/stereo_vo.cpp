@@ -38,7 +38,7 @@ StereoVO::StereoVO()
 
 StereoVO::~StereoVO() {}
 
-bool StereoVO::Init(const std::string& config_path) {
+bool StereoVO::Setup(const std::string& config_path) {
   Logger::Info("Initializing VO Pipeline");
   if (config_path.empty()) {
     Logger::Warn("Empty config path for VO pipeline");

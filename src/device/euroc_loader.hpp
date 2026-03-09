@@ -17,7 +17,7 @@ public:
   ~EurocLoader() override = default;
 
   // VioLoader interface implementation
-  bool Init(const std::string& dataset_path) override;
+  bool Setup(const std::string& dataset_path) override;
   void Reset() override;
 
   bool        HasCameraData() const override;

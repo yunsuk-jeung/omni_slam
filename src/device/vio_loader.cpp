@@ -34,7 +34,7 @@ std::unique_ptr<VioLoader> VIOLoaderFactory::CreateLoader(const std::string& dat
   }
 
   // Initialize the loader
-  if (loader && !loader->Init(dataset_path)) {
+  if (loader && !loader->Setup(dataset_path)) {
     LogE("Failed to initialize dataset loader");
     return nullptr;
   }

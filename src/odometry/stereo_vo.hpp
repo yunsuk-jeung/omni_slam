@@ -31,7 +31,7 @@ public:
   StereoVO();
   ~StereoVO() override;
 
-  bool Init(const std::string& config_path) override;
+  bool Setup(const std::string& config_path) override;
   void Run() override;
   void Shutdown() override;
   void OnCameraFrame(int64_t                             timestamp_ns,
