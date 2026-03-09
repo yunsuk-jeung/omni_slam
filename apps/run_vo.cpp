@@ -106,7 +106,7 @@ int main(int argc, char** argv) {
   std::filesystem::path dataset_path = project_root / "datasets/EUROC/V1_01_easy";
 
   omni_slam::EurocLoader loader;
-  if (!loader.Initialize(dataset_path.string())) {
+  if (!loader.Init(dataset_path.string())) {
     LogE("Failed to initialize EuRoC loader");
     return -1;
   }
@@ -119,7 +119,7 @@ int main(int argc, char** argv) {
   omni_slam::StereoVO   stereo_vo;
   std::filesystem::path config_path = project_root / "configs/svo_euroc.json";
 
-  if (!stereo_vo.Initialize(config_path.string())) {
+  if (!stereo_vo.Init(config_path.string())) {
     LogE("Failed to initialize VO pipeline");
     return -1;
   }

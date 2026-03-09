@@ -12,7 +12,7 @@ public:
 
   // Initialize the loader with dataset path
   // Returns true on success, false on error
-  virtual bool Initialize(const std::string& dataset_path) = 0;
+  virtual bool Init(const std::string& dataset_path) = 0;
 
   // Reset all iterators to beginning
   virtual void Reset() = 0;

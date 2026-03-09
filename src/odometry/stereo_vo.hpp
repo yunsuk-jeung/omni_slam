@@ -26,10 +26,12 @@ class SlidingWindow;
 class VOEstimator;
 class StereoVO : public Odometry {
 public:
+  enum class Status { Initializing, Tracking };
+
   StereoVO();
   ~StereoVO() override;
 
-  bool Initialize(const std::string& config_path) override;
+  bool Init(const std::string& config_path) override;
   void Run() override;
   void Shutdown() override;
   void OnCameraFrame(int64_t                             timestamp_ns,
@@ -39,9 +41,16 @@ public:
   bool FetchResult(OdometryResult& out);
 
 private:
-  void OpticalFlowLoop();
-  void EstimatorLoop();
-  void Process(std::shared_ptr<Frame>& frame);
+  void            OpticalFlowLoop();
+  void            EstimatorLoop();
+  void            Process(std::shared_ptr<Frame>& frame);
+  void            ProcessInitialize(std::shared_ptr<Frame>& frame);
+  void            ProcessTracking(std::shared_ptr<Frame>& frame);
+  TrackingResult* UpdateFrameObservations(std::shared_ptr<Frame>& frame,
+                                          size_t&                 connected);
+  void            UpdateKeyframeStatus(std::shared_ptr<Frame>& frame, size_t connected);
+  void            BuildAndStoreResult(const std::shared_ptr<Frame>& frame,
+                                      TrackingResult*               tracking_result);
 
   OdometryResult BuildOdometryResult(const std::shared_ptr<Frame>& frame,
                                      TrackingResult*               tracking_result);
@@ -52,6 +61,7 @@ private:
 
 private:
   static constexpr size_t kCamNum = 2;
+  Status                  status_;
 
   std::atomic<bool> running_;
   std::thread       optical_flow_thread_;
