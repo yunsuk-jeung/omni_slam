@@ -21,6 +21,52 @@ bool IsPointInImage(const cv::Point2f& pt, const cv::Mat& image) {
   return pt.x >= 0.0f && pt.y >= 0.0f && pt.x < image.cols && pt.y < image.rows;
 }
 
+void RunForwardBackwardOpticalFlow(const std::vector<cv::Mat>&     src_pyramid,
+                                   const std::vector<cv::Mat>&     dst_pyramid,
+                                   const std::vector<cv::Point2f>& src_uvs,
+                                   std::vector<cv::Point2f>&       dst_uvs,
+                                   std::vector<uchar>&             status) {
+  std::vector<cv::Point2f> reverse_uvs;
+  std::vector<uchar>       reverse_status;
+
+  cv::calcOpticalFlowPyrLK(src_pyramid,
+                           dst_pyramid,
+                           src_uvs,
+                           dst_uvs,
+                           status,
+                           cv::noArray(),
+                           cv::Size(SVOConfig::optical_flow_patch_size,
+                                    SVOConfig::optical_flow_patch_size),
+                           SVOConfig::max_pyramid_level);
+
+  cv::calcOpticalFlowPyrLK(dst_pyramid,
+                           src_pyramid,
+                           dst_uvs,
+                           reverse_uvs,
+                           reverse_status,
+                           cv::noArray(),
+                           cv::Size(SVOConfig::optical_flow_patch_size,
+                                    SVOConfig::optical_flow_patch_size),
+                           SVOConfig::max_pyramid_level);
+
+  const size_t track_count = status.size();
+  for (size_t i = 0; i < track_count; ++i) {
+    if (!status[i] || !reverse_status[i]) {
+      status[i] = 0;
+      continue;
+    }
+    if (!IsPointInImage(dst_uvs[i], dst_pyramid.front())) {
+      status[i] = 0;
+      continue;
+    }
+    const cv::Point2f dist       = src_uvs[i] - reverse_uvs[i];
+    const float       distNormSq = dist.x * dist.x + dist.y * dist.y;
+    if (distNormSq > SVOConfig::optical_flow_dist_threshold) {
+      status[i] = 0;
+    }
+  }
+}
+
 }  // namespace
 
 OpticalFlow::OpticalFlow(const size_t                                   cam_num,
@@ -82,41 +128,16 @@ void OpticalFlow::TrackMono(const std::shared_ptr<Frame>& curr_frame) {
 
   std::vector<cv::Point2f> tracked_uvs;
   std::vector<uchar>       status;
+  RunForwardBackwardOpticalFlow(prev_frame_->GetImagePyramid(kLeftCam),
+                                curr_frame->GetImagePyramid(kLeftCam),
+                                prev_uvs,
+                                tracked_uvs,
+                                status);
 
-  cv::calcOpticalFlowPyrLK(prev_frame_->GetImagePyramid(kLeftCam),
-                           curr_frame->GetImagePyramid(kLeftCam),
-                           prev_uvs,
-                           tracked_uvs,
-                           status,
-                           cv::noArray(),
-                           cv::Size(SVOConfig::optical_flow_patch_size,
-                                    SVOConfig::optical_flow_patch_size),
-                           SVOConfig::max_pyramid_level);
+  const size_t track_count = status.size();
 
-  std::vector<cv::Point2f> reverse_uvs;
-  std::vector<uchar>       reverse_status;
-
-  cv::calcOpticalFlowPyrLK(curr_frame->GetImagePyramid(kLeftCam),
-                           prev_frame_->GetImagePyramid(kLeftCam),
-                           tracked_uvs,
-                           reverse_uvs,
-                           reverse_status,
-                           cv::noArray(),
-                           cv::Size(SVOConfig::optical_flow_patch_size,
-                                    SVOConfig::optical_flow_patch_size),
-                           SVOConfig::max_pyramid_level);
-
-  for (size_t i = 0; i < tracked_uvs.size(); ++i) {
-    if (!status[i] || !reverse_status[i]) {
-      continue;
-    }
-    if (!IsPointInImage(tracked_uvs[i], curr_frame->GetImage(kLeftCam))) {
-      continue;
-    }
-    const cv::Point2f dist       = prev_uvs[i] - reverse_uvs[i];
-    const float       distNormSq = dist.x * dist.x + dist.y * dist.y;
-
-    if (distNormSq > SVOConfig::optical_flow_dist_threshold) {
+  for (size_t i = 0; i < track_count; ++i) {
+    if (!status[i]) {
       continue;
     }
     curr_result->AddFeature(kLeftCam, tracked_uvs[i], prev_ids[i]);
@@ -136,41 +157,15 @@ void OpticalFlow::TrackStereo(const std::shared_ptr<Frame>& curr_frame) {
 
   std::vector<cv::Point2f> right_uvs;
   std::vector<uchar>       status;
+  RunForwardBackwardOpticalFlow(curr_frame->GetImagePyramid(kLeftCam),
+                                curr_frame->GetImagePyramid(kRightCam),
+                                left_uvs,
+                                right_uvs,
+                                status);
 
-  cv::calcOpticalFlowPyrLK(curr_frame->GetImagePyramid(kLeftCam),
-                           curr_frame->GetImagePyramid(kRightCam),
-                           left_uvs,
-                           right_uvs,
-                           status,
-                           cv::noArray(),
-                           cv::Size(SVOConfig::optical_flow_patch_size,
-                                    SVOConfig::optical_flow_patch_size),
-                           SVOConfig::max_pyramid_level);
-
-  std::vector<cv::Point2f> reverse_uvs;
-  std::vector<uchar>       reverse_status;
-
-  cv::calcOpticalFlowPyrLK(curr_frame->GetImagePyramid(kRightCam),
-                           curr_frame->GetImagePyramid(kLeftCam),
-                           right_uvs,
-                           reverse_uvs,
-                           reverse_status,
-                           cv::noArray(),
-                           cv::Size(SVOConfig::optical_flow_patch_size,
-                                    SVOConfig::optical_flow_patch_size),
-                           SVOConfig::max_pyramid_level);
-
-  for (size_t i = 0; i < right_uvs.size(); ++i) {
-    if (!status[i] || !reverse_status[i]) {
-      continue;
-    }
-    if (!IsPointInImage(right_uvs[i], curr_frame->GetImage(kRightCam))) {
-      continue;
-    }
-    const cv::Point2f dist       = left_uvs[i] - reverse_uvs[i];
-    const float       distNormSq = dist.x * dist.x + dist.y * dist.y;
-
-    if (distNormSq > SVOConfig::optical_flow_dist_threshold) {
+  const size_t track_count = status.size();
+  for (size_t i = 0; i < track_count; ++i) {
+    if (!status[i]) {
       continue;
     }
     curr_result->AddFeature(kRightCam, right_uvs[i], left_ids[i]);
@@ -236,6 +231,28 @@ void OpticalFlow::DetectFeatures(const std::shared_ptr<Frame>& curr_frame) {
   }
 }
 
+void OpticalFlow::Process(std::shared_ptr<Frame>& curr_frame) {
+  auto* curr_result = curr_frame->GetTrackingResultPtr();
+
+  const size_t prev_left_size = (prev_frame_ && prev_frame_->GetTrackingResultPtr())
+                                  ? prev_frame_->GetTrackingResultPtr()->GetSize(0)
+                                  : 0;
+  const int    grid_rows      = std::max(1, SVOConfig::feature_grid_rows);
+  const int    grid_cols      = std::max(1, SVOConfig::feature_grid_cols);
+  const size_t expected_left  = (prev_left_size >> 1)
+                               + static_cast<size_t>(grid_rows * grid_cols);
+  curr_result->Reserve(0, expected_left);
+  curr_result->Reserve(1, expected_left);
+  PrepareImagesAndPyramids(curr_frame);
+  TrackMono(curr_frame);
+  DetectFeatures(curr_frame);
+  if (kCamNum == 2) {
+    TrackStereo(curr_frame);
+  }
+  prev_frame_ = curr_frame;
+  out_queue_.push(curr_frame);
+}
+
 void OpticalFlow::Run(std::atomic<bool>& running) {
   std::shared_ptr<Frame> curr_frame;
   while (running.load(std::memory_order_acquire)) {
@@ -248,27 +265,7 @@ void OpticalFlow::Run(std::atomic<bool>& running) {
       continue;
     }
 
-    auto* curr_result = curr_frame->GetTrackingResultPtr();
-
-    const size_t prev_left_size = (prev_frame_ && prev_frame_->GetTrackingResultPtr())
-                                    ? prev_frame_->GetTrackingResultPtr()->GetSize(0)
-                                    : 0;
-    const int    grid_rows      = std::max(1, SVOConfig::feature_grid_rows);
-    const int    grid_cols      = std::max(1, SVOConfig::feature_grid_cols);
-    const size_t expected_left  = (prev_left_size >> 1)
-                                 + static_cast<size_t>(grid_rows * grid_cols);
-    curr_result->Reserve(0, expected_left);
-    curr_result->Reserve(1, expected_left);
-
-    PrepareImagesAndPyramids(curr_frame);
-
-    TrackMono(curr_frame);
-    DetectFeatures(curr_frame);
-    if (kCamNum == 2) {
-      TrackStereo(curr_frame);
-    }
-    prev_frame_ = curr_frame;
-    out_queue_.push(curr_frame);
+    Process(curr_frame);
   }
 }
 }  // namespace omni_slam

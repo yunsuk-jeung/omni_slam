@@ -28,6 +28,7 @@ public:
 
 private:
   void PrepareImagesAndPyramids(std::shared_ptr<Frame>& curr_frame);
+  void Process(std::shared_ptr<Frame>& curr_frame);
 
   void TrackMono(const std::shared_ptr<Frame>& curr_frame);
   void TrackStereo(const std::shared_ptr<Frame>& curr_frame);
