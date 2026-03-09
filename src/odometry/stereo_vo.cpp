@@ -92,137 +92,138 @@ void StereoVO::OpticalFlowLoop() {
 void StereoVO::EstimatorLoop() {
   std::shared_ptr<Frame> frame;
   while (running_.load(std::memory_order_acquire)) {
-    ScopedTimer loop_timer0("estimator loop timer");
-
     if (!result_queue_.try_pop(frame)) {
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
       continue;
     }
 
-    if (!frame || !frame->GetTrackingResultPtr()) {
-      continue;
-    }
-
-    ScopedTimer loop_timer("loop_timer");
-    const auto& frame_ids = sliding_window_->GetFrameIds();
-    if (!frame_ids.empty()) {
-      const uint64_t         latest_id    = *frame_ids.rbegin();
-      std::shared_ptr<Frame> latest_frame = sliding_window_->GetFrame(latest_id);
-      if (latest_frame) {
-        frame->GetTwb() = latest_frame->GetTwb();
-      }
-    }
-
-    sliding_window_->AddFrame(frame);
-
-    TrackingResult* tracking_result = frame->GetTrackingResultPtr();
-    const size_t    kCamNum         = frame->GetCamNum();
-
-    size_t connected = 0;
-
-    for (size_t i = 0; i < kCamNum; ++i) {
-      auto&                        ids = tracking_result->GetIds(i);
-      auto&                        uvs = tracking_result->GetUvs(i);
-      std::vector<Eigen::Vector3d> bearings;
-      std::vector<bool>            valid;
-
-      frame->GetCam(i)->Unproject(uvs, bearings, valid);
-
-      const auto& point_num = tracking_result->GetSize(i);
-      for (size_t j = 0; j < point_num; j++) {
-        if (!valid[j]) {
-          continue;
-        }
-        const auto&     id = ids[j];
-        std::shared_ptr mp = sliding_window_->GetMapPoint(ids[j]);
-        if (mp) {
-          if (i == 0) {
-            ++connected;
-          }
-        }
-        else {
-          mp = sliding_window_->GetOrCreateMapPointCandidate(id);
-        }
-
-        frame->AddObservation(i, id, bearings[j]);
-
-        FrameCamId frame_cam_id{frame->GetId(), i};
-        mp->AddObservation(frame_cam_id, bearings[j]);
-      }
-    }
-
-    size_t kpt_num = frame->GetTrackingResultPtr()->GetSize(0);
-    float  ratio   = kpt_num > 0
-                       ? static_cast<float>(connected) / static_cast<float>(kpt_num)
-                       : 1.0f;
-
-    if (ratio < SVOConfig::keyframe_min_mp_ratio) {
-      LogD("frame {}, connected map point ratio : {} = {} /{}",
-           frame->GetId(),
-           ratio,
-           connected,
-           kpt_num);
-      make_keyframe_ = true;
-    }
-
-    if (make_keyframe_ && new_keyframe_after_ > SVOConfig::new_keyframe_after) {
-      int created_map_point_num = InitializeMapPoints(frame);
-
-      if (created_map_point_num > 0) {
-        created_map_point_nums_[frame->GetId()] = created_map_point_num;
-        frame->SetKeyframe();
-      }
-    }
-
-    if (frame->IsKeyframe()) {
-      new_keyframe_after_ = 0;
-      sliding_window_->MarkKeyframe(frame->GetId());
-    }
-    else {
-      ++new_keyframe_after_;
-    }
-
-    // single frame pose estimation
-    {
-      ScopedTimer timer("optimize_frame");
-      VOEstimator::OptimizeSingleFrame(frame, this->sliding_window_.get());
-    }
-
-    // sliding window bundle
-    {
-      ScopedTimer timer("optimize_window");
-      estimator_->OptimizeWindow(this->sliding_window_.get());
-    }
-
-    // select marginal frames
-    std::set<uint64_t> marginal_none_keyframe_ids;
-    std::set<uint64_t> marginal_keyframe_ids;
-    SelectMarginalFrames(marginal_none_keyframe_ids, marginal_keyframe_ids);
-
-    // remove none keyframes before marginalize
-    sliding_window_->RemoveFrames(marginal_none_keyframe_ids);
-
-    // marginalize
-    {
-      ScopedTimer timer("marginalize ");
-      estimator_->Marginalize(this->sliding_window_.get(), marginal_keyframe_ids);
-    }
-
-    // remove keyframe
-    {
-      ScopedTimer timer("remove keyframe");
-      sliding_window_->RemoveFrames(marginal_keyframe_ids);
-    }
-
-    {
-      ScopedTimer                 timer("build result");
-      OdometryResult              result = BuildOdometryResult(frame, tracking_result);
-      std::lock_guard<std::mutex> lock(result_mutex_);
-      latest_result_ = std::move(result);
-      has_result_    = true;
-    }
-    Statistics::reportAll();
+    Process(frame);
   }
+}
+
+void StereoVO::Process(std::shared_ptr<Frame>& frame) {
+  if (!frame || !frame->GetTrackingResultPtr()) {
+    return;
+  }
+
+  ScopedTimer loop_timer("loop_timer");
+  const auto& frame_ids = sliding_window_->GetFrameIds();
+  if (!frame_ids.empty()) {
+    const uint64_t         latest_id    = *frame_ids.rbegin();
+    std::shared_ptr<Frame> latest_frame = sliding_window_->GetFrame(latest_id);
+    if (latest_frame) {
+      frame->GetTwb() = latest_frame->GetTwb();
+    }
+  }
+
+  sliding_window_->AddFrame(frame);
+
+  TrackingResult* tracking_result = frame->GetTrackingResultPtr();
+  const size_t    kCamNum         = frame->GetCamNum();
+
+  size_t connected = 0;
+
+  for (size_t i = 0; i < kCamNum; ++i) {
+    auto&                        ids = tracking_result->GetIds(i);
+    auto&                        uvs = tracking_result->GetUvs(i);
+    std::vector<Eigen::Vector3d> bearings;
+    std::vector<bool>            valid;
+
+    frame->GetCam(i)->Unproject(uvs, bearings, valid);
+
+    const auto& point_num = tracking_result->GetSize(i);
+    for (size_t j = 0; j < point_num; j++) {
+      if (!valid[j]) {
+        continue;
+      }
+      const auto&     id = ids[j];
+      std::shared_ptr mp = sliding_window_->GetMapPoint(ids[j]);
+      if (mp) {
+        if (i == 0) {
+          ++connected;
+        }
+      }
+      else {
+        mp = sliding_window_->GetOrCreateMapPointCandidate(id);
+      }
+
+      frame->AddObservation(i, id, bearings[j]);
+
+      FrameCamId frame_cam_id{frame->GetId(), i};
+      mp->AddObservation(frame_cam_id, bearings[j]);
+    }
+  }
+
+  size_t kpt_num = frame->GetTrackingResultPtr()->GetSize(0);
+  float  ratio = kpt_num > 0 ? static_cast<float>(connected) / static_cast<float>(kpt_num)
+                             : 1.0f;
+
+  if (ratio < SVOConfig::keyframe_min_mp_ratio) {
+    LogD("frame {}, connected map point ratio : {} = {} /{}",
+         frame->GetId(),
+         ratio,
+         connected,
+         kpt_num);
+    make_keyframe_ = true;
+  }
+
+  if (make_keyframe_ && new_keyframe_after_ > SVOConfig::new_keyframe_after) {
+    int created_map_point_num = InitializeMapPoints(frame);
+
+    if (created_map_point_num > 0) {
+      created_map_point_nums_[frame->GetId()] = created_map_point_num;
+      frame->SetKeyframe();
+    }
+  }
+
+  if (frame->IsKeyframe()) {
+    new_keyframe_after_ = 0;
+    sliding_window_->MarkKeyframe(frame->GetId());
+  }
+  else {
+    ++new_keyframe_after_;
+  }
+
+  // single frame pose estimation
+  {
+    ScopedTimer timer("optimize_frame");
+    VOEstimator::OptimizeSingleFrame(frame, this->sliding_window_.get());
+  }
+
+  // sliding window bundle
+  {
+    ScopedTimer timer("optimize_window");
+    estimator_->OptimizeWindow(this->sliding_window_.get());
+  }
+
+  // select marginal frames
+  std::set<uint64_t> marginal_none_keyframe_ids;
+  std::set<uint64_t> marginal_keyframe_ids;
+  SelectMarginalFrames(marginal_none_keyframe_ids, marginal_keyframe_ids);
+
+  // remove none keyframes before marginalize
+  sliding_window_->RemoveFrames(marginal_none_keyframe_ids);
+
+  // marginalize
+  {
+    ScopedTimer timer("marginalize ");
+    estimator_->Marginalize(this->sliding_window_.get(), marginal_keyframe_ids);
+  }
+
+  // remove keyframe
+  {
+    ScopedTimer timer("remove keyframe");
+    sliding_window_->RemoveFrames(marginal_keyframe_ids);
+  }
+
+  {
+    ScopedTimer                 timer("build result");
+    OdometryResult              result = BuildOdometryResult(frame, tracking_result);
+    std::lock_guard<std::mutex> lock(result_mutex_);
+    latest_result_ = std::move(result);
+    has_result_    = true;
+  }
+  Statistics::reportAll();
 }
 
 bool StereoVO::FetchResult(OdometryResult& out) {

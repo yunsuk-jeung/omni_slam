@@ -41,6 +41,7 @@ public:
 private:
   void OpticalFlowLoop();
   void EstimatorLoop();
+  void Process(std::shared_ptr<Frame>& frame);
 
   OdometryResult BuildOdometryResult(const std::shared_ptr<Frame>& frame,
                                      TrackingResult*               tracking_result);
