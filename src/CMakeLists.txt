@@ -76,7 +76,6 @@ if(OMNI_BUILD_STEREO_VIO)
     ${CMAKE_CURRENT_SOURCE_DIR}/database/Frame.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/database/MapPoint.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/odometry/sliding_window.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/odometry/stereo_vo.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/odometry/stereo_vio.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/optimizer/vo_estimator.cpp
   )
