@@ -6,12 +6,16 @@
 #include <Eigen/Dense>
 
 namespace Eigen {
-using Matrix66d = Eigen::Matrix<double, 6, 6>;
-using Matrix26d = Eigen::Matrix<double, 2, 6>;
-using Matrix62d = Eigen::Matrix<double, 6, 2>;
-using Matrix23d = Eigen::Matrix<double, 2, 3>;
-using Matrix36d = Eigen::Matrix<double, 3, 6>;
-using Vector6d  = Eigen::Matrix<double, 6, 1>;
+using Matrix66d    = Eigen::Matrix<double, 6, 6>;
+using Matrix26d    = Eigen::Matrix<double, 2, 6>;
+using Matrix62d    = Eigen::Matrix<double, 6, 2>;
+using Matrix23d    = Eigen::Matrix<double, 2, 3>;
+using Matrix36d    = Eigen::Matrix<double, 3, 6>;
+using Vector6d     = Eigen::Matrix<double, 6, 1>;
+using Vector9d     = Eigen::Matrix<double, 9, 1>;
+using Matrix15d    = Eigen::Matrix<double, 15, 15>;
+using Matrix12d    = Eigen::Matrix<double, 12, 12>;
+using Matrix15x12d = Eigen::Matrix<double, 15, 12>;
 
 }  // namespace Eigen
 

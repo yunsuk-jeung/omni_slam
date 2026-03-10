@@ -7,13 +7,13 @@
 #include <thread>
 #include <vector>
 #include <map>
-#include <optional>
 #include <set>
 #include <mutex>
 
 #include <tbb/concurrent_queue.h>
 #include <opencv2/core.hpp>
 
+#include "utils/eigen_utils.hpp"
 #include "utils/types.hpp"
 #include "odometry/odometry.hpp"
 #include "odometry/odometry_result.hpp"
@@ -47,12 +47,8 @@ private:
   void  OpticalFlowLoop();
   void  EstimatorLoop();
   void  Process(std::shared_ptr<Frame>& frame);
-  bool  Initialize(std::shared_ptr<Frame>&                    frame,
-                   const std::optional<uint64_t>&             prev_frame_id,
-                   const std::optional<ImuPreintegration>&    preintegration);
-  void  Track(std::shared_ptr<Frame>&                         frame,
-              const std::optional<uint64_t>&                  prev_frame_id,
-              const std::optional<ImuPreintegration>&         preintegration);
+  bool  Initialize(std::shared_ptr<Frame>& frame);
+  void  Track(std::shared_ptr<Frame>& frame);
   void  PopImuDataUntil(int64_t timestamp_ns, std::vector<ImuData>& imu_data);
   float UpdateFrameObservations(std::shared_ptr<Frame>& frame);
 
@@ -61,6 +57,8 @@ private:
 
   void SelectMarginalFrames(std::set<uint64_t>& marginal_none_frame_ids,
                             std::set<uint64_t>& marginal_keyframe_ids);
+
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
 private:
   static constexpr size_t kCamNum = 2;
@@ -74,7 +72,8 @@ private:
   tbb::concurrent_queue<std::shared_ptr<Frame>> result_queue_;
   std::unique_ptr<OpticalFlow>                  optical_flow_;
 
-  std::unique_ptr<SlidingWindow> sliding_window_;
+  std::unique_ptr<SlidingWindow>      sliding_window_;
+  std::map<uint64_t, Eigen::Vector9d> inertial_states_;
 
   std::unique_ptr<VIOEstimator> estimator_;
 

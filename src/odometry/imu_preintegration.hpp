@@ -3,9 +3,9 @@
 #include <cstddef>
 #include <vector>
 
-#include <Eigen/Dense>
 #include <sophus/so3.hpp>
 
+#include "utils/eigen_utils.hpp"
 #include "utils/types.hpp"
 
 namespace omni_slam {
@@ -14,12 +14,6 @@ namespace omni_slam {
 // [dp, dtheta, dv, dba, dbg].
 class ImuPreintegration {
 public:
-  static constexpr int kErrorStateSize = 15;
-  static constexpr int kNoiseStateSize = 12;
-  using Matrix15d      = Eigen::Matrix<double, kErrorStateSize, kErrorStateSize>;
-  using Matrix12d      = Eigen::Matrix<double, kNoiseStateSize, kNoiseStateSize>;
-  using Matrix15x12d   = Eigen::Matrix<double, kErrorStateSize, kNoiseStateSize>;
-
   struct Options {
     // Standard deviations of IMU white noise and bias random walk.
     double acc_noise_sigma      = 0.08;
@@ -30,17 +24,17 @@ public:
   };
 
   struct CorrectedDelta {
-    Sophus::SO3d   delta_r;
-    Eigen::Vector3d delta_v;
     Eigen::Vector3d delta_p;
+    Sophus::SO3d    delta_r;
+    Eigen::Vector3d delta_v;
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   };
 
   explicit ImuPreintegration(const Eigen::Vector3d& bias_acc = Eigen::Vector3d::Zero(),
-                          const Eigen::Vector3d& bias_gyr = Eigen::Vector3d::Zero());
+                             const Eigen::Vector3d& bias_gyr = Eigen::Vector3d::Zero());
   ImuPreintegration(const Eigen::Vector3d& bias_acc,
-                 const Eigen::Vector3d& bias_gyr,
-                 const Options&         options);
+                    const Eigen::Vector3d& bias_gyr,
+                    const Options&         options);
 
   void Reset(const Eigen::Vector3d& bias_acc, const Eigen::Vector3d& bias_gyr);
   void SetBias(const Eigen::Vector3d& bias_acc, const Eigen::Vector3d& bias_gyr);
@@ -52,7 +46,7 @@ public:
   CorrectedDelta GetBiasCorrectedDelta(const Eigen::Vector3d& bias_acc,
                                        const Eigen::Vector3d& bias_gyr) const;
 
-  Matrix15d GetInformation(double damping = 1e-12) const;
+  Eigen::Matrix15d GetInformation(double damping = 1e-12) const;
 
   const Sophus::SO3d&   GetDeltaR() const { return delta_r_; }
   const Eigen::Vector3d GetDeltaV() const { return delta_v_; }
@@ -62,8 +56,8 @@ public:
   const Eigen::Vector3d& GetBiasAcc() const { return bias_acc_; }
   const Eigen::Vector3d& GetBiasGyr() const { return bias_gyr_; }
 
-  const Matrix15d& GetJacobian() const { return jacobian_; }
-  const Matrix15d& GetCovariance() const { return covariance_; }
+  const Eigen::Matrix15d& GetJacobian() const { return jacobian_; }
+  const Eigen::Matrix15d& GetCovariance() const { return covariance_; }
 
   Eigen::Matrix3d GetJDeltaRDbg() const;
   Eigen::Matrix3d GetJDeltaVDBa() const;
@@ -76,7 +70,7 @@ public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
 private:
-  void PropagateState(const Sophus::SO3d&   delta_r_next,
+  void PropagateState(const Sophus::SO3d&    delta_r_next,
                       const Eigen::Vector3d& acc_world_mid,
                       double                 dt_sec);
   void PropagateError(const Eigen::Matrix3d& R_start,
@@ -89,16 +83,16 @@ private:
 private:
   Options options_;
 
-  Sophus::SO3d   delta_r_;
-  Eigen::Vector3d delta_v_;
   Eigen::Vector3d delta_p_;
+  Sophus::SO3d    delta_r_;
+  Eigen::Vector3d delta_v_;
   double          delta_t_sec_;
 
   Eigen::Vector3d bias_acc_;
   Eigen::Vector3d bias_gyr_;
 
-  Matrix15d jacobian_;
-  Matrix15d covariance_;
+  Eigen::Matrix15d jacobian_;
+  Eigen::Matrix15d covariance_;
 
   size_t integration_steps_;
 };
