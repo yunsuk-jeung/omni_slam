@@ -48,7 +48,7 @@ bool StereoVO::Setup(const std::string& config_path) {
   SVOConfig::ParseConfig(config_path);
   Logger::Info("Loaded VO config: {}", config_path.c_str());
 
-  sliding_window_->SetMaxSize(SVOConfig::max_window);
+  sliding_window_->SetMaxSize(SVOConfig::max_keyframe_size + 1u);
   optical_flow_ = std::make_unique<OpticalFlow>(kCamNum, frame_queue_, result_queue_);
 
   return true;
@@ -120,49 +120,87 @@ void StereoVO::Process(std::shared_ptr<Frame>& frame) {
     // TODO: Handle Status::Lost and other states here.
     break;
   }
+
+  // build result
+  {
+    ScopedTimer                 timer("build result");
+    OdometryResult              result = BuildOdometryResult(frame);
+    std::lock_guard<std::mutex> lock(result_mutex_);
+    latest_result_ = std::move(result);
+    has_result_    = true;
+  }
+
   Statistics::reportAll();
 }
 
 bool StereoVO::Initialize(std::shared_ptr<Frame>& frame) {
   ScopedTimer loop_timer("stereo_vo::Initialize");
-  size_t      connected       = 0;
-  auto*       tracking_result = UpdateFrameObservations(frame, connected);
-  if (!tracking_result) {
-    return;
+
+  sliding_window_->AddFrame(frame);
+
+  UpdateFrameObservations(frame);
+
+  int created_map_point_num = InitializeMapPoints(frame);
+
+  if (created_map_point_num < SVOConfig::min_init_map_point_count) {
+    Logger::Warn(
+      "StereoVO initialization failed at frame {} (map points: {}, required: {}), "
+      "resetting sliding window",
+      frame->GetId(),
+      created_map_point_num,
+      SVOConfig::min_init_map_point_count);
+    sliding_window_->Clear();
+    created_map_point_nums_.clear();
+    new_keyframe_after_ = SVOConfig::new_keyframe_after + 1;
+    return false;
   }
 
-  UpdateKeyframeStatus(frame, connected);
-  BuildAndStoreResult(frame, tracking_result);
+  created_map_point_nums_[frame->GetId()] = created_map_point_num;
+  frame->SetKeyframe();
+  sliding_window_->MarkKeyframe(frame->GetId());
 
-  const size_t map_point_count = sliding_window_->GetMapPointCount();
-  const bool   has_keyframe    = !sliding_window_->GetKeyframeIds().empty();
+  new_keyframe_after_ = 0;
 
-  if (has_keyframe && map_point_count >= SVOConfig::min_init_map_point_count) {
-    Logger::Info("stereoVO initialized at frame {}", frame->GetId());
-    return true;
-  }
+  Logger::Info("stereoVO initialized at frame {}, created_map_point",
+               frame->GetId(),
+               sliding_window_->GetMapPointCount());
 
-  Logger::Warn(
-    "StereoVO initialization failed at frame {} (map points: {}, required: {}), "
-    "resetting sliding window",
-    frame->GetId(),
-    map_point_count,
-    SVOConfig::min_init_map_point_count);
-  sliding_window_->Clear();
-  created_map_point_nums_.clear();
-
-  return false;
+  return true;
 }
 
 void StereoVO::Track(std::shared_ptr<Frame>& frame) {
   ScopedTimer loop_timer("loop_timer_tracking");
-  size_t      connected       = 0;
-  auto*       tracking_result = UpdateFrameObservations(frame, connected);
-  if (!tracking_result) {
-    return;
+
+  // use last frame's pose for initial pose
+  const auto& frame_ids = sliding_window_->GetFrameIds();
+  if (!frame_ids.empty()) {
+    const uint64_t         latest_id    = *frame_ids.rbegin();
+    std::shared_ptr<Frame> latest_frame = sliding_window_->GetFrame(latest_id);
+    if (latest_frame) {
+      frame->GetTwb() = latest_frame->GetTwb();
+    }
   }
 
-  UpdateKeyframeStatus(frame, connected);
+  sliding_window_->AddFrame(frame);
+
+  float connect_mp_ratio = UpdateFrameObservations(frame);
+
+  if (connect_mp_ratio < SVOConfig::keyframe_min_mp_ratio) {
+    make_keyframe_ = true;
+  }
+
+  if (make_keyframe_ && new_keyframe_after_ > SVOConfig::new_keyframe_after) {
+    int created_map_point_num = InitializeMapPoints(frame);
+
+    created_map_point_nums_[frame->GetId()] = created_map_point_num;
+    frame->SetKeyframe();
+
+    new_keyframe_after_ = 0;
+    sliding_window_->MarkKeyframe(frame->GetId());
+  }
+  else {
+    ++new_keyframe_after_;
+  }
 
   // single frame pose estimation
   {
@@ -194,31 +232,17 @@ void StereoVO::Track(std::shared_ptr<Frame>& frame) {
   {
     ScopedTimer timer("remove keyframe");
     sliding_window_->RemoveFrames(marginal_keyframe_ids);
-  }
 
-  BuildAndStoreResult(frame, tracking_result);
-}
-
-TrackingResult* StereoVO::UpdateFrameObservations(std::shared_ptr<Frame>& frame,
-                                                  size_t&                 connected) {
-  if (!frame || !frame->GetTrackingResultPtr()) {
-    return nullptr;
-  }
-
-  const auto& frame_ids = sliding_window_->GetFrameIds();
-  if (!frame_ids.empty()) {
-    const uint64_t         latest_id    = *frame_ids.rbegin();
-    std::shared_ptr<Frame> latest_frame = sliding_window_->GetFrame(latest_id);
-    if (latest_frame) {
-      frame->GetTwb() = latest_frame->GetTwb();
+    for (const auto& id : marginal_keyframe_ids) {
+      created_map_point_nums_.erase(id);
     }
   }
+}
 
-  sliding_window_->AddFrame(frame);
-
+float StereoVO::UpdateFrameObservations(std::shared_ptr<Frame>& frame) {
   TrackingResult* tracking_result = frame->GetTrackingResultPtr();
   const size_t    kCamNum         = frame->GetCamNum();
-  connected                       = 0;
+  size_t          connected       = 0;
 
   for (size_t i = 0; i < kCamNum; ++i) {
     auto&                        ids = tracking_result->GetIds(i);
@@ -251,50 +275,17 @@ TrackingResult* StereoVO::UpdateFrameObservations(std::shared_ptr<Frame>& frame,
     }
   }
 
-  return tracking_result;
-}
+  size_t kpt_num            = frame->GetTrackingResultPtr()->GetSize(0);
+  float  connected_mp_ratio = kpt_num > 0 ? static_cast<float>(connected)
+                                             / static_cast<float>(kpt_num)
+                                          : 1.0f;
+  LogD("frame {}, connected map point ratio : {} = {} /{}",
+       frame->GetId(),
+       connected_mp_ratio,
+       connected,
+       kpt_num);
 
-void StereoVO::UpdateKeyframeStatus(std::shared_ptr<Frame>& frame, size_t connected) {
-  size_t kpt_num = frame->GetTrackingResultPtr()->GetSize(0);
-  float  ratio = kpt_num > 0 ? static_cast<float>(connected) / static_cast<float>(kpt_num)
-                             : 1.0f;
-
-  if (ratio < SVOConfig::keyframe_min_mp_ratio) {
-    LogD("frame {}, connected map point ratio : {} = {} /{}",
-         frame->GetId(),
-         ratio,
-         connected,
-         kpt_num);
-    make_keyframe_ = true;
-  }
-
-  if (make_keyframe_ && new_keyframe_after_ > SVOConfig::new_keyframe_after) {
-    int created_map_point_num = InitializeMapPoints(frame);
-
-    if (created_map_point_num > 0) {
-      created_map_point_nums_[frame->GetId()] = created_map_point_num;
-      frame->SetKeyframe();
-    }
-  }
-
-  if (frame->IsKeyframe()) {
-    new_keyframe_after_ = 0;
-    sliding_window_->MarkKeyframe(frame->GetId());
-  }
-  else {
-    ++new_keyframe_after_;
-  }
-}
-
-void StereoVO::BuildAndStoreResult(const std::shared_ptr<Frame>& frame,
-                                   TrackingResult*               tracking_result) {
-  {
-    ScopedTimer                 timer("build result");
-    OdometryResult              result = BuildOdometryResult(frame, tracking_result);
-    std::lock_guard<std::mutex> lock(result_mutex_);
-    latest_result_ = std::move(result);
-    has_result_    = true;
-  }
+  return connected_mp_ratio;
 }
 
 bool StereoVO::FetchResult(OdometryResult& out) {
@@ -425,21 +416,16 @@ void StereoVO::SelectMarginalFrames(std::set<uint64_t>& marginal_none_keyframe_i
     auto end_minus_2 = std::prev(kf_ids.end(), 2);
     for (auto it = kf_ids.begin(); it != end_minus_2; ++it) {
       const uint64_t kf_id = *it;
-      const int      count = (connected_map_points.count(kf_id) > 0)
-                               ? connected_map_points.at(kf_id)
-                               : 0;
+      const int      count = connected_map_points[kf_id];
 
-      int  created    = 0;
-      auto created_it = created_map_point_nums_.find(kf_id);
-      if (created_it != created_map_point_nums_.end()) {
-        created = created_it->second;
+      if (count == 0) {
+        id_to_marg = kf_id;
+        selected   = true;
+        break;
       }
 
-      if (created <= 0) {
-        continue;
-      }
-
-      const double ratio = static_cast<double>(count) / static_cast<double>(created);
+      int          created = created_map_point_nums_[kf_id];
+      const double ratio   = static_cast<double>(count) / static_cast<double>(created);
       if (ratio < static_cast<double>(SVOConfig::marg_feature_connection_ratio)) {
         id_to_marg = kf_id;
         selected   = true;
@@ -495,8 +481,9 @@ void StereoVO::SelectMarginalFrames(std::set<uint64_t>& marginal_none_keyframe_i
   }
 }
 
-OdometryResult StereoVO::BuildOdometryResult(const std::shared_ptr<Frame>& frame,
-                                             TrackingResult* tracking_result) {
+OdometryResult StereoVO::BuildOdometryResult(const std::shared_ptr<Frame>& frame) {
+  TrackingResult* tracking_result = frame->GetTrackingResultPtr();
+
   OdometryResult result;
   result.frame_id     = frame->GetId();
   result.timestamp_ns = frame->GetTimestampNs();

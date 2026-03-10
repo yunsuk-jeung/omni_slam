@@ -41,19 +41,14 @@ public:
   bool FetchResult(OdometryResult& out);
 
 private:
-  void            OpticalFlowLoop();
-  void            EstimatorLoop();
-  void            Process(std::shared_ptr<Frame>& frame);
-  bool            Initialize(std::shared_ptr<Frame>& frame);
-  void            Track(std::shared_ptr<Frame>& frame);
-  TrackingResult* UpdateFrameObservations(std::shared_ptr<Frame>& frame,
-                                          size_t&                 connected);
-  void            UpdateKeyframeStatus(std::shared_ptr<Frame>& frame, size_t connected);
-  void            BuildAndStoreResult(const std::shared_ptr<Frame>& frame,
-                                      TrackingResult*               tracking_result);
+  void  OpticalFlowLoop();
+  void  EstimatorLoop();
+  void  Process(std::shared_ptr<Frame>& frame);
+  bool  Initialize(std::shared_ptr<Frame>& frame);
+  void  Track(std::shared_ptr<Frame>& frame);
+  float UpdateFrameObservations(std::shared_ptr<Frame>& frame);
 
-  OdometryResult BuildOdometryResult(const std::shared_ptr<Frame>& frame,
-                                     TrackingResult*               tracking_result);
+  OdometryResult BuildOdometryResult(const std::shared_ptr<Frame>& frame);
   int            InitializeMapPoints(std::shared_ptr<Frame>& frame);
 
   void SelectMarginalFrames(std::set<uint64_t>& marginal_none_frame_ids,

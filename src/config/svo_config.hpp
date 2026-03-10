@@ -20,7 +20,6 @@ public:
   static int    feature_grid_rows;
   static int    feature_grid_cols;
   static int    max_pyramid_level;
-  static size_t max_window;
   static size_t max_keyframe_size;
   static float  keyframe_min_mp_ratio;
   static size_t min_init_map_point_count;

@@ -20,7 +20,6 @@ int                              SVOConfig::fast_threshold                = 20;
 int                              SVOConfig::feature_grid_rows             = 4;
 int                              SVOConfig::feature_grid_cols             = 4;
 int                              SVOConfig::max_pyramid_level             = 3;
-size_t                           SVOConfig::max_window                    = 0;
 size_t                           SVOConfig::max_keyframe_size             = 8;
 float                            SVOConfig::keyframe_min_mp_ratio         = 0.8f;
 size_t                           SVOConfig::min_init_map_point_count      = 20;
@@ -130,18 +129,14 @@ void SVOConfig::ParseConfig(const std::string& file) {
   feature_grid_rows           = config.value("feature_grid_rows", feature_grid_rows);
   feature_grid_cols           = config.value("feature_grid_cols", feature_grid_cols);
   max_pyramid_level           = config.value("max_pyramid_level", max_pyramid_level);
-  max_window                  = config.value("max_window", max_window);
   max_keyframe_size           = config.value("max_keyframe_size", max_keyframe_size);
   if (max_keyframe_size < 3)
     max_keyframe_size = 3;
-  if (max_window < max_keyframe_size) {
-    max_window = max_keyframe_size + 1;
-  }
   triangulation_dist_threshold = config.value("triangulation_dist_threshold",
                                               triangulation_dist_threshold);
-  keyframe_min_mp_ratio = config.value("keyframe_min_mp_ratio", keyframe_min_mp_ratio);
-  min_init_map_point_count =
-    config.value("min_init_map_point_count", min_init_map_point_count);
+  keyframe_min_mp_ratio    = config.value("keyframe_min_mp_ratio", keyframe_min_mp_ratio);
+  min_init_map_point_count = config.value("min_init_map_point_count",
+                                          min_init_map_point_count);
   marg_feature_connection_ratio = config.value("marg_feature_connection_ratio",
                                                marg_feature_connection_ratio);
   new_keyframe_after            = config.value("new_keyframe_after", new_keyframe_after);
@@ -213,7 +208,6 @@ void SVOConfig::ParseConfig(const std::string& file) {
     Logger::Info("SVOConfig.feature_grid_rows: {}", feature_grid_rows);
     Logger::Info("SVOConfig.feature_grid_cols: {}", feature_grid_cols);
     Logger::Info("SVOConfig.max_pyramid_level: {}", max_pyramid_level);
-    Logger::Info("SVOConfig.max_window: {}", max_window);
     Logger::Info("SVOConfig.max_keyframe_size: {}", max_keyframe_size);
     Logger::Info("SVOConfig.triangulation_dist_threshold: {}",
                  triangulation_dist_threshold);
