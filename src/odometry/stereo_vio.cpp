@@ -9,15 +9,15 @@
 
 #include "utils/logger.hpp"
 #include "utils/timer.hpp"
-#include "config/svo_config.hpp"
+#include "config/svio_config.hpp"
 #include "database/Frame.hpp"
 #include "database/MapPoint.hpp"
 #include "feature_tracking/optical_flow.hpp"
 #include "optimizer/geometry.hpp"
 #include "optimizer/vo_estimator.hpp"
 #include "odometry/sliding_window.hpp"
+#include "odometry/preintegration.hpp"
 #include "odometry/stereo_vio.hpp"
-#include "stereo_vio.hpp"
 
 namespace omni_slam {
 StereoVIO::StereoVIO()
@@ -49,10 +49,10 @@ bool StereoVIO::Setup(const std::string& config_path) {
     return false;
   }
 
-  SVOConfig::ParseConfig(config_path);
+  SVIOConfig::ParseConfig(config_path);
   Logger::Info("Loaded VIO config: {}", config_path.c_str());
 
-  sliding_window_->SetMaxSize(SVOConfig::max_keyframe_size + 1u);
+  sliding_window_->SetMaxSize(SVIOConfig::max_keyframe_size + 1u);
   optical_flow_ = std::make_unique<OpticalFlow>(kCamNum, frame_queue_, result_queue_);
 
   return true;
@@ -128,6 +128,7 @@ void StereoVIO::Process(std::shared_ptr<Frame>& frame) {
   const int64_t        frame_ts_ns = frame->GetTimestampNs();
   std::vector<ImuData> imu_data;
   PopImuDataUntil(frame_ts_ns, imu_data);
+
   if (imu_data.empty()) {
     LogD("SVIO timestamp check: frame_ts_ns={}, imu_count=0, imu_queue_size={}",
          frame_ts_ns,
@@ -144,6 +145,16 @@ void StereoVIO::Process(std::shared_ptr<Frame>& frame) {
          imu_last_ts_ns,
          frame_ts_ns - imu_last_ts_ns);
   }
+
+  PreIntegration preintegration;
+  // preintegration_->Reset(preint_bias_acc_, preint_bias_gyr_);
+  // if (preintegration_->IntegrateMeasurements(imu_data) && SVIOConfig::debug) {
+  //   LogD("preintegration: frame_id={}, dt={}s, steps={}, |g|={}",
+  //        frame->GetId(),
+  //        preintegration_->GetDeltaTimeSec(),
+  //        preintegration_->GetIntegrationStepCount(),
+  //        gravity_vector_w_.norm());
+  // }
 
   switch (status_) {
   case Status::Initializing:
@@ -207,16 +218,16 @@ bool StereoVIO::Initialize(std::shared_ptr<Frame>& frame) {
 
   int created_map_point_num = InitializeMapPoints(frame);
 
-  if (created_map_point_num < SVOConfig::min_init_map_point_count) {
+  if (created_map_point_num < SVIOConfig::min_init_map_point_count) {
     Logger::Warn(
       "StereoVIO initialization failed at frame {} (map points: {}, required: {}), "
       "resetting sliding window",
       frame->GetId(),
       created_map_point_num,
-      SVOConfig::min_init_map_point_count);
+      SVIOConfig::min_init_map_point_count);
     sliding_window_->Clear();
     created_map_point_nums_.clear();
-    new_keyframe_after_ = SVOConfig::new_keyframe_after + 1;
+    new_keyframe_after_ = SVIOConfig::new_keyframe_after + 1;
     return false;
   }
 
@@ -250,11 +261,11 @@ void StereoVIO::Track(std::shared_ptr<Frame>& frame) {
 
   float connect_mp_ratio = UpdateFrameObservations(frame);
 
-  if (connect_mp_ratio < SVOConfig::keyframe_min_mp_ratio) {
+  if (connect_mp_ratio < SVIOConfig::keyframe_min_mp_ratio) {
     make_keyframe_ = true;
   }
 
-  if (make_keyframe_ && new_keyframe_after_ > SVOConfig::new_keyframe_after) {
+  if (make_keyframe_ && new_keyframe_after_ > SVIOConfig::new_keyframe_after) {
     int created_map_point_num = InitializeMapPoints(frame);
 
     created_map_point_nums_[frame->GetId()] = created_map_point_num;
@@ -397,7 +408,8 @@ int StereoVIO::InitializeMapPoints(std::shared_ptr<Frame>& frame) {
       auto T_w_c1  = frame1->GetTwc(frame_cam_id1.cam_id);
       auto T_c1_c0 = T_w_c1.inverse() * T_w_c0;
 
-      if (T_c1_c0.translation().squaredNorm() < SVOConfig::triangulation_dist_threshold) {
+      if (T_c1_c0.translation().squaredNorm()
+          < SVIOConfig::triangulation_dist_threshold) {
         continue;
       }
 
@@ -451,7 +463,7 @@ void StereoVIO::SelectMarginalFrames(std::set<uint64_t>& marginal_none_keyframe_
     marginal_none_keyframe_ids.insert(id);
   }
 
-  if (keyframe_ids.size() <= SVOConfig::max_keyframe_size) {
+  if (keyframe_ids.size() <= SVIOConfig::max_keyframe_size) {
     return;
   }
 
@@ -470,7 +482,7 @@ void StereoVIO::SelectMarginalFrames(std::set<uint64_t>& marginal_none_keyframe_
   }
 
   auto kf_ids = keyframe_ids;
-  while (kf_ids.size() > SVOConfig::max_keyframe_size) {
+  while (kf_ids.size() > SVIOConfig::max_keyframe_size) {
     if (kf_ids.size() <= 2) {
       break;
     }
@@ -487,7 +499,7 @@ void StereoVIO::SelectMarginalFrames(std::set<uint64_t>& marginal_none_keyframe_
       const double ratio = static_cast<double>(count) / static_cast<double>(created);
       if (count == 0
           || float(count) / float(created)
-               < float(SVOConfig::marg_feature_connection_ratio)) {
+               < float(SVIOConfig::marg_feature_connection_ratio)) {
         id_to_marg = kf_id;
         selected   = true;
         break;

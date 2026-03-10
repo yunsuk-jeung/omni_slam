@@ -117,7 +117,7 @@ int main(int argc, char** argv) {
   }
 
   omni_slam::StereoVIO  stereo_vio;
-  std::filesystem::path config_path = project_root / "configs/svo_euroc.json";
+  std::filesystem::path config_path = project_root / "configs/svio_euroc.json";
 
   if (!stereo_vio.Setup(config_path.string())) {
     LogE("Failed to initialize SVIO pipeline");
