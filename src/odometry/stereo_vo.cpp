@@ -415,18 +415,14 @@ void StereoVO::SelectMarginalFrames(std::set<uint64_t>& marginal_none_keyframe_i
 
     auto end_minus_2 = std::prev(kf_ids.end(), 2);
     for (auto it = kf_ids.begin(); it != end_minus_2; ++it) {
-      const uint64_t kf_id = *it;
-      const int      count = connected_map_points[kf_id];
+      const uint64_t kf_id   = *it;
+      const int      count   = connected_map_points[kf_id];
+      int            created = created_map_point_nums_[kf_id];
 
-      if (count == 0) {
-        id_to_marg = kf_id;
-        selected   = true;
-        break;
-      }
-
-      int          created = created_map_point_nums_[kf_id];
-      const double ratio   = static_cast<double>(count) / static_cast<double>(created);
-      if (ratio < static_cast<double>(SVOConfig::marg_feature_connection_ratio)) {
+      const double ratio = static_cast<double>(count) / static_cast<double>(created);
+      if (count == 0
+          || float(count) / float(created)
+               < float(SVOConfig::marg_feature_connection_ratio)) {
         id_to_marg = kf_id;
         selected   = true;
         break;
