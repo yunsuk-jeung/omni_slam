@@ -14,8 +14,8 @@ using Matrix36d = Eigen::Matrix<double, 3, 6>;
 using Vector6d  = Eigen::Matrix<double, 6, 1>;
 
 }  // namespace Eigen
-   //
-namespace omni_slam {
+
+namespace omni_slam::EigenUtil {
 
 inline void TangentBasis(const Eigen::Vector3d& f, Eigen::Matrix<double, 3, 2>& B) {
   Eigen::Vector3d fn = f.normalized();
@@ -30,4 +30,4 @@ inline void TangentBasis(const Eigen::Vector3d& f, Eigen::Matrix<double, 3, 2>& 
   B.col(0) = b1;
   B.col(1) = b2;
 }
-}  // namespace omni_slam
+}  // namespace omni_slam::EigenUtil

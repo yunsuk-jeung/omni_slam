@@ -5,6 +5,7 @@
 #include <ceres/ceres.h>
 
 #include "utils/eigen_utils.hpp"
+#include "utils/sophus_utils.hpp"
 #include "optimizer/parameterization.hpp"
 
 namespace omni_slam {
@@ -52,7 +53,7 @@ public:
 
     // tangent basis at observed bearing
     Eigen::Matrix<double, 3, 2> B;
-    TangentBasis(b_obs_, B);
+    EigenUtil::TangentBasis(b_obs_, B);
 
     // residual: 2D tangent error
     Eigen::Map<Eigen::Vector2d> r(residuals);
@@ -77,16 +78,18 @@ public:
 
       // ---- (3) dp_c/dtheta ----
       //
-      // Under your manifold:
-      //   t += dt
-      //   R <- Exp(dθ) R
+      // Right perturbation on body pose:
+      //   R_w_b <- R_w_b * Exp(dθ)
       //
-      // Perturbation is applied on body rotation (left-mult),
-      // so camera point variation:
+      // p_c = T_b_c^{-1} * (T_w_b^{-1} * p_w)
+      // => dp_c/dθ = R_c_b * hat(p_b),  p_b = T_w_b^{-1} * p_w
       //
-      //   dp_c ≈ R_c_w * hat(p_w - t) * dθ
-      //
-      Eigen::Matrix3d dp_dtheta = R_c_w * Sophus::SO3d::hat(p_w_ - t_w_c);
+      const Eigen::Vector3d p_b   = T_w_b.inverse() * p_w_;
+      const Eigen::Matrix3d R_c_b = T_b_c_.inverse().so3().matrix();
+      const Eigen::Map<const Eigen::Vector3d> so3(params[0] + 3);
+      const Eigen::Matrix3d J_r = SophusUtils::SO3RightJacobian(so3);
+      const Eigen::Matrix3d dp_dtheta_local = R_c_b * Sophus::SO3d::hat(p_b);
+      Eigen::Matrix3d       dp_dtheta       = dp_dtheta_local * J_r;
 
       // assemble dp_c/dpose
       Eigen::Matrix<double, 3, 6> J_p;
@@ -146,7 +149,7 @@ struct PoseOnlyBearingCostAuto {
 
     // tangent basis at observed bearing (constant)
     Eigen::Matrix<double, 3, 2> B_d;
-    TangentBasis(b_obs_, B_d);
+    EigenUtil::TangentBasis(b_obs_, B_d);
 
     Eigen::Matrix<T, 3, 2> B = B_d.cast<T>();
 
@@ -170,7 +173,7 @@ class BearingPriorCost final : public ceres::SizedCostFunction<2, 3> {
 public:
   explicit BearingPriorCost(const Eigen::Vector3d& b_prior)
     : b_prior_(b_prior.normalized()) {
-    TangentBasis(b_prior_, B_);
+    EigenUtil::TangentBasis(b_prior_, B_);
   }
 
   bool Evaluate(double const* const* params,
@@ -215,7 +218,7 @@ public:
     : b_obs_(b_obs.normalized())
     , T_b_c_obs_(T_b_c_obs)
     , T_b_c_host_(T_b_c_host) {
-    TangentBasis(b_obs_, B_);
+    EigenUtil::TangentBasis(b_obs_, B_);
   }
 
   bool Evaluate(double const* const* params,
@@ -281,12 +284,19 @@ public:
 
       const Eigen::Matrix3d R_w_c_obs = T_w_c_obs.so3().matrix();
       const Eigen::Matrix3d R_c_obs_w = R_w_c_obs.transpose();
-      const Eigen::Vector3d t_w_c_obs = T_w_c_obs.translation();
+      const Eigen::Map<const Eigen::Vector3d> so3_obs(pose_obs + 3);
+      const Eigen::Map<const Eigen::Vector3d> so3_host(pose_host + 3);
+      const Eigen::Matrix3d J_r_obs  = SophusUtils::SO3RightJacobian(so3_obs);
+      const Eigen::Matrix3d J_r_host = SophusUtils::SO3RightJacobian(so3_host);
 
       if (jacobians[0]) {
         Eigen::Map<Eigen::Matrix<double, 2, 6, Eigen::RowMajor>> J(jacobians[0]);
-        const Eigen::Matrix3d                                    dp_dt = -R_c_obs_w;
-        const Eigen::Matrix3d dp_dtheta = R_c_obs_w * Sophus::SO3d::hat(p_w - t_w_c_obs);
+        const Eigen::Matrix3d dp_dt = -R_c_obs_w;
+        const Eigen::Vector3d p_b_obs = T_w_b_obs.inverse() * p_w;
+        const Eigen::Matrix3d R_c_obs_b_obs = T_b_c_obs_.inverse().so3().matrix();
+        const Eigen::Matrix3d dp_dtheta_local = R_c_obs_b_obs
+                                                * Sophus::SO3d::hat(p_b_obs);
+        const Eigen::Matrix3d dp_dtheta = dp_dtheta_local * J_r_obs;
 
         J.leftCols<3>()  = J_r_pc * dp_dt;
         J.rightCols<3>() = J_r_pc * dp_dtheta;
@@ -294,10 +304,12 @@ public:
 
       if (jacobians[1]) {
         Eigen::Map<Eigen::Matrix<double, 2, 6, Eigen::RowMajor>> J(jacobians[1]);
-        const Eigen::Vector3d t_w_b_host = T_w_b_host.translation();
-        const Eigen::Matrix3d dp_dt      = R_c_obs_w;
-        const Eigen::Matrix3d dp_dtheta  = -R_c_obs_w
-                                          * Sophus::SO3d::hat(p_w - t_w_b_host);
+        const Eigen::Matrix3d dp_dt = R_c_obs_w;
+        const Eigen::Matrix3d R_w_b_host = T_w_b_host.so3().matrix();
+        const Eigen::Vector3d p_b_host = T_b_c_host_ * p_c_host;
+        const Eigen::Matrix3d dp_dtheta_local = -R_c_obs_w * R_w_b_host
+                                                * Sophus::SO3d::hat(p_b_host);
+        const Eigen::Matrix3d dp_dtheta = dp_dtheta_local * J_r_host;
 
         J.leftCols<3>()  = J_r_pc * dp_dt;
         J.rightCols<3>() = J_r_pc * dp_dtheta;
@@ -362,7 +374,7 @@ public:
     : b_obs_(b_obs.normalized())
     , T_b_c_obs_(T_b_c_obs)
     , T_b_c_host_(T_b_c_host) {
-    TangentBasis(b_obs_, B_);
+    EigenUtil::TangentBasis(b_obs_, B_);
   }
 
   bool Evaluate(double const* const* params,
@@ -469,7 +481,7 @@ struct BearingStereoCostAuto {
     : b_obs_(b_obs.normalized())
     , T_b_c_obs_(T_b_c_obs)
     , T_b_c_host_(T_b_c_host) {
-    TangentBasis(b_obs_, B_);
+    EigenUtil::TangentBasis(b_obs_, B_);
   }
 
   template <typename T>
@@ -526,7 +538,7 @@ struct BearingCostAuto {
     : b_obs_(b_obs.normalized())
     , T_b_c_obs_(T_b_c_obs)
     , T_b_c_host_(T_b_c_host) {
-    TangentBasis(b_obs_, B_);
+    EigenUtil::TangentBasis(b_obs_, B_);
   }
 
   template <typename T>

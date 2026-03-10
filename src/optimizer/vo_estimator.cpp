@@ -403,7 +403,7 @@ void VOEstimator::Marginalize(SlidingWindow* window, std::set<uint64_t> marginal
 
   Eigen::MatrixXd H;
   Eigen::VectorXd Jt_R;
-  CreateHessianFromCRSMatrix(ceres_J, residuals, H, Jt_R);
+  CeresUtil::CreateHessianFromCRSMatrix(ceres_J, residuals, H, Jt_R);
   Statistics::stopTimer("marginalize eval");
 
   H = 0.5 * (H + H.transpose());
