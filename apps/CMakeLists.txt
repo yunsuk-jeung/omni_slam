@@ -33,3 +33,15 @@ if(OMNI_BUILD_STEREO_VO)
     $<$<CONFIG:RelWithDebInfo>:-O2>
   )
 endif()
+
+if(OMNI_BUILD_STEREO_VIO)
+  add_executable(stereo_svio
+    ${CMAKE_SOURCE_DIR}/apps/run_svio.cpp
+  )
+  target_include_directories(stereo_svio PRIVATE ${OpenCV_INCLUDE_DIRS})
+  target_link_libraries(stereo_svio omni_utils omni_device svio ${OpenCV_LIBS} rerun_sdk)
+  target_compile_options(stereo_svio PRIVATE
+    $<$<CONFIG:Release>:-O3>
+    $<$<CONFIG:RelWithDebInfo>:-O2>
+  )
+endif()

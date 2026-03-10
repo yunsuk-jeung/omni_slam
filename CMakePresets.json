@@ -12,8 +12,7 @@
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/${presetName}",
       "cacheVariables": {
-        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
-        "Eigen3_DIR": "${sourceDir}/libs/debug/share/eigen3/cmake"
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
       }
     },
     {
@@ -45,7 +44,7 @@
       }
     },
     {
-      "name": "stereo_vo",
+      "name": "stereo_vo_relwithdeb",
       "inherits": "base",
       "displayName": "Stereo Visual Odometry (RelWithDebInfo)",
       "description": "Build Stereo VO pipeline in RelWithDebInfo mode",
@@ -68,7 +67,8 @@
         "OMNI_BUILD_VO": "OFF",
         "OMNI_BUILD_VIO": "ON",
         "OMNI_BUILD_LIO": "OFF",
-        "OMNI_BUILD_LOOP": "ON"
+        "OMNI_BUILD_LOOP": "ON",
+        "OMNI_BUILD_TESTS": "OFF"
       }
     },
     {
@@ -81,11 +81,12 @@
         "OMNI_BUILD_VO": "OFF",
         "OMNI_BUILD_VIO": "ON",
         "OMNI_BUILD_LIO": "OFF",
-        "OMNI_BUILD_LOOP": "ON"
+        "OMNI_BUILD_LOOP": "ON",
+        "OMNI_BUILD_TESTS": "OFF"
       }
     },
     {
-      "name": "stereo_vio",
+      "name": "stereo_vio_relwithdeb",
       "inherits": "base",
       "displayName": "Stereo Visual-Inertial Odometry (RelWithDebInfo)",
       "description": "Build Stereo VIO pipeline in RelWithDebInfo mode",
@@ -94,7 +95,8 @@
         "OMNI_BUILD_VO": "OFF",
         "OMNI_BUILD_VIO": "ON",
         "OMNI_BUILD_LIO": "OFF",
-        "OMNI_BUILD_LOOP": "ON"
+        "OMNI_BUILD_LOOP": "ON",
+        "OMNI_BUILD_TESTS": "OFF"
       }
     },
     {
@@ -186,8 +188,8 @@
       "configurePreset": "stereo_vo_release"
     },
     {
-      "name": "stereo_vo",
-      "configurePreset": "stereo_vo"
+      "name": "stereo_vo_relwithdeb",
+      "configurePreset": "stereo_vo_relwithdeb"
     },
     {
       "name": "stereo_vio_debug",
@@ -198,8 +200,8 @@
       "configurePreset": "stereo_vio_release"
     },
     {
-      "name": "stereo_vio",
-      "configurePreset": "stereo_vio"
+      "name": "stereo_vio_relwithdeb",
+      "configurePreset": "stereo_vio_relwithdeb"
     },
     {
       "name": "lio_debug",
