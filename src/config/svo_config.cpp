@@ -23,6 +23,7 @@ int                              SVOConfig::max_pyramid_level             = 3;
 size_t                           SVOConfig::max_window                    = 0;
 size_t                           SVOConfig::max_keyframe_size             = 8;
 float                            SVOConfig::keyframe_min_mp_ratio         = 0.8f;
+size_t                           SVOConfig::min_init_map_point_count      = 20;
 float                            SVOConfig::marg_feature_connection_ratio = 0.2f;
 int                              SVOConfig::new_keyframe_after            = 1;
 double                           SVOConfig::triangulation_dist_threshold  = 0.0025;
@@ -139,6 +140,8 @@ void SVOConfig::ParseConfig(const std::string& file) {
   triangulation_dist_threshold = config.value("triangulation_dist_threshold",
                                               triangulation_dist_threshold);
   keyframe_min_mp_ratio = config.value("keyframe_min_mp_ratio", keyframe_min_mp_ratio);
+  min_init_map_point_count =
+    config.value("min_init_map_point_count", min_init_map_point_count);
   marg_feature_connection_ratio = config.value("marg_feature_connection_ratio",
                                                marg_feature_connection_ratio);
   new_keyframe_after            = config.value("new_keyframe_after", new_keyframe_after);
@@ -164,6 +167,9 @@ void SVOConfig::ParseConfig(const std::string& file) {
   }
   if (window_num_threads < 1) {
     window_num_threads = 1;
+  }
+  if (min_init_map_point_count < 1) {
+    min_init_map_point_count = 1;
   }
   if (inv_dist_min_value <= 0.0) {
     inv_dist_min_value = 1e-6;
@@ -212,6 +218,7 @@ void SVOConfig::ParseConfig(const std::string& file) {
     Logger::Info("SVOConfig.triangulation_dist_threshold: {}",
                  triangulation_dist_threshold);
     Logger::Info("SVOConfig.keyframe_min_mp_ratio: {}", keyframe_min_mp_ratio);
+    Logger::Info("SVOConfig.min_init_map_point_count: {}", min_init_map_point_count);
     Logger::Info("SVOConfig.marg_feature_connection_ratio: {}",
                  marg_feature_connection_ratio);
     Logger::Info("SVOConfig.new_keyframe_after: {}", new_keyframe_after);

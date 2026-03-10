@@ -44,8 +44,8 @@ private:
   void            OpticalFlowLoop();
   void            EstimatorLoop();
   void            Process(std::shared_ptr<Frame>& frame);
-  void            ProcessInitialize(std::shared_ptr<Frame>& frame);
-  void            ProcessTracking(std::shared_ptr<Frame>& frame);
+  bool            Initialize(std::shared_ptr<Frame>& frame);
+  void            Track(std::shared_ptr<Frame>& frame);
   TrackingResult* UpdateFrameObservations(std::shared_ptr<Frame>& frame,
                                           size_t&                 connected);
   void            UpdateKeyframeStatus(std::shared_ptr<Frame>& frame, size_t connected);

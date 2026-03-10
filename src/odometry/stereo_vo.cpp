@@ -107,17 +107,24 @@ void StereoVO::Process(std::shared_ptr<Frame>& frame) {
     return;
   }
 
-  if (status_ == Status::Initializing) {
-    ProcessInitialize(frame);
-  }
-  else {
-    ProcessTracking(frame);
+  switch (status_) {
+  case Status::Initializing:
+    if (Initialize(frame)) {
+      status_ = Status::Tracking;
+    }
+    break;
+  case Status::Tracking:
+    Track(frame);
+    break;
+  default:
+    // TODO: Handle Status::Lost and other states here.
+    break;
   }
   Statistics::reportAll();
 }
 
-void StereoVO::ProcessInitialize(std::shared_ptr<Frame>& frame) {
-  ScopedTimer loop_timer("loop_timer_initialize");
+bool StereoVO::Initialize(std::shared_ptr<Frame>& frame) {
+  ScopedTimer loop_timer("stereo_vo::Initialize");
   size_t      connected       = 0;
   auto*       tracking_result = UpdateFrameObservations(frame, connected);
   if (!tracking_result) {
@@ -125,22 +132,29 @@ void StereoVO::ProcessInitialize(std::shared_ptr<Frame>& frame) {
   }
 
   UpdateKeyframeStatus(frame, connected);
-
-  {
-    ScopedTimer timer("optimize_frame");
-    VOEstimator::OptimizeSingleFrame(frame, this->sliding_window_.get());
-  }
-
   BuildAndStoreResult(frame, tracking_result);
 
-  if (sliding_window_->GetMapPointCount() > 0
-      && !sliding_window_->GetKeyframeIds().empty()) {
-    status_ = Status::Tracking;
-    Logger::Info("StereoVO status changed to Tracking at frame {}", frame->GetId());
+  const size_t map_point_count = sliding_window_->GetMapPointCount();
+  const bool   has_keyframe    = !sliding_window_->GetKeyframeIds().empty();
+
+  if (has_keyframe && map_point_count >= SVOConfig::min_init_map_point_count) {
+    Logger::Info("stereoVO initialized at frame {}", frame->GetId());
+    return true;
   }
+
+  Logger::Warn(
+    "StereoVO initialization failed at frame {} (map points: {}, required: {}), "
+    "resetting sliding window",
+    frame->GetId(),
+    map_point_count,
+    SVOConfig::min_init_map_point_count);
+  sliding_window_->Clear();
+  created_map_point_nums_.clear();
+
+  return false;
 }
 
-void StereoVO::ProcessTracking(std::shared_ptr<Frame>& frame) {
+void StereoVO::Track(std::shared_ptr<Frame>& frame) {
   ScopedTimer loop_timer("loop_timer_tracking");
   size_t      connected       = 0;
   auto*       tracking_result = UpdateFrameObservations(frame, connected);
