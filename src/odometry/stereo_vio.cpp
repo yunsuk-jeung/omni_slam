@@ -14,7 +14,7 @@
 #include "database/MapPoint.hpp"
 #include "feature_tracking/optical_flow.hpp"
 #include "optimizer/geometry.hpp"
-#include "optimizer/vo_estimator.hpp"
+#include "optimizer/vio_estimator.hpp"
 #include "odometry/sliding_window.hpp"
 #include "odometry/imu_preintegration.hpp"
 #include "odometry/stereo_vio.hpp"
@@ -37,7 +37,7 @@ StereoVIO::StereoVIO()
   , has_pending_imu_{false}
   , pending_imu_{} {
   sliding_window_ = std::make_unique<SlidingWindow>();
-  estimator_      = std::make_unique<VOEstimator>();
+  estimator_      = std::make_unique<VIOEstimator>();
 }
 
 StereoVIO::~StereoVIO() {}
@@ -146,24 +146,45 @@ void StereoVIO::Process(std::shared_ptr<Frame>& frame) {
          frame_ts_ns - imu_last_ts_ns);
   }
 
-  ImuPreintegration preintegration;
-  // preintegration_->Reset(preint_bias_acc_, preint_bias_gyr_);
-  // if (preintegration_->IntegrateMeasurements(imu_data) && SVIOConfig::debug) {
-  //   LogD("preintegration: frame_id={}, dt={}s, steps={}, |g|={}",
-  //        frame->GetId(),
-  //        preintegration_->GetDeltaTimeSec(),
-  //        preintegration_->GetIntegrationStepCount(),
-  //        gravity_vector_w_.norm());
-  // }
+  std::optional<uint64_t>          prev_frame_id;
+  std::optional<ImuPreintegration> preintegration;
+  const auto&                      frame_ids = sliding_window_->GetFrameIds();
+  if (!frame_ids.empty()) {
+    prev_frame_id = *frame_ids.rbegin();
+  }
+
+  if (prev_frame_id.has_value() && imu_data.size() >= 2) {
+    ImuPreintegration::Options options;
+    options.acc_noise_sigma      = SVIOConfig::imu_acc_noise_density;
+    options.gyr_noise_sigma      = SVIOConfig::imu_gyr_noise_density;
+    options.acc_bias_rw_sigma    = SVIOConfig::imu_acc_random_walk;
+    options.gyr_bias_rw_sigma    = SVIOConfig::imu_gyr_random_walk;
+    options.min_integration_dt_s = SVIOConfig::imu_min_integration_dt_s;
+
+    Eigen::Vector3d bias_acc = SVIOConfig::imu_init_bias_acc;
+    Eigen::Vector3d bias_gyr = SVIOConfig::imu_init_bias_gyr;
+    estimator_->GetInertialBias(*prev_frame_id, &bias_acc, &bias_gyr);
+
+    ImuPreintegration preint(bias_acc, bias_gyr, options);
+    if (preint.IntegrateMeasurements(imu_data)) {
+      if (SVIOConfig::debug) {
+        LogD("preintegration: frame_id={}, dt={}s, steps={}",
+             frame->GetId(),
+             preint.GetDeltaTimeSec(),
+             preint.GetIntegrationStepCount());
+      }
+      preintegration = std::move(preint);
+    }
+  }
 
   switch (status_) {
   case Status::Initializing:
-    if (Initialize(frame)) {
+    if (Initialize(frame, prev_frame_id, preintegration)) {
       status_ = Status::Tracking;
     }
     break;
   case Status::Tracking:
-    Track(frame);
+    Track(frame, prev_frame_id, preintegration);
     break;
   default:
     // TODO: Handle Status::Lost and other states here.
@@ -209,10 +230,16 @@ void StereoVIO::PopImuDataUntil(int64_t timestamp_ns, std::vector<ImuData>& imu_
   }
 }
 
-bool StereoVIO::Initialize(std::shared_ptr<Frame>& frame) {
+bool StereoVIO::Initialize(std::shared_ptr<Frame>&                 frame,
+                           const std::optional<uint64_t>&          prev_frame_id,
+                           const std::optional<ImuPreintegration>& preintegration) {
   ScopedTimer loop_timer("stereo_vio::Initialize");
 
   sliding_window_->AddFrame(frame);
+  estimator_->EnsureInertialState(frame->GetId(), frame->GetTimestampNs());
+  if (prev_frame_id.has_value() && preintegration.has_value()) {
+    estimator_->AddImuPreintegration(*prev_frame_id, frame->GetId(), *preintegration);
+  }
 
   UpdateFrameObservations(frame);
 
@@ -226,6 +253,7 @@ bool StereoVIO::Initialize(std::shared_ptr<Frame>& frame) {
       created_map_point_num,
       SVIOConfig::min_init_map_point_count);
     sliding_window_->Clear();
+    estimator_->ResetStates();
     created_map_point_nums_.clear();
     new_keyframe_after_ = SVIOConfig::new_keyframe_after + 1;
     return false;
@@ -244,7 +272,9 @@ bool StereoVIO::Initialize(std::shared_ptr<Frame>& frame) {
   return true;
 }
 
-void StereoVIO::Track(std::shared_ptr<Frame>& frame) {
+void StereoVIO::Track(std::shared_ptr<Frame>&                 frame,
+                      const std::optional<uint64_t>&          prev_frame_id,
+                      const std::optional<ImuPreintegration>& preintegration) {
   ScopedTimer loop_timer("loop_timer_tracking");
 
   // use last frame's pose for initial pose
@@ -258,6 +288,10 @@ void StereoVIO::Track(std::shared_ptr<Frame>& frame) {
   }
 
   sliding_window_->AddFrame(frame);
+  estimator_->EnsureInertialState(frame->GetId(), frame->GetTimestampNs());
+  if (prev_frame_id.has_value() && preintegration.has_value()) {
+    estimator_->AddImuPreintegration(*prev_frame_id, frame->GetId(), *preintegration);
+  }
 
   float connect_mp_ratio = UpdateFrameObservations(frame);
 
@@ -281,7 +315,7 @@ void StereoVIO::Track(std::shared_ptr<Frame>& frame) {
   // single frame pose estimation
   {
     ScopedTimer timer("optimize_frame");
-    VOEstimator::OptimizeSingleFrame(frame, this->sliding_window_.get());
+    VIOEstimator::OptimizeSingleFrame(frame, this->sliding_window_.get());
   }
 
   // sliding window bundle
@@ -297,6 +331,7 @@ void StereoVIO::Track(std::shared_ptr<Frame>& frame) {
 
   // remove none keyframes before marginalize
   sliding_window_->RemoveFrames(marginal_none_keyframe_ids);
+  estimator_->RemoveFrameStates(marginal_none_keyframe_ids);
 
   // marginalize
   {
@@ -308,6 +343,7 @@ void StereoVIO::Track(std::shared_ptr<Frame>& frame) {
   {
     ScopedTimer timer("remove keyframe");
     sliding_window_->RemoveFrames(marginal_keyframe_ids);
+    estimator_->RemoveFrameStates(marginal_keyframe_ids);
 
     for (const auto& id : marginal_keyframe_ids) {
       created_map_point_nums_.erase(id);

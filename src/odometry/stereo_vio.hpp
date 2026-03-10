@@ -7,6 +7,7 @@
 #include <thread>
 #include <vector>
 #include <map>
+#include <optional>
 #include <set>
 #include <mutex>
 
@@ -16,6 +17,7 @@
 #include "utils/types.hpp"
 #include "odometry/odometry.hpp"
 #include "odometry/odometry_result.hpp"
+#include "odometry/imu_preintegration.hpp"
 
 namespace omni_slam {
 class TrackingResult;
@@ -23,7 +25,7 @@ class OpticalFlow;
 class Frame;
 class MapPoint;
 class SlidingWindow;
-class VOEstimator;
+class VIOEstimator;
 class StereoVIO : public Odometry {
 public:
   enum class Status { Initializing, Tracking };
@@ -45,8 +47,12 @@ private:
   void  OpticalFlowLoop();
   void  EstimatorLoop();
   void  Process(std::shared_ptr<Frame>& frame);
-  bool  Initialize(std::shared_ptr<Frame>& frame);
-  void  Track(std::shared_ptr<Frame>& frame);
+  bool  Initialize(std::shared_ptr<Frame>&                    frame,
+                   const std::optional<uint64_t>&             prev_frame_id,
+                   const std::optional<ImuPreintegration>&    preintegration);
+  void  Track(std::shared_ptr<Frame>&                         frame,
+              const std::optional<uint64_t>&                  prev_frame_id,
+              const std::optional<ImuPreintegration>&         preintegration);
   void  PopImuDataUntil(int64_t timestamp_ns, std::vector<ImuData>& imu_data);
   float UpdateFrameObservations(std::shared_ptr<Frame>& frame);
 
@@ -70,7 +76,7 @@ private:
 
   std::unique_ptr<SlidingWindow> sliding_window_;
 
-  std::unique_ptr<VOEstimator> estimator_;
+  std::unique_ptr<VIOEstimator> estimator_;
 
   bool                    make_keyframe_;
   int                     new_keyframe_after_;

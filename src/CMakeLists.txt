@@ -79,6 +79,7 @@ if(OMNI_BUILD_STEREO_VIO)
     ${CMAKE_CURRENT_SOURCE_DIR}/odometry/imu_preintegration.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/odometry/sliding_window.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/odometry/stereo_vio.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/optimizer/vio_estimator.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/optimizer/vo_estimator.cpp
   )
   target_include_directories(svio PRIVATE ${OpenCV_INCLUDE_DIRS})

@@ -1,9 +1,11 @@
 #pragma once
 
 #include <cmath>
+#include <memory>
 #include <sophus/se3.hpp>
 #include <ceres/ceres.h>
 
+#include "odometry/imu_preintegration.hpp"
 #include "utils/eigen_utils.hpp"
 #include "utils/sophus_utils.hpp"
 #include "optimizer/parameterization.hpp"
@@ -594,5 +596,154 @@ struct BearingCostAuto {
   Sophus::SE3d                T_b_c_obs_;
   Sophus::SE3d                T_b_c_host_;
   Eigen::Matrix<double, 3, 2> B_;
+};
+
+struct ImuPreintegrationCostAuto {
+  static constexpr int kResidualSize   = 15;
+  static constexpr int kPoseSize       = 6;
+  static constexpr int kStateBlockSize = 3;
+
+  ImuPreintegrationCostAuto(const ImuPreintegration& preintegration,
+                            const Eigen::Vector3d&   gravity_vector_w)
+    : delta_r_(preintegration.GetDeltaR())
+    , delta_v_(preintegration.GetDeltaV())
+    , delta_p_(preintegration.GetDeltaP())
+    , dt_(preintegration.GetDeltaTimeSec())
+    , bias_acc_ref_(preintegration.GetBiasAcc())
+    , bias_gyr_ref_(preintegration.GetBiasGyr())
+    , j_delta_r_dbg_(preintegration.GetJDeltaRDbg())
+    , j_delta_v_dba_(preintegration.GetJDeltaVDBa())
+    , j_delta_v_dbg_(preintegration.GetJDeltaVDbg())
+    , j_delta_p_dba_(preintegration.GetJDeltaPDBa())
+    , j_delta_p_dbg_(preintegration.GetJDeltaPDbg())
+    , gravity_vector_w_(gravity_vector_w) {
+    sqrt_information_.setIdentity();
+
+    const auto information = preintegration.GetInformation();
+    Eigen::LLT<ImuPreintegration::Matrix15d> llt(information);
+    if (llt.info() == Eigen::Success) {
+      sqrt_information_ = llt.matrixL();
+    }
+  }
+
+  template <typename T>
+  bool operator()(const T* const pose_i,
+                  const T* const pose_j,
+                  const T* const velocity_i,
+                  const T* const velocity_j,
+                  const T* const bias_acc_i,
+                  const T* const bias_gyr_i,
+                  const T* const bias_acc_j,
+                  const T* const bias_gyr_j,
+                  T*             residuals) const {
+    if (dt_ <= 0.0) {
+      Eigen::Map<Eigen::Matrix<T, kResidualSize, 1>>(residuals).setZero();
+      return true;
+    }
+
+    Eigen::Map<const Eigen::Matrix<T, 3, 1>> t_w_b_i(pose_i);
+    Eigen::Map<const Eigen::Matrix<T, 3, 1>> so3_w_b_i(pose_i + 3);
+    Eigen::Map<const Eigen::Matrix<T, 3, 1>> t_w_b_j(pose_j);
+    Eigen::Map<const Eigen::Matrix<T, 3, 1>> so3_w_b_j(pose_j + 3);
+
+    const Sophus::SO3<T> R_w_b_i = Sophus::SO3<T>::exp(so3_w_b_i);
+    const Sophus::SO3<T> R_w_b_j = Sophus::SO3<T>::exp(so3_w_b_j);
+
+    Eigen::Map<const Eigen::Matrix<T, 3, 1>> v_w_i(velocity_i);
+    Eigen::Map<const Eigen::Matrix<T, 3, 1>> v_w_j(velocity_j);
+    Eigen::Map<const Eigen::Matrix<T, 3, 1>> ba_i(bias_acc_i);
+    Eigen::Map<const Eigen::Matrix<T, 3, 1>> bg_i(bias_gyr_i);
+    Eigen::Map<const Eigen::Matrix<T, 3, 1>> ba_j(bias_acc_j);
+    Eigen::Map<const Eigen::Matrix<T, 3, 1>> bg_j(bias_gyr_j);
+
+    const T dt = T(dt_);
+
+    const Eigen::Matrix<T, 3, 1> dba =
+      ba_i - bias_acc_ref_.template cast<T>();
+    const Eigen::Matrix<T, 3, 1> dbg =
+      bg_i - bias_gyr_ref_.template cast<T>();
+
+    const Sophus::SO3<T> corrected_delta_r =
+      delta_r_.template cast<T>() * Sophus::SO3<T>::exp(j_delta_r_dbg_.template cast<T>() * dbg);
+    const Eigen::Matrix<T, 3, 1> corrected_delta_v =
+      delta_v_.template cast<T>() + j_delta_v_dba_.template cast<T>() * dba
+      + j_delta_v_dbg_.template cast<T>() * dbg;
+    const Eigen::Matrix<T, 3, 1> corrected_delta_p =
+      delta_p_.template cast<T>() + j_delta_p_dba_.template cast<T>() * dba
+      + j_delta_p_dbg_.template cast<T>() * dbg;
+
+    const Eigen::Matrix<T, 3, 1> gravity_w = gravity_vector_w_.template cast<T>();
+    const Sophus::SO3<T>         R_ij_pred = R_w_b_i.inverse() * R_w_b_j;
+
+    Eigen::Matrix<T, kResidualSize, 1> residual_raw;
+    residual_raw.template segment<3>(0) =
+      R_w_b_i.inverse()
+        * (t_w_b_j - t_w_b_i - v_w_i * dt - T(0.5) * gravity_w * dt * dt)
+      - corrected_delta_p;
+    residual_raw.template segment<3>(3) =
+      (corrected_delta_r.inverse() * R_ij_pred).log();
+    residual_raw.template segment<3>(6) =
+      R_w_b_i.inverse() * (v_w_j - v_w_i - gravity_w * dt) - corrected_delta_v;
+    residual_raw.template segment<3>(9)  = ba_j - ba_i;
+    residual_raw.template segment<3>(12) = bg_j - bg_i;
+
+    const Eigen::Matrix<T, kResidualSize, kResidualSize> sqrt_information =
+      sqrt_information_.template cast<T>();
+    Eigen::Map<Eigen::Matrix<T, kResidualSize, 1>> residual_vec(residuals);
+    residual_vec = sqrt_information * residual_raw;
+    return true;
+  }
+
+  Sophus::SO3d                delta_r_;
+  Eigen::Vector3d             delta_v_;
+  Eigen::Vector3d             delta_p_;
+  double                      dt_;
+  Eigen::Vector3d             bias_acc_ref_;
+  Eigen::Vector3d             bias_gyr_ref_;
+  Eigen::Matrix3d             j_delta_r_dbg_;
+  Eigen::Matrix3d             j_delta_v_dba_;
+  Eigen::Matrix3d             j_delta_v_dbg_;
+  Eigen::Matrix3d             j_delta_p_dba_;
+  Eigen::Matrix3d             j_delta_p_dbg_;
+  Eigen::Vector3d             gravity_vector_w_;
+  ImuPreintegration::Matrix15d sqrt_information_;
+};
+
+using ImuPreintegrationAutoDiffCost = ceres::AutoDiffCostFunction<ImuPreintegrationCostAuto,
+                                                                  ImuPreintegrationCostAuto::kResidualSize,
+                                                                  ImuPreintegrationCostAuto::kPoseSize,
+                                                                  ImuPreintegrationCostAuto::kPoseSize,
+                                                                  ImuPreintegrationCostAuto::kStateBlockSize,
+                                                                  ImuPreintegrationCostAuto::kStateBlockSize,
+                                                                  ImuPreintegrationCostAuto::kStateBlockSize,
+                                                                  ImuPreintegrationCostAuto::kStateBlockSize,
+                                                                  ImuPreintegrationCostAuto::kStateBlockSize,
+                                                                  ImuPreintegrationCostAuto::kStateBlockSize>;
+
+class ImuPreintegrationCost final
+  : public ceres::SizedCostFunction<ImuPreintegrationCostAuto::kResidualSize,
+                                    ImuPreintegrationCostAuto::kPoseSize,
+                                    ImuPreintegrationCostAuto::kPoseSize,
+                                    ImuPreintegrationCostAuto::kStateBlockSize,
+                                    ImuPreintegrationCostAuto::kStateBlockSize,
+                                    ImuPreintegrationCostAuto::kStateBlockSize,
+                                    ImuPreintegrationCostAuto::kStateBlockSize,
+                                    ImuPreintegrationCostAuto::kStateBlockSize,
+                                    ImuPreintegrationCostAuto::kStateBlockSize> {
+public:
+  ImuPreintegrationCost(const ImuPreintegration& preintegration,
+                        const Eigen::Vector3d&   gravity_vector_w)
+    : autodiff_cost_(
+        std::make_unique<ImuPreintegrationAutoDiffCost>(
+          new ImuPreintegrationCostAuto(preintegration, gravity_vector_w))) {}
+
+  bool Evaluate(double const* const* params,
+                double*              residuals,
+                double**             jacobians) const override {
+    return autodiff_cost_->Evaluate(params, residuals, jacobians);
+  }
+
+private:
+  std::unique_ptr<ceres::CostFunction> autodiff_cost_;
 };
 }  // namespace omni_slam
