@@ -16,7 +16,7 @@
 #include "optimizer/geometry.hpp"
 #include "optimizer/vo_estimator.hpp"
 #include "odometry/sliding_window.hpp"
-#include "odometry/preintegration.hpp"
+#include "odometry/imu_preintegration.hpp"
 #include "odometry/stereo_vio.hpp"
 
 namespace omni_slam {
@@ -146,7 +146,7 @@ void StereoVIO::Process(std::shared_ptr<Frame>& frame) {
          frame_ts_ns - imu_last_ts_ns);
   }
 
-  PreIntegration preintegration;
+  ImuPreintegration preintegration;
   // preintegration_->Reset(preint_bias_acc_, preint_bias_gyr_);
   // if (preintegration_->IntegrateMeasurements(imu_data) && SVIOConfig::debug) {
   //   LogD("preintegration: frame_id={}, dt={}s, steps={}, |g|={}",

@@ -12,7 +12,7 @@ namespace omni_slam {
 
 // IMU preintegration with a 15D error-state model:
 // [dp, dtheta, dv, dba, dbg].
-class PreIntegration {
+class ImuPreintegration {
 public:
   static constexpr int kErrorStateSize = 15;
   static constexpr int kNoiseStateSize = 12;
@@ -36,9 +36,9 @@ public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   };
 
-  explicit PreIntegration(const Eigen::Vector3d& bias_acc = Eigen::Vector3d::Zero(),
+  explicit ImuPreintegration(const Eigen::Vector3d& bias_acc = Eigen::Vector3d::Zero(),
                           const Eigen::Vector3d& bias_gyr = Eigen::Vector3d::Zero());
-  PreIntegration(const Eigen::Vector3d& bias_acc,
+  ImuPreintegration(const Eigen::Vector3d& bias_acc,
                  const Eigen::Vector3d& bias_gyr,
                  const Options&         options);
 

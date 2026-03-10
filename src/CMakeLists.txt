@@ -76,7 +76,7 @@ if(OMNI_BUILD_STEREO_VIO)
     ${CMAKE_CURRENT_SOURCE_DIR}/camera_model/camera_model.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/database/Frame.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/database/MapPoint.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/odometry/preintegration.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/odometry/imu_preintegration.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/odometry/sliding_window.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/odometry/stereo_vio.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/optimizer/vo_estimator.cpp

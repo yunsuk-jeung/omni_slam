@@ -1,4 +1,4 @@
-#include "odometry/preintegration.hpp"
+#include "odometry/imu_preintegration.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -9,11 +9,11 @@ namespace {
 constexpr double kNsToSec = 1e-9;
 }
 
-PreIntegration::PreIntegration(const Eigen::Vector3d& bias_acc,
+ImuPreintegration::ImuPreintegration(const Eigen::Vector3d& bias_acc,
                                const Eigen::Vector3d& bias_gyr)
-  : PreIntegration(bias_acc, bias_gyr, Options{}) {}
+  : ImuPreintegration(bias_acc, bias_gyr, Options{}) {}
 
-PreIntegration::PreIntegration(const Eigen::Vector3d& bias_acc,
+ImuPreintegration::ImuPreintegration(const Eigen::Vector3d& bias_acc,
                                const Eigen::Vector3d& bias_gyr,
                                const Options&         options)
   : options_(options)
@@ -27,7 +27,7 @@ PreIntegration::PreIntegration(const Eigen::Vector3d& bias_acc,
   , covariance_(Matrix15d::Zero())
   , integration_steps_(0) {}
 
-void PreIntegration::Reset(const Eigen::Vector3d& bias_acc, const Eigen::Vector3d& bias_gyr) {
+void ImuPreintegration::Reset(const Eigen::Vector3d& bias_acc, const Eigen::Vector3d& bias_gyr) {
   delta_r_ = Sophus::SO3d();
   delta_v_.setZero();
   delta_p_.setZero();
@@ -41,16 +41,16 @@ void PreIntegration::Reset(const Eigen::Vector3d& bias_acc, const Eigen::Vector3
   integration_steps_ = 0;
 }
 
-void PreIntegration::SetBias(const Eigen::Vector3d& bias_acc, const Eigen::Vector3d& bias_gyr) {
+void ImuPreintegration::SetBias(const Eigen::Vector3d& bias_acc, const Eigen::Vector3d& bias_gyr) {
   bias_acc_ = bias_acc;
   bias_gyr_ = bias_gyr;
 }
 
-void PreIntegration::SetOptions(const Options& options) {
+void ImuPreintegration::SetOptions(const Options& options) {
   options_ = options;
 }
 
-bool PreIntegration::IntegrateMeasurement(const ImuData& imu0, const ImuData& imu1) {
+bool ImuPreintegration::IntegrateMeasurement(const ImuData& imu0, const ImuData& imu1) {
   const int64_t dt_ns = imu1.t_ns - imu0.t_ns;
   if (dt_ns <= 0) {
     return false;
@@ -87,7 +87,7 @@ bool PreIntegration::IntegrateMeasurement(const ImuData& imu0, const ImuData& im
   return true;
 }
 
-bool PreIntegration::IntegrateMeasurements(const std::vector<ImuData>& imu_samples) {
+bool ImuPreintegration::IntegrateMeasurements(const std::vector<ImuData>& imu_samples) {
   if (imu_samples.size() < 2) {
     return false;
   }
@@ -101,7 +101,7 @@ bool PreIntegration::IntegrateMeasurements(const std::vector<ImuData>& imu_sampl
   return integrated;
 }
 
-void PreIntegration::PropagateState(const Sophus::SO3d&   delta_r_next,
+void ImuPreintegration::PropagateState(const Sophus::SO3d&   delta_r_next,
                                     const Eigen::Vector3d& acc_world_mid,
                                     double                 dt_sec) {
   delta_p_ += delta_v_ * dt_sec + 0.5 * acc_world_mid * dt_sec * dt_sec;
@@ -111,7 +111,7 @@ void PreIntegration::PropagateState(const Sophus::SO3d&   delta_r_next,
   delta_t_sec_ += dt_sec;
 }
 
-void PreIntegration::PropagateError(const Eigen::Matrix3d& R_start,
+void ImuPreintegration::PropagateError(const Eigen::Matrix3d& R_start,
                                     const Eigen::Matrix3d& R_next,
                                     const Eigen::Vector3d& acc0_body,
                                     const Eigen::Vector3d& acc1_body,
@@ -180,7 +180,7 @@ void PreIntegration::PropagateError(const Eigen::Matrix3d& R_start,
   covariance_ = 0.5 * (covariance_ + covariance_.transpose());
 }
 
-PreIntegration::CorrectedDelta PreIntegration::GetBiasCorrectedDelta(
+ImuPreintegration::CorrectedDelta ImuPreintegration::GetBiasCorrectedDelta(
   const Eigen::Vector3d& bias_acc,
   const Eigen::Vector3d& bias_gyr) const {
   const Eigen::Vector3d dba = bias_acc - bias_acc_;
@@ -193,7 +193,7 @@ PreIntegration::CorrectedDelta PreIntegration::GetBiasCorrectedDelta(
   return corrected;
 }
 
-PreIntegration::Matrix15d PreIntegration::GetInformation(double damping) const {
+ImuPreintegration::Matrix15d ImuPreintegration::GetInformation(double damping) const {
   Matrix15d covariance_regularized = covariance_;
   covariance_regularized.diagonal().array() += std::max(damping, 0.0);
 
@@ -204,23 +204,23 @@ PreIntegration::Matrix15d PreIntegration::GetInformation(double damping) const {
   return ldlt.solve(Matrix15d::Identity());
 }
 
-Eigen::Matrix3d PreIntegration::GetJDeltaRDbg() const {
+Eigen::Matrix3d ImuPreintegration::GetJDeltaRDbg() const {
   return jacobian_.block<3, 3>(3, 12);
 }
 
-Eigen::Matrix3d PreIntegration::GetJDeltaVDBa() const {
+Eigen::Matrix3d ImuPreintegration::GetJDeltaVDBa() const {
   return jacobian_.block<3, 3>(6, 9);
 }
 
-Eigen::Matrix3d PreIntegration::GetJDeltaVDbg() const {
+Eigen::Matrix3d ImuPreintegration::GetJDeltaVDbg() const {
   return jacobian_.block<3, 3>(6, 12);
 }
 
-Eigen::Matrix3d PreIntegration::GetJDeltaPDBa() const {
+Eigen::Matrix3d ImuPreintegration::GetJDeltaPDBa() const {
   return jacobian_.block<3, 3>(0, 9);
 }
 
-Eigen::Matrix3d PreIntegration::GetJDeltaPDbg() const {
+Eigen::Matrix3d ImuPreintegration::GetJDeltaPDbg() const {
   return jacobian_.block<3, 3>(0, 12);
 }
 
