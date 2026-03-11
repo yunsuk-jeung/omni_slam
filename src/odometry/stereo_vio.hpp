@@ -72,8 +72,9 @@ private:
   tbb::concurrent_queue<std::shared_ptr<Frame>> result_queue_;
   std::unique_ptr<OpticalFlow>                  optical_flow_;
 
-  std::unique_ptr<SlidingWindow>      sliding_window_;
-  std::map<uint64_t, Eigen::Vector9d> inertial_states_;
+  std::unique_ptr<SlidingWindow>        sliding_window_;
+  std::map<uint64_t, Eigen::Vector9d>   inertial_states_;
+  std::map<uint64_t, ImuPreintegration> imu_preintegrations_;
 
   std::unique_ptr<VIOEstimator> estimator_;
 
