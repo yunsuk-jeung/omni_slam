@@ -14,7 +14,7 @@ namespace omni_slam {
 // [dp, dtheta, dv, dba, dbg].
 class ImuPreintegration {
 public:
-  struct Options {
+  struct Parameters {
     // Standard deviations of IMU white noise and bias random walk.
     double acc_noise_sigma      = 0.08;
     double gyr_noise_sigma      = 0.004;
@@ -34,11 +34,11 @@ public:
                              const Eigen::Vector3d& bias_gyr = Eigen::Vector3d::Zero());
   ImuPreintegration(const Eigen::Vector3d& bias_acc,
                     const Eigen::Vector3d& bias_gyr,
-                    const Options&         options);
+                    const Parameters&      parameters);
 
   void Reset(const Eigen::Vector3d& bias_acc, const Eigen::Vector3d& bias_gyr);
   void SetBias(const Eigen::Vector3d& bias_acc, const Eigen::Vector3d& bias_gyr);
-  void SetOptions(const Options& options);
+  void SetParameters(const Parameters& parameters);
 
   bool IntegrateMeasurement(const ImuData& imu0, const ImuData& imu1);
   bool IntegrateMeasurements(const std::vector<ImuData>& imu_samples);
@@ -81,7 +81,7 @@ private:
                       double                 dt_sec);
 
 private:
-  Options options_;
+  Parameters parameters_;
 
   Eigen::Vector3d delta_p_;
   Sophus::SO3d    delta_r_;

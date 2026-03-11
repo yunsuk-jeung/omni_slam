@@ -35,7 +35,8 @@ StereoVIO::StereoVIO()
   , imu_queue_{}
   , imu_queue_size_{0}
   , has_pending_imu_{false}
-  , pending_imu_{} {
+  , pending_imu_{}
+  , imu_parameters{} {
   sliding_window_ = std::make_unique<SlidingWindow>();
   estimator_      = std::make_unique<VIOEstimator>();
 }
@@ -51,6 +52,12 @@ bool StereoVIO::Setup(const std::string& config_path) {
 
   SVIOConfig::ParseConfig(config_path);
   Logger::Info("Loaded VIO config: {}", config_path.c_str());
+
+  imu_parameters.acc_noise_sigma      = SVIOConfig::acc_noise_density;
+  imu_parameters.gyr_noise_sigma      = SVIOConfig::gyr_noise_density;
+  imu_parameters.acc_bias_rw_sigma    = SVIOConfig::acc_random_walk;
+  imu_parameters.gyr_bias_rw_sigma    = SVIOConfig::gyr_random_walk;
+  imu_parameters.min_integration_dt_s = SVIOConfig::imu_min_integration_dt_s;
 
   sliding_window_->SetMaxSize(SVIOConfig::max_keyframe_size + 1u);
   optical_flow_ = std::make_unique<OpticalFlow>(kCamNum, frame_queue_, result_queue_);
@@ -129,21 +136,12 @@ void StereoVIO::Process(std::shared_ptr<Frame>& frame) {
   std::vector<ImuData> imu_data;
   PopImuDataUntil(frame_ts_ns, imu_data);
 
-  const auto& frame_ids = sliding_window_->GetFrameIds();
-
-  ImuPreintegration::Options options;
-  options.acc_noise_sigma      = SVIOConfig::acc_noise_density;
-  options.gyr_noise_sigma      = SVIOConfig::gyr_noise_density;
-  options.acc_bias_rw_sigma    = SVIOConfig::acc_random_walk;
-  options.gyr_bias_rw_sigma    = SVIOConfig::gyr_random_walk;
-  options.min_integration_dt_s = SVIOConfig::imu_min_integration_dt_s;
-
   Eigen::Vector3d bias_acc = Eigen::Vector3d::Zero();
   Eigen::Vector3d bias_gyr = Eigen::Vector3d::Zero();
 
   // estimator_->GetInertialBias(*prev_frame_id, &bias_acc, &bias_gyr);
 
-  // ImuPreintegration preint(bias_acc, bias_gyr, options);
+  // ImuPreintegration preint(bias_acc, bias_gyr, imu_preint_options_);
   // if (preint.IntegrateMeasurements(imu_data)) {
   //   if (SVIOConfig::debug) {
   //     LogD("preintegration: frame_id={}, dt={}s, steps={}",

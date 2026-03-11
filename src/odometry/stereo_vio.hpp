@@ -89,6 +89,7 @@ private:
   std::atomic<size_t>            imu_queue_size_;
   bool                           has_pending_imu_;
   ImuData                        pending_imu_;
+  ImuPreintegration::Parameters  imu_parameters;
 };
 
 }  // namespace omni_slam

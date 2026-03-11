@@ -12,12 +12,12 @@ constexpr double kNsToSec = 1e-9;
 
 ImuPreintegration::ImuPreintegration(const Eigen::Vector3d& bias_acc,
                                      const Eigen::Vector3d& bias_gyr)
-  : ImuPreintegration(bias_acc, bias_gyr, Options{}) {}
+  : ImuPreintegration(bias_acc, bias_gyr, Parameters{}) {}
 
 ImuPreintegration::ImuPreintegration(const Eigen::Vector3d& bias_acc,
                                      const Eigen::Vector3d& bias_gyr,
-                                     const Options&         options)
-  : options_(options)
+                                     const Parameters&      parameters)
+  : parameters_(parameters)
   , delta_r_()
   , delta_v_(Eigen::Vector3d::Zero())
   , delta_p_(Eigen::Vector3d::Zero())
@@ -49,8 +49,8 @@ void ImuPreintegration::SetBias(const Eigen::Vector3d& bias_acc,
   bias_gyr_ = bias_gyr;
 }
 
-void ImuPreintegration::SetOptions(const Options& options) {
-  options_ = options;
+void ImuPreintegration::SetParameters(const Parameters& parameters) {
+  parameters_ = parameters;
 }
 
 bool ImuPreintegration::IntegrateMeasurement(const ImuData& imu0, const ImuData& imu1) {
@@ -60,7 +60,7 @@ bool ImuPreintegration::IntegrateMeasurement(const ImuData& imu0, const ImuData&
   }
 
   const double dt_sec = static_cast<double>(dt_ns) * kNsToSec;
-  if (dt_sec < options_.min_integration_dt_s) {
+  if (dt_sec < parameters_.min_integration_dt_s) {
     return false;
   }
 
@@ -168,16 +168,18 @@ void ImuPreintegration::PropagateError(const Eigen::Matrix3d& R_start,
   V.block<3, 3>(12, 15) = I3 * dt_sec;
 
   Eigen::Matrix<double, 18, 18> Q = Eigen::Matrix<double, 18, 18>::Zero();
-  const double sigma_acc2         = options_.acc_noise_sigma * options_.acc_noise_sigma;
-  const double sigma_gyr2         = options_.gyr_noise_sigma * options_.gyr_noise_sigma;
-  const double sigma_ba_rw2 = options_.acc_bias_rw_sigma * options_.acc_bias_rw_sigma;
-  const double sigma_bg_rw2 = options_.gyr_bias_rw_sigma * options_.gyr_bias_rw_sigma;
-  Q.block<3, 3>(0, 0)       = I3 * sigma_acc2;
-  Q.block<3, 3>(3, 3)       = I3 * sigma_gyr2;
-  Q.block<3, 3>(6, 6)       = I3 * sigma_acc2;
-  Q.block<3, 3>(9, 9)       = I3 * sigma_gyr2;
-  Q.block<3, 3>(12, 12)     = I3 * sigma_ba_rw2;
-  Q.block<3, 3>(15, 15)     = I3 * sigma_bg_rw2;
+  const double sigma_acc2   = parameters_.acc_noise_sigma * parameters_.acc_noise_sigma;
+  const double sigma_gyr2   = parameters_.gyr_noise_sigma * parameters_.gyr_noise_sigma;
+  const double sigma_ba_rw2 = parameters_.acc_bias_rw_sigma
+                              * parameters_.acc_bias_rw_sigma;
+  const double sigma_bg_rw2 = parameters_.gyr_bias_rw_sigma
+                              * parameters_.gyr_bias_rw_sigma;
+  Q.block<3, 3>(0, 0)   = I3 * sigma_acc2;
+  Q.block<3, 3>(3, 3)   = I3 * sigma_gyr2;
+  Q.block<3, 3>(6, 6)   = I3 * sigma_acc2;
+  Q.block<3, 3>(9, 9)   = I3 * sigma_gyr2;
+  Q.block<3, 3>(12, 12) = I3 * sigma_ba_rw2;
+  Q.block<3, 3>(15, 15) = I3 * sigma_bg_rw2;
 
   covariance_ = F * covariance_ * F.transpose() + V * Q * V.transpose();
   covariance_ = 0.5 * (covariance_ + covariance_.transpose());

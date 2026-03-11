@@ -54,7 +54,7 @@ void VOEstimator::OptimizeSingleFrame(std::shared_ptr<Frame> frame,
 
   Eigen::Vector6d box_w_b = SE3BoxplusManifold::ToParams(frame->GetTwb());
 
-  ceres::Problem problem;
+  ceres::Problem      problem;
   SE3BoxplusManifold* se3_box_plus_manifold = new SE3BoxplusManifold();
   problem.AddParameterBlock(box_w_b.data(), kPoseSize, se3_box_plus_manifold);
 
