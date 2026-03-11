@@ -47,7 +47,7 @@ private:
   void  OpticalFlowLoop();
   void  EstimatorLoop();
   void  Process(std::shared_ptr<Frame>& frame);
-  bool  Initialize(std::shared_ptr<Frame>& frame);
+  bool  Initialize(std::shared_ptr<Frame>& frame, const std::vector<ImuData>& imu_data);
   void  Track(std::shared_ptr<Frame>& frame);
   void  PopImuDataUntil(int64_t timestamp_ns, std::vector<ImuData>& imu_data);
   float UpdateFrameObservations(std::shared_ptr<Frame>& frame);

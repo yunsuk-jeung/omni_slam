@@ -9,6 +9,7 @@
 
 #include "utils/logger.hpp"
 #include "utils/timer.hpp"
+#include "utils/omni_assert.hpp"
 #include "config/svio_config.hpp"
 #include "database/Frame.hpp"
 #include "database/MapPoint.hpp"
@@ -154,7 +155,7 @@ void StereoVIO::Process(std::shared_ptr<Frame>& frame) {
 
   switch (status_) {
   case Status::Initializing:
-    if (Initialize(frame)) {
+    if (Initialize(frame, imu_data)) {
       status_ = Status::Tracking;
     }
     break;
@@ -205,14 +206,11 @@ void StereoVIO::PopImuDataUntil(int64_t timestamp_ns, std::vector<ImuData>& imu_
   }
 }
 
-bool StereoVIO::Initialize(std::shared_ptr<Frame>& frame) {
+bool StereoVIO::Initialize(std::shared_ptr<Frame>&     frame,
+                           const std::vector<ImuData>& imu_data) {
   ScopedTimer loop_timer("stereo_vio::Initialize");
 
   sliding_window_->AddFrame(frame);
-  // estimator_->EnsureInertialState(frame->GetId(), frame->GetTimestampNs());
-  // if (prev_frame_id.has_value() && preintegration.has_value()) {
-  //   estimator_->AddImuPreintegration(*prev_frame_id, frame->GetId(), *preintegration);
-  // }
 
   UpdateFrameObservations(frame);
 
@@ -225,15 +223,46 @@ bool StereoVIO::Initialize(std::shared_ptr<Frame>& frame) {
       frame->GetId(),
       created_map_point_num,
       SVIOConfig::min_init_map_point_count);
+
     sliding_window_->Clear();
+    inertial_states_.clear();
     created_map_point_nums_.clear();
+
     new_keyframe_after_ = SVIOConfig::new_keyframe_after + 1;
+
     return false;
   }
 
   created_map_point_nums_[frame->GetId()] = created_map_point_num;
   frame->SetKeyframe();
   sliding_window_->MarkKeyframe(frame->GetId());
+
+  OMNI_ASSERT(!imu_data.empty());
+
+  // use first imu as a gravity direction
+  const Eigen::Vector3d& acc0_b       = imu_data.front().acc;
+  const double           acc0_norm    = acc0_b.norm();
+  const double           gravity_norm = SVIOConfig::g_w.norm();
+  const double           kEps         = 1e-9;
+
+  if (acc0_norm > kEps) {
+    const Sophus::SE3d    T_w_b          = frame->GetTwb();
+    const Eigen::Vector3d measured_dir_w = (T_w_b.so3() * acc0_b).normalized();
+    const Eigen::Vector3d target_dir_w   = -SVIOConfig::g_w / gravity_norm;
+    const Eigen::Quaterniond
+      q_w_align = Eigen::Quaterniond::FromTwoVectors(measured_dir_w, target_dir_w);
+    const Sophus::SO3d R_w_align(q_w_align.normalized());
+    frame->SetTwb(Sophus::SE3d(R_w_align * T_w_b.so3(), T_w_b.translation()));
+  }
+  else {
+    Logger::Warn(
+      "Skip gravity alignment at frame {} due to invalid norm (acc: {}, g: {})",
+      frame->GetId(),
+      acc0_norm,
+      gravity_norm);
+  }
+
+  inertial_states_[frame->GetId()] = Eigen::Vector9d::Zero();
 
   new_keyframe_after_ = 0;
 

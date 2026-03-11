@@ -11,12 +11,12 @@
 
 namespace omni_slam {
 
-double          SVIOConfig::acc_noise_density        = 0.08;
-double          SVIOConfig::gyr_noise_density        = 0.004;
-double          SVIOConfig::acc_random_walk          = 0.0002;
-double          SVIOConfig::gyr_random_walk          = 0.00002;
-double          SVIOConfig::imu_min_integration_dt_s = 1e-6;
-Eigen::Vector3d SVIOConfig::g_w                      = Eigen::Vector3d(0.0, 0.0, -9.81);
+double                SVIOConfig::acc_noise_density        = 0.08;
+double                SVIOConfig::gyr_noise_density        = 0.004;
+double                SVIOConfig::acc_random_walk          = 0.0002;
+double                SVIOConfig::gyr_random_walk          = 0.00002;
+double                SVIOConfig::imu_min_integration_dt_s = 1e-6;
+const Eigen::Vector3d SVIOConfig::g_w = Eigen::Vector3d(0.0, 0.0, -9.81);
 
 namespace {
 
