@@ -5,7 +5,6 @@
 #include "database/MapPoint.hpp"
 #include "feature_tracking/tracking_result.hpp"
 #include "odometry/sliding_window.hpp"
-#include "sliding_window.hpp"
 
 namespace omni_slam {
 

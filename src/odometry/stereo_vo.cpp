@@ -17,7 +17,6 @@
 #include "optimizer/vo_estimator.hpp"
 #include "odometry/sliding_window.hpp"
 #include "odometry/stereo_vo.hpp"
-#include "stereo_vo.hpp"
 
 namespace omni_slam {
 StereoVO::StereoVO()

@@ -1,6 +1,5 @@
 #include "database/Frame.hpp"
 #include "database/MapPoint.hpp"
-#include "MapPoint.hpp"
 
 namespace omni_slam {
 

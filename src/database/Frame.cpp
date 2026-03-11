@@ -4,7 +4,6 @@
 #include "feature_tracking/tracking_result.hpp"
 #include "database/Frame.hpp"
 #include "config/svo_config.hpp"
-#include "Frame.hpp"
 
 namespace omni_slam {
 namespace {

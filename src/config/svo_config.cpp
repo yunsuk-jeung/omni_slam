@@ -1,4 +1,4 @@
-#include "svo_config.hpp"
+#include "config/svo_config.hpp"
 
 #include <fstream>
 
