@@ -105,8 +105,7 @@ void VIOEstimator::OptimizeSingleFrame(std::shared_ptr<Frame> frame,
 
 VIOEstimator::VIOEstimator()
   : marginalizer_(std::make_unique<Marginalizer>())
-  , imu_factors_by_to_frame_{}
-  , gravity_vector_w_{SVIOConfig::gravity_vector_w} {}
+  , imu_factors_by_to_frame_{} {}
 
 VIOEstimator::~VIOEstimator() = default;
 
@@ -114,8 +113,6 @@ void VIOEstimator::OptimizeWindow(SlidingWindow* window) {
   if (!window) {
     return;
   }
-
-  gravity_vector_w_ = SVIOConfig::gravity_vector_w;
 
   const auto& frames     = window->GetFrames();
   const auto& map_points = window->GetMapPoints();

@@ -132,14 +132,14 @@ void StereoVIO::Process(std::shared_ptr<Frame>& frame) {
   const auto& frame_ids = sliding_window_->GetFrameIds();
 
   ImuPreintegration::Options options;
-  options.acc_noise_sigma      = SVIOConfig::imu_acc_noise_density;
-  options.gyr_noise_sigma      = SVIOConfig::imu_gyr_noise_density;
-  options.acc_bias_rw_sigma    = SVIOConfig::imu_acc_random_walk;
-  options.gyr_bias_rw_sigma    = SVIOConfig::imu_gyr_random_walk;
+  options.acc_noise_sigma      = SVIOConfig::acc_noise_density;
+  options.gyr_noise_sigma      = SVIOConfig::gyr_noise_density;
+  options.acc_bias_rw_sigma    = SVIOConfig::acc_random_walk;
+  options.gyr_bias_rw_sigma    = SVIOConfig::gyr_random_walk;
   options.min_integration_dt_s = SVIOConfig::imu_min_integration_dt_s;
 
-  Eigen::Vector3d bias_acc = SVIOConfig::imu_init_bias_acc;
-  Eigen::Vector3d bias_gyr = SVIOConfig::imu_init_bias_gyr;
+  Eigen::Vector3d bias_acc = Eigen::Vector3d::Zero();
+  Eigen::Vector3d bias_gyr = Eigen::Vector3d::Zero();
 
   // estimator_->GetInertialBias(*prev_frame_id, &bias_acc, &bias_gyr);
 

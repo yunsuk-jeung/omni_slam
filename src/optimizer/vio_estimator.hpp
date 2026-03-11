@@ -39,7 +39,6 @@ private:
   std::unique_ptr<Marginalizer> marginalizer_;
 
   std::map<uint64_t, ImuPreintegrationFactor> imu_factors_by_to_frame_;
-  Eigen::Vector3d                             gravity_vector_w_;
 };
 
 }  // namespace omni_slam
