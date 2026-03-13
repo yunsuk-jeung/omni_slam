@@ -46,9 +46,9 @@ public:
 private:
   void  OpticalFlowLoop();
   void  EstimatorLoop();
-  void  Process(std::shared_ptr<Frame>& frame);
+  void  Process(std::shared_ptr<Frame>& frame, const std::vector<ImuData>& imu_data);
   bool  Initialize(std::shared_ptr<Frame>& frame, const std::vector<ImuData>& imu_data);
-  void  Track(std::shared_ptr<Frame>& frame);
+  void  Track(std::shared_ptr<Frame>& frame, const std::vector<ImuData>& imu_data);
   void  PopImuDataUntil(int64_t timestamp_ns, std::vector<ImuData>& imu_data);
   float UpdateFrameObservations(std::shared_ptr<Frame>& frame);
 
@@ -73,7 +73,7 @@ private:
   std::unique_ptr<OpticalFlow>                  optical_flow_;
 
   std::unique_ptr<SlidingWindow>        sliding_window_;
-  std::map<uint64_t, Eigen::Vector9d>   inertial_states_;
+  std::map<uint64_t, InertialState>     inertial_states_;  // v_wb, bias_acc, bias_gyr
   std::map<uint64_t, ImuPreintegration> imu_preintegrations_;
 
   std::unique_ptr<VIOEstimator> estimator_;
@@ -88,6 +88,7 @@ private:
 
   tbb::concurrent_queue<ImuData> imu_queue_;
   std::atomic<size_t>            imu_queue_size_;
+  std::vector<ImuData>           imu_data_buffer_;
   bool                           has_pending_imu_;
   ImuData                        pending_imu_;
   ImuPreintegration::Parameters  imu_parameters;

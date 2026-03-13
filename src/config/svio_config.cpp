@@ -31,6 +31,34 @@ double ReadDoubleWithAliases(const nlohmann::json&           node,
   return default_value;
 }
 
+size_t ReadSizeTWithAliases(const nlohmann::json&           node,
+                            const std::vector<std::string>& aliases,
+                            size_t                          default_value) {
+  for (const auto& key : aliases) {
+    if (!node.contains(key) || !node[key].is_number()) {
+      continue;
+    }
+
+    if (node[key].is_number_unsigned()) {
+      return node[key].get<size_t>();
+    }
+
+    if (node[key].is_number_integer()) {
+      const auto value = node[key].get<long long>();
+      if (value > 0) {
+        return static_cast<size_t>(value);
+      }
+      continue;
+    }
+
+    const double value = node[key].get<double>();
+    if (value > 0.0) {
+      return static_cast<size_t>(value);
+    }
+  }
+  return default_value;
+}
+
 void ReadVec3WithAliases(const nlohmann::json&           node,
                          const std::vector<std::string>& aliases,
                          Eigen::Vector3d*                out) {

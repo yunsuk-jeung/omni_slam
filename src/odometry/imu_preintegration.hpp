@@ -9,6 +9,12 @@
 #include "utils/types.hpp"
 
 namespace omni_slam {
+struct InertialState {
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+  Eigen::Vector3d v_w_b    = Eigen::Vector3d::Zero();
+  Eigen::Vector3d bias_acc = Eigen::Vector3d::Zero();
+  Eigen::Vector3d bias_gyr = Eigen::Vector3d::Zero();
+};
 
 // IMU preintegration with a 15D error-state model:
 // [dp, dtheta, dv, dba, dbg].
@@ -41,7 +47,7 @@ public:
   void SetParameters(const Parameters& parameters);
 
   bool IntegrateMeasurement(const ImuData& imu0, const ImuData& imu1);
-  bool IntegrateMeasurements(const std::vector<ImuData>& imu_samples);
+  bool IntegrateMeasurements(const std::vector<ImuData>& imu_data);
 
   CorrectedDelta GetBiasCorrectedDelta(const Eigen::Vector3d& bias_acc,
                                        const Eigen::Vector3d& bias_gyr) const;

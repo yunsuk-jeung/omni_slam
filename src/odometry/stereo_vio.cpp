@@ -17,7 +17,6 @@
 #include "optimizer/geometry.hpp"
 #include "optimizer/vio_estimator.hpp"
 #include "odometry/sliding_window.hpp"
-#include "odometry/imu_preintegration.hpp"
 #include "odometry/stereo_vio.hpp"
 
 namespace omni_slam {
@@ -35,8 +34,10 @@ StereoVIO::StereoVIO()
   , latest_result_{}
   , imu_queue_{}
   , imu_queue_size_{0}
+  , imu_data_buffer_{}
   , has_pending_imu_{false}
   , pending_imu_{}
+  , inertial_states_{}
   , imu_parameters{} {
   sliding_window_ = std::make_unique<SlidingWindow>();
   estimator_      = std::make_unique<VIOEstimator>();
@@ -124,35 +125,14 @@ void StereoVIO::EstimatorLoop() {
       continue;
     }
 
-    Process(frame);
+    const int64_t frame_ts_ns = frame->GetTimestampNs();
+    PopImuDataUntil(frame_ts_ns, imu_data_buffer_);
+    Process(frame, imu_data_buffer_);
   }
 }
 
-void StereoVIO::Process(std::shared_ptr<Frame>& frame) {
-  if (!frame || !frame->GetTrackingResultPtr()) {
-    return;
-  }
-
-  const int64_t        frame_ts_ns = frame->GetTimestampNs();
-  std::vector<ImuData> imu_data;
-  PopImuDataUntil(frame_ts_ns, imu_data);
-
-  Eigen::Vector3d bias_acc = Eigen::Vector3d::Zero();
-  Eigen::Vector3d bias_gyr = Eigen::Vector3d::Zero();
-
-  // estimator_->GetInertialBias(*prev_frame_id, &bias_acc, &bias_gyr);
-
-  // ImuPreintegration preint(bias_acc, bias_gyr, imu_preint_options_);
-  // if (preint.IntegrateMeasurements(imu_data)) {
-  //   if (SVIOConfig::debug) {
-  //     LogD("preintegration: frame_id={}, dt={}s, steps={}",
-  //          frame->GetId(),
-  //          preint.GetDeltaTimeSec(),
-  //          preint.GetIntegrationStepCount());
-  //   }
-  //   preintegration = std::move(preint);
-  // }
-
+void StereoVIO::Process(std::shared_ptr<Frame>&     frame,
+                        const std::vector<ImuData>& imu_data) {
   switch (status_) {
   case Status::Initializing:
     if (Initialize(frame, imu_data)) {
@@ -160,7 +140,7 @@ void StereoVIO::Process(std::shared_ptr<Frame>& frame) {
     }
     break;
   case Status::Tracking:
-    Track(frame);
+    Track(frame, imu_data);
     break;
   default:
     // TODO: Handle Status::Lost and other states here.
@@ -226,6 +206,7 @@ bool StereoVIO::Initialize(std::shared_ptr<Frame>&     frame,
 
     sliding_window_->Clear();
     inertial_states_.clear();
+    imu_preintegrations_.clear();
     created_map_point_nums_.clear();
 
     new_keyframe_after_ = SVIOConfig::new_keyframe_after + 1;
@@ -262,7 +243,7 @@ bool StereoVIO::Initialize(std::shared_ptr<Frame>&     frame,
       gravity_norm);
   }
 
-  inertial_states_[frame->GetId()] = Eigen::Vector9d::Zero();
+  inertial_states_[frame->GetId()] = InertialState{};
 
   new_keyframe_after_ = 0;
 
@@ -273,23 +254,47 @@ bool StereoVIO::Initialize(std::shared_ptr<Frame>&     frame,
   return true;
 }
 
-void StereoVIO::Track(std::shared_ptr<Frame>& frame) {
+void StereoVIO::Track(std::shared_ptr<Frame>&     frame,
+                      const std::vector<ImuData>& imu_data) {
   ScopedTimer loop_timer("loop_timer_tracking");
 
-  // use last frame's pose for initial pose
-  const auto& frame_ids = sliding_window_->GetFrameIds();
-  if (!frame_ids.empty()) {
-    const uint64_t         latest_id    = *frame_ids.rbegin();
-    std::shared_ptr<Frame> latest_frame = sliding_window_->GetFrame(latest_id);
-    if (latest_frame) {
-      frame->GetTwb() = latest_frame->GetTwb();
+  std::shared_ptr<Frame> latest_frame;
+  InertialState          predicted_inertial_state;
+
+  // IMU-based prediction from the latest frame state.
+  const auto&    frame_ids = sliding_window_->GetFrameIds();
+  const uint64_t latest_id = *frame_ids.rbegin();
+  latest_frame             = sliding_window_->GetFrame(latest_id);
+
+  frame->GetTwb()          = latest_frame->GetTwb();
+  predicted_inertial_state = inertial_states_[latest_id];
+
+  if (imu_data.size() >= 2) {
+    ImuPreintegration preintegration(predicted_inertial_state.bias_acc,
+                                     predicted_inertial_state.bias_gyr,
+                                     imu_parameters);
+    if (preintegration.IntegrateMeasurements(imu_data)) {
+      const double          dt_sec  = preintegration.GetDeltaTimeSec();
+      const Sophus::SE3d&   T_w_b_i = latest_frame->GetTwb();
+      const Sophus::SO3d    R_w_b_j = T_w_b_i.so3() * preintegration.GetDeltaR();
+      const Eigen::Vector3d g_w     = SVIOConfig::g_w;
+      const Eigen::Vector3d t_w_b_j = T_w_b_i.translation()
+                                      + predicted_inertial_state.v_w_b * dt_sec
+                                      + 0.5 * g_w * dt_sec * dt_sec
+                                      + T_w_b_i.so3() * preintegration.GetDeltaP();
+      const Eigen::Vector3d v_w_b_j = predicted_inertial_state.v_w_b + g_w * dt_sec
+                                      + T_w_b_i.so3() * preintegration.GetDeltaV();
+      frame->SetTwb(Sophus::SE3d(R_w_b_j, t_w_b_j));
+      predicted_inertial_state.v_w_b       = v_w_b_j;
+      imu_preintegrations_[frame->GetId()] = std::move(preintegration);
+      inertial_states_[frame->GetId()]     = predicted_inertial_state;
     }
+  }
+  else {
+    LogW("not enough imu datas, use vo");
   }
 
   sliding_window_->AddFrame(frame);
-  // if (prev_frame_id.has_value() && preintegration.has_value()) {
-  //   estimator_->AddImuPreintegration(*prev_frame_id, frame->GetId(), *preintegration);
-  // }
 
   float connect_mp_ratio = UpdateFrameObservations(frame);
 
@@ -322,6 +327,20 @@ void StereoVIO::Track(std::shared_ptr<Frame>& frame) {
     estimator_->OptimizeWindow(this->sliding_window_.get());
   }
 
+  // Visual velocity sync using optimized latest/current poses.
+  if (latest_frame) {
+    constexpr double kNsToSec      = 1e-9;
+    const double     dt_visual_sec = static_cast<double>(frame->GetTimestampNs()
+                                                     - latest_frame->GetTimestampNs())
+                                 * kNsToSec;
+    if (dt_visual_sec > 0.0) {
+      InertialState& curr_state = inertial_states_[frame->GetId()];
+      curr_state.v_w_b          = (frame->GetTwb().translation()
+                          - latest_frame->GetTwb().translation())
+                         / dt_visual_sec;
+    }
+  }
+
   // select marginal frames
   std::set<uint64_t> marginal_none_keyframe_ids;
   std::set<uint64_t> marginal_keyframe_ids;
@@ -329,6 +348,10 @@ void StereoVIO::Track(std::shared_ptr<Frame>& frame) {
 
   // remove none keyframes before marginalize
   sliding_window_->RemoveFrames(marginal_none_keyframe_ids);
+  for (const auto& id : marginal_none_keyframe_ids) {
+    inertial_states_.erase(id);
+    imu_preintegrations_.erase(id);
+  }
 
   // marginalize
   {
@@ -343,6 +366,8 @@ void StereoVIO::Track(std::shared_ptr<Frame>& frame) {
 
     for (const auto& id : marginal_keyframe_ids) {
       created_map_point_nums_.erase(id);
+      inertial_states_.erase(id);
+      imu_preintegrations_.erase(id);
     }
   }
 }
@@ -435,6 +460,9 @@ int StereoVIO::InitializeMapPoints(std::shared_ptr<Frame>& frame) {
       }
 
       std::shared_ptr<Frame> frame1 = sliding_window_->GetFrame(frame_cam_id1.frame_id);
+      if (!frame1) {
+        continue;
+      }
 
       auto T_w_c0  = frame->GetTwc(frame_cam_id0.cam_id);
       auto T_w_c1  = frame1->GetTwc(frame_cam_id1.cam_id);

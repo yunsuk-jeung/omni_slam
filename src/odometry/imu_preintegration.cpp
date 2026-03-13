@@ -90,14 +90,14 @@ bool ImuPreintegration::IntegrateMeasurement(const ImuData& imu0, const ImuData&
   return true;
 }
 
-bool ImuPreintegration::IntegrateMeasurements(const std::vector<ImuData>& imu_samples) {
-  if (imu_samples.size() < 2) {
+bool ImuPreintegration::IntegrateMeasurements(const std::vector<ImuData>& imu_data) {
+  if (imu_data.size() < 2) {
     return false;
   }
 
   bool integrated = false;
-  for (size_t i = 0; i + 1 < imu_samples.size(); ++i) {
-    if (IntegrateMeasurement(imu_samples[i], imu_samples[i + 1])) {
+  for (size_t i = 0; i + 1 < imu_data.size(); ++i) {
+    if (IntegrateMeasurement(imu_data[i], imu_data[i + 1])) {
       integrated = true;
     }
   }
