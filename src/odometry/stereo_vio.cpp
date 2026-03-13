@@ -324,7 +324,9 @@ void StereoVIO::Track(std::shared_ptr<Frame>&     frame,
   // sliding window bundle
   {
     ScopedTimer timer("optimize_window");
-    estimator_->OptimizeWindow(this->sliding_window_.get());
+    estimator_->OptimizeWindow(this->sliding_window_.get(),
+                               &inertial_states_,
+                               &imu_preintegrations_);
   }
 
   // Visual velocity sync using optimized latest/current poses.

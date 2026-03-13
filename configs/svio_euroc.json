@@ -17,7 +17,8 @@
   "marg_feature_connection_ratio": 0.2,
   "new_keyframe_after": 1,
   "triangulation_dist_threshold": 0.0025,
-  "bearing_huber_const": 0.00015,
+  "bearing_huber_const": 5.991,
+  "bearing_cost_scale": 640.0,
   "single_frame_max_iterations": 10,
   "window_max_iterations": 10,
   "window_num_threads": 2,
@@ -26,12 +27,13 @@
   "imu": {
     "acc_noise_density": 0.08,
     "gyr_noise_density": 0.004,
-    "acc_random_walk": 0.0002,
-    "gyr_random_walk": 0.00002,
+    "acc_random_walk": 0.00004,
+    "gyr_random_walk": 0.000002,
     "min_integration_dt_s": 0.000001,
+    "g_norm": 9.81007,
     "init_bias_acc": [0.0, 0.0, 0.0],
     "init_bias_gyr": [0.0, 0.0, 0.0],
-    "gravity_vector_w": [0.0, 0.0, -9.81]
+    "gravity_vector_w": [0.0, 0.0, -9.81007]
   },
 
   "cam0": {

@@ -65,9 +65,9 @@ public:
     Eigen::Map<Eigen::Matrix<double, 6, 6, Eigen::RowMajor>> J(jacobian);
 
     J.setZero();
-    J.topLeftCorner<3, 3>()     = -Eigen::Matrix3d::Identity();  // ∂dt/∂t_x = -I
-    J.bottomRightCorner<3, 3>() = -SophusUtils::SO3RightJacobianInverse(
-      so3_x);  // ∂dtheta/∂so3_x
+    J.topLeftCorner<3, 3>()     = Eigen::Matrix3d::Identity();  // ∂dt/∂t_y = I
+    J.bottomRightCorner<3, 3>() = SophusUtils::SO3RightJacobian(
+      so3_x);  // ∂dtheta/∂so3_y = Jr(so3_x)
     return true;
   }
 

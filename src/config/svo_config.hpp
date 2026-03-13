@@ -27,6 +27,7 @@ public:
   static int    new_keyframe_after;
   static double triangulation_dist_threshold;
   static double bearing_huber_const;
+  static double bearing_cost_scale;
   static int    single_frame_max_iterations;
   static int    window_max_iterations;
   static int    window_num_threads;

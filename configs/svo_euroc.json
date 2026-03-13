@@ -18,6 +18,7 @@
   "new_keyframe_after": 1,
   "triangulation_dist_threshold": 0.0025,
   "bearing_huber_const": 0.00015,
+  "bearing_cost_scale": 1.0,
   "single_frame_max_iterations": 10,
   "window_max_iterations": 10,
   "window_num_threads": 2,

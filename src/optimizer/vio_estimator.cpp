@@ -86,7 +86,10 @@ void VIOEstimator::OptimizeSingleFrame(std::shared_ptr<Frame> frame,
     const Eigen::Vector3d p_w   = Twc0 * p_c0;
     const Sophus::SE3d&   T_b_c = frame->GetTbc(kCamIdx);
 
-    ceres::CostFunction* cost = new PoseOnlyBearingCost(p_w, bearing, T_b_c);
+    ceres::CostFunction* cost = new PoseOnlyBearingCost(p_w,
+                                                        bearing,
+                                                        T_b_c,
+                                                        SVOConfig::bearing_cost_scale);
     ceres::LossFunction* loss = new ceres::HuberLoss(SVOConfig::bearing_huber_const);
     problem.AddResidualBlock(cost, loss, box_w_b.data());
   }
@@ -109,16 +112,19 @@ VIOEstimator::VIOEstimator()
 
 VIOEstimator::~VIOEstimator() = default;
 
-void VIOEstimator::OptimizeWindow(SlidingWindow* window) {
+void VIOEstimator::OptimizeWindow(
+  SlidingWindow*                               window,
+  std::map<uint64_t, InertialState>*           inertial_states,
+  const std::map<uint64_t, ImuPreintegration>* imu_preintegrations) {
   if (!window) {
     return;
   }
 
   const auto& frames     = window->GetFrames();
   const auto& map_points = window->GetMapPoints();
-  if (frames.size() < 3) {
-    return;
-  }
+  // if (frames.size() < 3) {
+  //   return;
+  // }
 
   ceres::Problem problem;
 
@@ -134,6 +140,76 @@ void VIOEstimator::OptimizeWindow(SlidingWindow* window) {
   auto* se3_box_plus_manifold = new SE3BoxplusManifold();
   for (auto& param : pose_params) {
     problem.AddParameterBlock(param.data(), kPoseSize, se3_box_plus_manifold);
+  }
+
+  std::vector<Eigen::Vector3d> velocity_params;
+  std::vector<Eigen::Vector3d> bias_acc_params;
+  std::vector<Eigen::Vector3d> bias_gyr_params;
+  velocity_params.reserve(frames.size());
+  bias_acc_params.reserve(frames.size());
+  bias_gyr_params.reserve(frames.size());
+
+  for (const auto& [frame_id, _] : frames) {
+    InertialState state;
+    if (inertial_states) {
+      const auto it = inertial_states->find(frame_id);
+      if (it != inertial_states->end()) {
+        state = it->second;
+      }
+    }
+
+    velocity_params.push_back(state.v_w_b);
+    bias_acc_params.push_back(state.bias_acc);
+    bias_gyr_params.push_back(state.bias_gyr);
+  }
+
+  for (size_t i = 0; i < frames.size(); ++i) {
+    problem.AddParameterBlock(velocity_params[i].data(), kInertialStateDim);
+    problem.AddParameterBlock(bias_acc_params[i].data(), kInertialStateDim);
+    problem.AddParameterBlock(bias_gyr_params[i].data(), kInertialStateDim);
+  }
+
+  imu_factors_by_to_frame_.clear();
+  if (imu_preintegrations && frames.size() >= 2) {
+    auto prev_it = frames.begin();
+    for (auto it = std::next(frames.begin()); it != frames.end(); ++it) {
+      const uint64_t from_frame_id = prev_it->first;
+      const uint64_t to_frame_id   = it->first;
+      const auto     preint_it     = imu_preintegrations->find(to_frame_id);
+      if (preint_it != imu_preintegrations->end()
+          && preint_it->second.GetDeltaTimeSec() > 0.0) {
+        ImuPreintegrationFactor factor;
+        factor.from_frame_id                  = from_frame_id;
+        factor.to_frame_id                    = to_frame_id;
+        factor.preintegration                 = preint_it->second;
+        imu_factors_by_to_frame_[to_frame_id] = std::move(factor);
+      }
+      prev_it = it;
+    }
+  }
+
+  for (const auto& [to_frame_id, factor] : imu_factors_by_to_frame_) {
+    const auto from_it = frame_id_to_index.find(factor.from_frame_id);
+    const auto to_it   = frame_id_to_index.find(factor.to_frame_id);
+    if (from_it == frame_id_to_index.end() || to_it == frame_id_to_index.end()) {
+      continue;
+    }
+
+    const size_t from_idx = from_it->second;
+    const size_t to_idx   = to_it->second;
+
+    ceres::CostFunction* imu_cost = new ImuPreintegrationCost(factor.preintegration,
+                                                              SVIOConfig::g_w);
+    problem.AddResidualBlock(imu_cost,
+                             nullptr,
+                             pose_params[from_idx].data(),
+                             pose_params[to_idx].data(),
+                             velocity_params[from_idx].data(),
+                             velocity_params[to_idx].data(),
+                             bias_acc_params[from_idx].data(),
+                             bias_gyr_params[from_idx].data(),
+                             bias_acc_params[to_idx].data(),
+                             bias_gyr_params[to_idx].data());
   }
 
   std::unordered_map<uint64_t, size_t> mp_id_to_index;
@@ -191,8 +267,9 @@ void VIOEstimator::OptimizeWindow(SlidingWindow* window) {
 
     const auto host_obs_it = observations.find(frame_cam_id0);
     if (host_obs_it != observations.end()) {
-      ceres::CostFunction* host_bearing_prior_cost = new BearingPriorCost(
-        host_obs_it->second);
+      ceres::CostFunction*
+        host_bearing_prior_cost = new BearingPriorCost(host_obs_it->second,
+                                                       SVOConfig::bearing_cost_scale);
       problem.AddResidualBlock(host_bearing_prior_cost, nullptr, bearing_param);
     }
 
@@ -211,11 +288,17 @@ void VIOEstimator::OptimizeWindow(SlidingWindow* window) {
 
       ceres::LossFunction* loss = new ceres::HuberLoss(SVOConfig::bearing_huber_const);
       if (frame_cam_id0.frame_id == frame_cam_id1.frame_id) {
-        ceres::CostFunction* cost = new BearingStereoCost(bearing, T_b_c1, T_b_c0);
+        ceres::CostFunction* cost = new BearingStereoCost(bearing,
+                                                          T_b_c1,
+                                                          T_b_c0,
+                                                          SVOConfig::bearing_cost_scale);
         problem.AddResidualBlock(cost, loss, bearing_param, inv_dist_param);
       }
       else {
-        ceres::CostFunction* cost = new BearingCost(bearing, T_b_c1, T_b_c0);
+        ceres::CostFunction* cost = new BearingCost(bearing,
+                                                    T_b_c1,
+                                                    T_b_c0,
+                                                    SVOConfig::bearing_cost_scale);
         problem.AddResidualBlock(cost,
                                  loss,
                                  pose_param1,
@@ -238,6 +321,15 @@ void VIOEstimator::OptimizeWindow(SlidingWindow* window) {
   for (const auto& [frame_id, frame] : frames) {
     auto it = frame_id_to_index.find(frame_id);
     frame->SetTwb(SE3BoxplusManifold::FromParams(pose_params[it->second].data()));
+  }
+
+  if (inertial_states) {
+    for (const auto& [frame_id, idx] : frame_id_to_index) {
+      InertialState& state = (*inertial_states)[frame_id];
+      state.v_w_b          = velocity_params[idx];
+      state.bias_acc       = bias_acc_params[idx];
+      state.bias_gyr       = bias_gyr_params[idx];
+    }
   }
 
   for (const auto& [mp_id, idx] : mp_id_to_index) {
@@ -369,8 +461,9 @@ void VIOEstimator::Marginalize(SlidingWindow*     window,
 
     const auto host_obs_it = observations.find(frame_cam_id0);
     if (host_obs_it != observations.end()) {
-      ceres::CostFunction* host_bearing_prior_cost = new BearingPriorCost(
-        host_obs_it->second);
+      ceres::CostFunction*
+        host_bearing_prior_cost = new BearingPriorCost(host_obs_it->second,
+                                                       SVOConfig::bearing_cost_scale);
       problem.AddResidualBlock(host_bearing_prior_cost, bearing_loss, bearing_param);
     }
 
@@ -391,11 +484,17 @@ void VIOEstimator::Marginalize(SlidingWindow*     window,
       const Sophus::SE3d& T_b_c1 = frame1->GetTbc(frame_cam_id1.cam_id);
 
       if (frame_cam_id0.frame_id == frame_cam_id1.frame_id) {
-        ceres::CostFunction* cost = new BearingStereoCost(bearing, T_b_c1, T_b_c0);
+        ceres::CostFunction* cost = new BearingStereoCost(bearing,
+                                                          T_b_c1,
+                                                          T_b_c0,
+                                                          SVOConfig::bearing_cost_scale);
         problem.AddResidualBlock(cost, bearing_loss, bearing_param, inv_dist_param);
       }
       else {
-        ceres::CostFunction* cost = new BearingCost(bearing, T_b_c1, T_b_c0);
+        ceres::CostFunction* cost = new BearingCost(bearing,
+                                                    T_b_c1,
+                                                    T_b_c0,
+                                                    SVOConfig::bearing_cost_scale);
         problem.AddResidualBlock(cost,
                                  bearing_loss,
                                  pose_param1,

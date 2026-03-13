@@ -1,5 +1,6 @@
 #include "config/svo_config.hpp"
 
+#include <cmath>
 #include <fstream>
 
 #include <nlohmann/json.hpp>
@@ -27,6 +28,7 @@ float                            SVOConfig::marg_feature_connection_ratio = 0.2f
 int                              SVOConfig::new_keyframe_after            = 1;
 double                           SVOConfig::triangulation_dist_threshold  = 0.0025;
 double                           SVOConfig::bearing_huber_const           = 0.01;
+double                           SVOConfig::bearing_cost_scale            = 1.0;
 int                              SVOConfig::single_frame_max_iterations   = 10;
 int                              SVOConfig::window_max_iterations         = 10;
 int                              SVOConfig::window_num_threads            = 2;
@@ -141,6 +143,9 @@ void SVOConfig::ParseConfig(const std::string& file) {
                                                marg_feature_connection_ratio);
   new_keyframe_after            = config.value("new_keyframe_after", new_keyframe_after);
   bearing_huber_const         = config.value("bearing_huber_const", bearing_huber_const);
+  bearing_cost_scale          = config.value("bearing_cost_scale",
+                                             config.value("beraing_cost_scale",
+                                                          bearing_cost_scale));
   single_frame_max_iterations = config.value("single_frame_max_iterations",
                                              single_frame_max_iterations);
   window_max_iterations  = config.value("window_max_iterations", window_max_iterations);
@@ -150,6 +155,9 @@ void SVOConfig::ParseConfig(const std::string& file) {
 
   if (bearing_huber_const <= 0.0) {
     bearing_huber_const = 0.01;
+  }
+  if (!std::isfinite(bearing_cost_scale) || bearing_cost_scale <= 0.0) {
+    bearing_cost_scale = 1.0;
   }
   if (bearing_huber_const <= 0.0) {
     bearing_huber_const = 0.01;
@@ -217,6 +225,7 @@ void SVOConfig::ParseConfig(const std::string& file) {
                  marg_feature_connection_ratio);
     Logger::Info("SVOConfig.new_keyframe_after: {}", new_keyframe_after);
     Logger::Info("SVOConfig.bearing_huber_const: {}", bearing_huber_const);
+    Logger::Info("SVOConfig.bearing_cost_scale: {}", bearing_cost_scale);
     Logger::Info("SVOConfig.single_frame_max_iterations: {}",
                  single_frame_max_iterations);
     Logger::Info("SVOConfig.window_max_iterations: {}", window_max_iterations);
