@@ -17,12 +17,6 @@ class Marginalizer;
 
 class VIOEstimator {
 public:
-  struct ImuPreintegrationFactor {
-    uint64_t          from_frame_id = 0;
-    uint64_t          to_frame_id   = 0;
-    ImuPreintegration preintegration;
-  };
-
   static void OptimizeSingleFrame(std::shared_ptr<Frame> frame, SlidingWindow* window);
 
   VIOEstimator();
@@ -40,7 +34,7 @@ private:
 private:
   std::unique_ptr<Marginalizer> marginalizer_;
 
-  std::map<uint64_t, ImuPreintegrationFactor> imu_factors_by_to_frame_;
+  std::map<uint64_t, ImuPreintegration> imu_factors_by_to_frame_;
 };
 
 }  // namespace omni_slam

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <vector>
 
 #include <sophus/so3.hpp>
@@ -20,6 +21,8 @@ struct InertialState {
 // [dp, dtheta, dv, dba, dbg].
 class ImuPreintegration {
 public:
+  ImuPreintegration() = delete;
+
   struct Parameters {
     // Standard deviations of IMU white noise and bias random walk.
     double acc_noise_sigma      = 0.08;
@@ -36,9 +39,13 @@ public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   };
 
-  explicit ImuPreintegration(const Eigen::Vector3d& bias_acc = Eigen::Vector3d::Zero(),
+  explicit ImuPreintegration(uint64_t               from_frame_id,
+                             uint64_t               to_frame_id,
+                             const Eigen::Vector3d& bias_acc = Eigen::Vector3d::Zero(),
                              const Eigen::Vector3d& bias_gyr = Eigen::Vector3d::Zero());
-  ImuPreintegration(const Eigen::Vector3d& bias_acc,
+  ImuPreintegration(uint64_t               from_frame_id,
+                    uint64_t               to_frame_id,
+                    const Eigen::Vector3d& bias_acc,
                     const Eigen::Vector3d& bias_gyr,
                     const Parameters&      parameters);
 
@@ -61,6 +68,8 @@ public:
 
   const Eigen::Vector3d& GetBiasAcc() const { return bias_acc_; }
   const Eigen::Vector3d& GetBiasGyr() const { return bias_gyr_; }
+  uint64_t               GetFromFrameId() const { return from_frame_id_; }
+  uint64_t               GetToFrameId() const { return to_frame_id_; }
 
   const Eigen::Matrix15d& GetJacobian() const { return jacobian_; }
   const Eigen::Matrix15d& GetCovariance() const { return covariance_; }
@@ -96,6 +105,8 @@ private:
 
   Eigen::Vector3d bias_acc_;
   Eigen::Vector3d bias_gyr_;
+  uint64_t        from_frame_id_;
+  uint64_t        to_frame_id_;
 
   Eigen::Matrix15d jacobian_;
   Eigen::Matrix15d covariance_;

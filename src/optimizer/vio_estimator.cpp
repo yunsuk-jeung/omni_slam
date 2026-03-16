@@ -170,27 +170,21 @@ void VIOEstimator::OptimizeWindow(
   }
 
   imu_factors_by_to_frame_.clear();
-  if (imu_preintegrations && frames.size() >= 2) {
-    auto prev_it = frames.begin();
-    for (auto it = std::next(frames.begin()); it != frames.end(); ++it) {
-      const uint64_t from_frame_id = prev_it->first;
-      const uint64_t to_frame_id   = it->first;
-      const auto     preint_it     = imu_preintegrations->find(to_frame_id);
-      if (preint_it != imu_preintegrations->end()
-          && preint_it->second.GetDeltaTimeSec() > 0.0) {
-        ImuPreintegrationFactor factor;
-        factor.from_frame_id                  = from_frame_id;
-        factor.to_frame_id                    = to_frame_id;
-        factor.preintegration                 = preint_it->second;
-        imu_factors_by_to_frame_[to_frame_id] = std::move(factor);
+  if (imu_preintegrations && !frames.empty()) {
+    for (const auto& [_, preintegration] : *imu_preintegrations) {
+      if (preintegration.GetDeltaTimeSec() <= 0.0) {
+        continue;
       }
-      prev_it = it;
+      const uint64_t to_frame_id = preintegration.GetToFrameId();
+      imu_factors_by_to_frame_.insert_or_assign(to_frame_id, preintegration);
     }
   }
 
-  for (const auto& [to_frame_id, factor] : imu_factors_by_to_frame_) {
-    const auto from_it = frame_id_to_index.find(factor.from_frame_id);
-    const auto to_it   = frame_id_to_index.find(factor.to_frame_id);
+  for (const auto& [_, preintegration] : imu_factors_by_to_frame_) {
+    const uint64_t from_frame_id = preintegration.GetFromFrameId();
+    const uint64_t to_factor_id  = preintegration.GetToFrameId();
+    const auto     from_it       = frame_id_to_index.find(from_frame_id);
+    const auto     to_it         = frame_id_to_index.find(to_factor_id);
     if (from_it == frame_id_to_index.end() || to_it == frame_id_to_index.end()) {
       continue;
     }
@@ -198,7 +192,7 @@ void VIOEstimator::OptimizeWindow(
     const size_t from_idx = from_it->second;
     const size_t to_idx   = to_it->second;
 
-    ceres::CostFunction* imu_cost = new ImuPreintegrationCost(factor.preintegration,
+    ceres::CostFunction* imu_cost = new ImuPreintegrationCost(preintegration,
                                                               SVIOConfig::g_w);
     problem.AddResidualBlock(imu_cost,
                              nullptr,

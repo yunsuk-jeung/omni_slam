@@ -10,11 +10,15 @@ namespace {
 constexpr double kNsToSec = 1e-9;
 }
 
-ImuPreintegration::ImuPreintegration(const Eigen::Vector3d& bias_acc,
+ImuPreintegration::ImuPreintegration(uint64_t               from_frame_id,
+                                     uint64_t               to_frame_id,
+                                     const Eigen::Vector3d& bias_acc,
                                      const Eigen::Vector3d& bias_gyr)
-  : ImuPreintegration(bias_acc, bias_gyr, Parameters{}) {}
+  : ImuPreintegration(from_frame_id, to_frame_id, bias_acc, bias_gyr, Parameters{}) {}
 
-ImuPreintegration::ImuPreintegration(const Eigen::Vector3d& bias_acc,
+ImuPreintegration::ImuPreintegration(uint64_t               from_frame_id,
+                                     uint64_t               to_frame_id,
+                                     const Eigen::Vector3d& bias_acc,
                                      const Eigen::Vector3d& bias_gyr,
                                      const Parameters&      parameters)
   : parameters_(parameters)
@@ -24,6 +28,8 @@ ImuPreintegration::ImuPreintegration(const Eigen::Vector3d& bias_acc,
   , delta_t_sec_(0.0)
   , bias_acc_(bias_acc)
   , bias_gyr_(bias_gyr)
+  , from_frame_id_(from_frame_id)
+  , to_frame_id_(to_frame_id)
   , jacobian_(Eigen::Matrix15d::Identity())
   , covariance_(Eigen::Matrix15d::Zero())
   , integration_steps_(0) {}
