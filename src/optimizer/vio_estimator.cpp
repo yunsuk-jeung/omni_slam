@@ -410,8 +410,8 @@ void VIOEstimator::OptimizeWindow(
 }
 
 void VIOEstimator::Marginalize(SlidingWindow*     window,
-                               std::set<uint64_t> marginal_kf_ids) {
-  if (!window || marginal_kf_ids.empty()) {
+                               std::set<uint64_t> marginal_frame_ids) {
+  if (!window || marginal_frame_ids.empty()) {
     return;
   }
 
@@ -419,7 +419,7 @@ void VIOEstimator::Marginalize(SlidingWindow*     window,
 
   std::set<uint64_t> remain_frame_ids;
   for (const uint64_t f_id : prev_frame_ids) {
-    if (marginal_kf_ids.count(f_id) == 0) {
+    if (marginal_frame_ids.count(f_id) == 0) {
       remain_frame_ids.insert(f_id);
     }
   }
@@ -429,7 +429,7 @@ void VIOEstimator::Marginalize(SlidingWindow*     window,
   std::vector<std::shared_ptr<MapPoint>> marginal_map_points;
   marginal_map_points.reserve(mp_id_to_mp.size());
   for (auto& [_, mp] : mp_id_to_mp) {
-    if (marginal_kf_ids.count(mp->GetHostFrameCamId().frame_id) > 0) {
+    if (marginal_frame_ids.count(mp->GetHostFrameCamId().frame_id) > 0) {
       marginal_map_points.push_back(mp);
     }
   }
@@ -437,7 +437,7 @@ void VIOEstimator::Marginalize(SlidingWindow*     window,
   for (const auto& mp : marginal_map_points) {
     auto& frame_cam_id_to_bearing = mp->GetObservation();
     for (const auto& [frame_cam_id, _] : frame_cam_id_to_bearing) {
-      if (marginal_kf_ids.count(frame_cam_id.frame_id) > 0) {
+      if (marginal_frame_ids.count(frame_cam_id.frame_id) > 0) {
         continue;
       }
       if (remain_frame_ids.count(frame_cam_id.frame_id) == 0) {
@@ -452,8 +452,8 @@ void VIOEstimator::Marginalize(SlidingWindow*     window,
   std::unordered_map<uint64_t, size_t> frame_id_to_index;
   auto*                                box_plus_manifold = new SE3BoxplusManifold();
 
-  pose_params.reserve(marginal_kf_ids.size() + remain_frame_ids.size());
-  for (const auto& frame_id : marginal_kf_ids) {
+  pose_params.reserve(marginal_frame_ids.size() + remain_frame_ids.size());
+  for (const auto& frame_id : marginal_frame_ids) {
     auto frame = window->GetFrame(frame_id);
     if (!frame) {
       continue;
@@ -509,7 +509,7 @@ void VIOEstimator::Marginalize(SlidingWindow*     window,
     problem.AddParameterBlock(bias_gyr_params[idx].data(), kInertialStateDim);
   };
 
-  for (const auto& frame_id : marginal_kf_ids) {
+  for (const auto& frame_id : marginal_frame_ids) {
     add_inertial_blocks(frame_id);
   }
   for (const auto& frame_id : remain_frame_ids) {
@@ -673,14 +673,13 @@ void VIOEstimator::Marginalize(SlidingWindow*     window,
 
   // Explicit parameter block ordering: [marginalize | keep]
   // Marginalize partition
-  for (const auto& frame_id : marginal_kf_ids) {
+  for (const auto& frame_id : marginal_frame_ids) {
     if (!frame_id_to_index.contains(frame_id)) {
       continue;
     }
-    eval_opts.parameter_blocks.push_back(
-      pose_params[frame_id_to_index[frame_id]].data());
+    eval_opts.parameter_blocks.push_back(pose_params[frame_id_to_index[frame_id]].data());
   }
-  for (const auto& frame_id : marginal_kf_ids) {
+  for (const auto& frame_id : marginal_frame_ids) {
     if (!frame_id_to_index.contains(frame_id)) {
       continue;
     }
@@ -712,8 +711,7 @@ void VIOEstimator::Marginalize(SlidingWindow*     window,
     if (!frame_id_to_index.contains(frame_id)) {
       continue;
     }
-    eval_opts.parameter_blocks.push_back(
-      pose_params[frame_id_to_index[frame_id]].data());
+    eval_opts.parameter_blocks.push_back(pose_params[frame_id_to_index[frame_id]].data());
   }
   if (keep_latest_inertial) {
     const size_t idx = frame_id_to_index[remain_latest_inertial_id];

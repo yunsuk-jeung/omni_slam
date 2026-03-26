@@ -350,25 +350,27 @@ void StereoVIO::Track(std::shared_ptr<Frame>&     frame,
   std::set<uint64_t> marginal_keyframe_ids;
   SelectMarginalFrames(marginal_none_keyframe_ids, marginal_keyframe_ids);
 
-  // remove none keyframes before marginalize
-  sliding_window_->RemoveFrames(marginal_none_keyframe_ids);
+  // todo: change logic to collect marginal frames in one container
+  std::set<uint64_t> marginal_frame_ids;
   for (const auto& id : marginal_none_keyframe_ids) {
-    inertial_states_.erase(id);
-    imu_preintegrations_.erase(id);
+    marginal_frame_ids.insert(id);
+  }
+  for (const auto& id : marginal_keyframe_ids) {
+    marginal_frame_ids.insert(id);
   }
 
   // marginalize
   {
     ScopedTimer timer("marginalize ");
-    estimator_->Marginalize(this->sliding_window_.get(), marginal_keyframe_ids);
+    estimator_->Marginalize(this->sliding_window_.get(), marginal_frame_ids);
   }
 
   // remove keyframe
   {
     ScopedTimer timer("remove keyframe");
-    sliding_window_->RemoveFrames(marginal_keyframe_ids);
+    sliding_window_->RemoveFrames(marginal_frame_ids);
 
-    for (const auto& id : marginal_keyframe_ids) {
+    for (const auto& id : marginal_frame_ids) {
       created_map_point_nums_.erase(id);
       inertial_states_.erase(id);
       imu_preintegrations_.erase(id);
