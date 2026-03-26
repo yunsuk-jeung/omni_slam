@@ -34,6 +34,7 @@ private:
 private:
   std::unique_ptr<Marginalizer> marginalizer_;
 
+  std::map<uint64_t, InertialState> inertial_states_by_frame_;
   std::map<uint64_t, ImuPreintegration> imu_factors_by_to_frame_;
 };
 

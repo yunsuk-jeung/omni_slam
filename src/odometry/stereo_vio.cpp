@@ -197,12 +197,11 @@ bool StereoVIO::Initialize(std::shared_ptr<Frame>&     frame,
   int created_map_point_num = InitializeMapPoints(frame);
 
   if (created_map_point_num < SVIOConfig::min_init_map_point_count) {
-    Logger::Warn(
-      "StereoVIO initialization failed at frame {} (map points: {}, required: {}), "
-      "resetting sliding window",
-      frame->GetId(),
-      created_map_point_num,
-      SVIOConfig::min_init_map_point_count);
+    Logger::Warn("StereoVIO initialization failed at frame {} (map points: {}, required: "
+                 "{}), resetting sliding window",
+                 frame->GetId(),
+                 created_map_point_num,
+                 SVIOConfig::min_init_map_point_count);
 
     sliding_window_->Clear();
     inertial_states_.clear();
@@ -247,7 +246,7 @@ bool StereoVIO::Initialize(std::shared_ptr<Frame>&     frame,
 
   new_keyframe_after_ = 0;
 
-  Logger::Info("stereoVIO initialized at frame {}, created_map_point",
+  Logger::Info("stereoVIO initialized at frame {}, map_point_count: {}",
                frame->GetId(),
                sliding_window_->GetMapPointCount());
 
