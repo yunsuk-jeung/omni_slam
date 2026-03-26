@@ -21,8 +21,8 @@
 
 namespace omni_slam {
 
-static constexpr int kPoseSize    = 6;
-static constexpr int kBearingSize = 3;
+static constexpr int      kPoseSize                   = 6;
+static constexpr int      kBearingSize                = 3;
 static constexpr uint64_t kMarginalizerInitialFrameId = 0;
 
 static void AddMarginalizationPriorIfAvailable(
@@ -115,8 +115,9 @@ void VOEstimator::OptimizeSingleFrame(std::shared_ptr<Frame> frame,
 }
 
 VOEstimator::VOEstimator()
-  : marginalizer_(std::make_unique<Marginalizer>(kMarginalizerInitialFrameId,
-                                                  SVOConfig::marginalizer_initial_prior_weight)) {}
+  : marginalizer_(
+      std::make_unique<Marginalizer>(kMarginalizerInitialFrameId,
+                                     SVOConfig::marginalizer_initial_prior_weight)) {}
 
 VOEstimator::~VOEstimator() {
   marginalizer_.reset();
@@ -130,7 +131,7 @@ void VOEstimator::OptimizeWindow(SlidingWindow* window) {
   const auto& frames     = window->GetFrames();
   const auto& map_points = window->GetMapPoints();
 
-  if (frames.size() < 3) {
+  if (frames.size() < 2) {
     return;
   }
 
@@ -203,9 +204,9 @@ void VOEstimator::OptimizeWindow(SlidingWindow* window) {
 
     const auto host_obs_it = observations.find(frame_cam_id0);
     if (host_obs_it != observations.end()) {
-      ceres::CostFunction* host_bearing_prior_cost = new BearingPriorCost(
-        host_obs_it->second,
-        SVOConfig::bearing_cost_scale);
+      ceres::CostFunction*
+        host_bearing_prior_cost = new BearingPriorCost(host_obs_it->second,
+                                                       SVOConfig::bearing_cost_scale);
       problem.AddResidualBlock(host_bearing_prior_cost, nullptr, bearing_param);
     }
 
@@ -374,9 +375,9 @@ void VOEstimator::Marginalize(SlidingWindow* window, std::set<uint64_t> marginal
 
     const auto host_obs_it = observations.find(frame_cam_id0);
     if (host_obs_it != observations.end()) {
-      ceres::CostFunction* host_bearing_prior_cost = new BearingPriorCost(
-        host_obs_it->second,
-        SVOConfig::bearing_cost_scale);
+      ceres::CostFunction*
+        host_bearing_prior_cost = new BearingPriorCost(host_obs_it->second,
+                                                       SVOConfig::bearing_cost_scale);
       problem.AddResidualBlock(host_bearing_prior_cost, bearing_loss, bearing_param);
     }
 

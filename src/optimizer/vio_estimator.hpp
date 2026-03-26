@@ -22,8 +22,8 @@ public:
   VIOEstimator();
   ~VIOEstimator();
 
-  void OptimizeWindow(SlidingWindow*                     window,
-                      std::map<uint64_t, InertialState>* inertial_states,
+  void OptimizeWindow(SlidingWindow*                               window,
+                      std::map<uint64_t, InertialState>*           inertial_states,
                       const std::map<uint64_t, ImuPreintegration>* imu_preintegrations);
   void Marginalize(SlidingWindow* window, std::set<uint64_t> marignal_keyframes);
 

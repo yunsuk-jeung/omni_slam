@@ -24,9 +24,9 @@
 namespace omni_slam {
 namespace {
 
-static constexpr int kPoseSize         = 6;
-static constexpr int kBearingSize      = 3;
-static constexpr int kInertialStateDim = 3;
+static constexpr int      kPoseSize                   = 6;
+static constexpr int      kBearingSize                = 3;
+static constexpr int      kInertialStateDim           = 3;
 static constexpr uint64_t kMarginalizerInitialFrameId = 0;
 
 static void AddMarginalizationPriorIfAvailable(
@@ -109,8 +109,9 @@ void VIOEstimator::OptimizeSingleFrame(std::shared_ptr<Frame> frame,
 }
 
 VIOEstimator::VIOEstimator()
-  : marginalizer_(std::make_unique<Marginalizer>(kMarginalizerInitialFrameId,
-                                                  SVIOConfig::marginalizer_initial_prior_weight))
+  : marginalizer_(
+      std::make_unique<Marginalizer>(kMarginalizerInitialFrameId,
+                                     SVIOConfig::marginalizer_initial_prior_weight))
   , imu_factors_by_to_frame_{} {}
 
 VIOEstimator::~VIOEstimator() = default;
@@ -178,8 +179,8 @@ void VIOEstimator::OptimizeWindow(
       if (preintegration.GetDeltaTimeSec() <= 0.0) {
         continue;
       }
-      const uint64_t to_frame_id = preintegration.GetToFrameId();
-      imu_factors_by_to_frame_.insert_or_assign(to_frame_id, preintegration);
+      imu_factors_by_to_frame_.insert_or_assign(preintegration.GetToFrameId(),
+                                                preintegration);
     }
   }
 

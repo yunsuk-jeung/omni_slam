@@ -287,9 +287,10 @@ void StereoVIO::Track(std::shared_ptr<Frame>&     frame,
       const Eigen::Vector3d v_w_b_j = predicted_inertial_state.v_w_b + g_w * dt_sec
                                       + T_w_b_i.so3() * preintegration.GetDeltaV();
       frame->SetTwb(Sophus::SE3d(R_w_b_j, t_w_b_j));
-      predicted_inertial_state.v_w_b       = v_w_b_j;
-      imu_preintegrations_.insert_or_assign(frame->GetId(), std::move(preintegration));
-      inertial_states_[frame->GetId()]     = predicted_inertial_state;
+      predicted_inertial_state.v_w_b = v_w_b_j;
+      imu_preintegrations_.insert_or_assign(preintegration.GetToFrameId(),
+                                            std::move(preintegration));
+      inertial_states_[frame->GetId()] = predicted_inertial_state;
     }
   }
   else {
