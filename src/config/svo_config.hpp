@@ -33,6 +33,7 @@ public:
   static int    window_num_threads;
   static double inv_dist_initial_value;
   static double inv_dist_min_value;
+  static double   marginalizer_initial_prior_weight;
 
   static std::vector<int>                 camera_models;
   static std::vector<std::vector<double>> camera_intrinsics;

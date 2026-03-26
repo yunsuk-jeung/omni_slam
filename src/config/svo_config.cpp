@@ -34,6 +34,7 @@ int                              SVOConfig::window_max_iterations         = 10;
 int                              SVOConfig::window_num_threads            = 2;
 double                           SVOConfig::inv_dist_initial_value        = 1e-3;
 double                           SVOConfig::inv_dist_min_value            = 1e-6;
+double                           SVOConfig::marginalizer_initial_prior_weight = 1e10;
 std::vector<int>                 SVOConfig::camera_models;
 std::vector<std::vector<double>> SVOConfig::camera_intrinsics;
 std::vector<std::vector<double>> SVOConfig::camera_distortions;
@@ -152,6 +153,8 @@ void SVOConfig::ParseConfig(const std::string& file) {
   window_num_threads     = config.value("window_num_threads", window_num_threads);
   inv_dist_initial_value = config.value("inv_dist_initial_value", inv_dist_initial_value);
   inv_dist_min_value     = config.value("inv_dist_min_value", inv_dist_min_value);
+  marginalizer_initial_prior_weight = config.value("marginalizer_initial_prior_weight",
+                                                   marginalizer_initial_prior_weight);
 
   if (bearing_huber_const <= 0.0) {
     bearing_huber_const = 0.01;
@@ -179,6 +182,10 @@ void SVOConfig::ParseConfig(const std::string& file) {
   }
   if (inv_dist_initial_value <= inv_dist_min_value) {
     inv_dist_initial_value = inv_dist_min_value * 10.0;
+  }
+  if (!std::isfinite(marginalizer_initial_prior_weight)
+      || marginalizer_initial_prior_weight <= 0.0) {
+    marginalizer_initial_prior_weight = 1e10;
   }
 
   camera_models.clear();
@@ -232,6 +239,8 @@ void SVOConfig::ParseConfig(const std::string& file) {
     Logger::Info("SVOConfig.window_num_threads: {}", window_num_threads);
     Logger::Info("SVOConfig.inv_dist_initial_value: {}", inv_dist_initial_value);
     Logger::Info("SVOConfig.inv_dist_min_value: {}", inv_dist_min_value);
+    Logger::Info("SVOConfig.marginalizer_initial_prior_weight: {}",
+                 marginalizer_initial_prior_weight);
     Logger::Info("SVOConfig.camera_models: {}", camera_models.size());
   }
 }

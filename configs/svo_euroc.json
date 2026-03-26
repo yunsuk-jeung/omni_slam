@@ -24,6 +24,7 @@
   "window_num_threads": 2,
   "inv_dist_initial_value": 0.001,
   "inv_dist_min_value": 0.000001,
+  "marginalizer_initial_prior_weight": 10000000000.0,
 
   "cam0": {
     "camera_model": 0,

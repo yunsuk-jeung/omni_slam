@@ -65,14 +65,13 @@ private:
 
 class Marginalizer {
 public:
-  static constexpr int      kPoseSize           = 6;
-  static constexpr uint64_t kInitialFrameId     = 0;
-  static constexpr double   kInitialPriorWeight = 1e10;
+  static constexpr int kPoseSize = 6;
 
-  Marginalizer() {
-    frame_ids_.insert(kInitialFrameId);
+  Marginalizer(uint64_t initial_frame_id, double initial_prior_weight) {
+    frame_ids_.insert(initial_frame_id);
     x0_ = Eigen::VectorXd::Zero(kPoseSize);
-    J_ = std::sqrt(kInitialPriorWeight) * Eigen::MatrixXd::Identity(kPoseSize, kPoseSize);
+    J_  = std::sqrt(initial_prior_weight)
+         * Eigen::MatrixXd::Identity(kPoseSize, kPoseSize);
     r_ = Eigen::VectorXd::Zero(kPoseSize);
   }
   ~Marginalizer() = default;
@@ -126,5 +125,6 @@ private:
   Eigen::VectorXd x0_;
 
   std::set<uint64_t> frame_ids_;
+  std::set<uint64_t> preintegration_ids_;
 };
 }  // namespace omni_slam

@@ -3,6 +3,7 @@
 #include <ceres/ceres.h>
 
 #include <algorithm>
+#include <cstdint>
 #include <cmath>
 #include <unordered_map>
 #include <vector>
@@ -26,6 +27,7 @@ namespace {
 static constexpr int kPoseSize         = 6;
 static constexpr int kBearingSize      = 3;
 static constexpr int kInertialStateDim = 3;
+static constexpr uint64_t kMarginalizerInitialFrameId = 0;
 
 static void AddMarginalizationPriorIfAvailable(
   ceres::Problem&                             problem,
@@ -107,7 +109,8 @@ void VIOEstimator::OptimizeSingleFrame(std::shared_ptr<Frame> frame,
 }
 
 VIOEstimator::VIOEstimator()
-  : marginalizer_(std::make_unique<Marginalizer>())
+  : marginalizer_(std::make_unique<Marginalizer>(kMarginalizerInitialFrameId,
+                                                  SVIOConfig::marginalizer_initial_prior_weight))
   , imu_factors_by_to_frame_{} {}
 
 VIOEstimator::~VIOEstimator() = default;

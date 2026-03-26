@@ -1,6 +1,7 @@
 #include <ceres/ceres.h>
 
 #include <algorithm>
+#include <cstdint>
 #include <cmath>
 #include <unordered_map>
 #include <vector>
@@ -22,6 +23,7 @@ namespace omni_slam {
 
 static constexpr int kPoseSize    = 6;
 static constexpr int kBearingSize = 3;
+static constexpr uint64_t kMarginalizerInitialFrameId = 0;
 
 static void AddMarginalizationPriorIfAvailable(
   ceres::Problem&                             problem,
@@ -112,9 +114,9 @@ void VOEstimator::OptimizeSingleFrame(std::shared_ptr<Frame> frame,
   frame->SetTwb(SE3BoxplusManifold::FromParams(box_w_b.data()));
 }
 
-VOEstimator::VOEstimator() {
-  marginalizer_ = std::make_unique<Marginalizer>();
-}
+VOEstimator::VOEstimator()
+  : marginalizer_(std::make_unique<Marginalizer>(kMarginalizerInitialFrameId,
+                                                  SVOConfig::marginalizer_initial_prior_weight)) {}
 
 VOEstimator::~VOEstimator() {
   marginalizer_.reset();
