@@ -317,11 +317,11 @@ void StereoVIO::Track(std::shared_ptr<Frame>&     frame,
     ++new_keyframe_after_;
   }
 
-  // single frame pose estimation
-  {
-    ScopedTimer timer("optimize_frame");
-    VIOEstimator::OptimizeSingleFrame(frame, this->sliding_window_.get());
-  }
+  // // single frame pose estimation
+  // {
+  //   ScopedTimer timer("optimize_frame");
+  //   VIOEstimator::OptimizeSingleFrame(frame, this->sliding_window_.get());
+  // }
 
   // sliding window bundle
   {
