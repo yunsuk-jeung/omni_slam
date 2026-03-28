@@ -3,9 +3,9 @@
 #include <ceres/crs_matrix.h>
 #include <Eigen/Dense>
 
-namespace omni_slam {
+namespace omni_slam::CeresUtil {
 
-static bool TransposeCRSMatrix(const ceres::CRSMatrix& J, ceres::CRSMatrix& Jt) {
+inline bool TransposeCRSMatrix(const ceres::CRSMatrix& J, ceres::CRSMatrix& Jt) {
   const int num_rows = J.num_rows;
   const int num_cols = J.num_cols;
   const int nnz      = static_cast<int>(J.values.size());
@@ -67,7 +67,7 @@ static bool TransposeCRSMatrix(const ceres::CRSMatrix& J, ceres::CRSMatrix& Jt) 
   return true;
 }
 
-static bool CreateHessianFromCRSMatrix(const ceres::CRSMatrix&    crsJ,
+inline bool CreateHessianFromCRSMatrix(const ceres::CRSMatrix&    crsJ,
                                        const std::vector<double>& res,
                                        Eigen::MatrixXd&           H,
                                        Eigen::VectorXd&           JtR) {
@@ -158,4 +158,4 @@ static bool CreateHessianFromCRSMatrix(const ceres::CRSMatrix&    crsJ,
   }
   return true;
 }
-}  // namespace omni_slam
+}  // namespace omni_slam::CeresUtil

@@ -20,8 +20,8 @@ public:
   void start() { start_time_ = Clock::now(); }
 
   double stopMs() const {
-    const auto end_time = Clock::now();
-    const std::chrono::duration<double, std::milli> ms = end_time - start_time_;
+    const auto                                      end_time = Clock::now();
+    const std::chrono::duration<double, std::milli> ms       = end_time - start_time_;
     return ms.count();
   }
 
@@ -40,14 +40,12 @@ struct TimerElement {
 
 class Statistics {
 public:
-  static void startTimer(const std::string& name) {
-    getOrCreate(name).timer.start();
-  }
+  static void startTimer(const std::string& name) { getOrCreate(name).timer.start(); }
 
   static double stopTimer(const std::string& name) {
-    auto& elem = getOrCreate(name);
-    const double ms = elem.timer.stopMs();
-    elem.last_time = ms;
+    auto&        elem = getOrCreate(name);
+    const double ms   = elem.timer.stopMs();
+    elem.last_time    = ms;
     elem.call_count++;
     elem.total_time += ms;
     if (ms < elem.min_time) {
@@ -129,7 +127,7 @@ private:
       return;
     }
 
-    const auto& e = it->second;
+    const auto&  e    = it->second;
     const double mean = (e.call_count == 0) ? 0.0 : (e.total_time / e.call_count);
     const double min  = (e.call_count == 0) ? 0.0 : e.min_time;
     const double max  = (e.call_count == 0) ? 0.0 : e.max_time;
@@ -147,7 +145,8 @@ private:
 
 class ScopedTimer {
 public:
-  explicit ScopedTimer(std::string name) : name_(std::move(name)) {
+  explicit ScopedTimer(std::string name)
+    : name_(std::move(name)) {
     Statistics::startTimer(name_);
   }
 

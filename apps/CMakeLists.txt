@@ -23,24 +23,24 @@ if(BUILD_TYPE_LOWER STREQUAL "relwithdebinfo")
 endif()
 
 if(OMNI_BUILD_STEREO_VO)
-  add_executable(stereo_svo
+  add_executable(stereo_vo
     ${CMAKE_SOURCE_DIR}/apps/run_svo.cpp
   )
-  target_include_directories(stereo_svo PRIVATE ${OpenCV_INCLUDE_DIRS})
-  target_link_libraries(stereo_svo omni_utils omni_device svo ${OpenCV_LIBS} rerun_sdk)
-  target_compile_options(stereo_svo PRIVATE
+  target_include_directories(stereo_vo PRIVATE ${OpenCV_INCLUDE_DIRS})
+  target_link_libraries(stereo_vo omni_utils omni_device svo ${OpenCV_LIBS} rerun_sdk)
+  target_compile_options(stereo_vo PRIVATE
     $<$<CONFIG:Release>:-O3>
     $<$<CONFIG:RelWithDebInfo>:-O2>
   )
 endif()
 
 if(OMNI_BUILD_STEREO_VIO)
-  add_executable(stereo_svio
+  add_executable(stereo_vio
     ${CMAKE_SOURCE_DIR}/apps/run_svio.cpp
   )
-  target_include_directories(stereo_svio PRIVATE ${OpenCV_INCLUDE_DIRS})
-  target_link_libraries(stereo_svio omni_utils omni_device svio ${OpenCV_LIBS} rerun_sdk)
-  target_compile_options(stereo_svio PRIVATE
+  target_include_directories(stereo_vio PRIVATE ${OpenCV_INCLUDE_DIRS})
+  target_link_libraries(stereo_vio omni_utils omni_device svio ${OpenCV_LIBS} rerun_sdk)
+  target_compile_options(stereo_vio PRIVATE
     $<$<CONFIG:Release>:-O3>
     $<$<CONFIG:RelWithDebInfo>:-O2>
   )

@@ -1,5 +1,6 @@
-#include "svo_config.hpp"
+#include "config/svo_config.hpp"
 
+#include <cmath>
 #include <fstream>
 
 #include <nlohmann/json.hpp>
@@ -9,29 +10,31 @@
 #include "camera_model/camera_model.hpp"
 
 namespace omni_slam {
-bool                             SVOConfig::debug                         = false;
-bool                             SVOConfig::tbb                           = true;
-bool                             SVOConfig::equalize_histogram            = false;
-double                           SVOConfig::clahe_clip_limit              = 3.0;
-int                              SVOConfig::clahe_tile_size               = 8;
-int                              SVOConfig::optical_flow_patch_size       = 21;
-float                            SVOConfig::optical_flow_dist_threshold   = 5.0;
-int                              SVOConfig::fast_threshold                = 20;
-int                              SVOConfig::feature_grid_rows             = 4;
-int                              SVOConfig::feature_grid_cols             = 4;
-int                              SVOConfig::max_pyramid_level             = 3;
-size_t                           SVOConfig::max_keyframe_size             = 8;
-float                            SVOConfig::keyframe_min_mp_ratio         = 0.8f;
-size_t                           SVOConfig::min_init_map_point_count      = 20;
-float                            SVOConfig::marg_feature_connection_ratio = 0.2f;
-int                              SVOConfig::new_keyframe_after            = 1;
-double                           SVOConfig::triangulation_dist_threshold  = 0.0025;
-double                           SVOConfig::bearing_huber_const           = 0.01;
-int                              SVOConfig::single_frame_max_iterations   = 10;
-int                              SVOConfig::window_max_iterations         = 10;
-int                              SVOConfig::window_num_threads            = 2;
-double                           SVOConfig::inv_dist_initial_value        = 1e-3;
-double                           SVOConfig::inv_dist_min_value            = 1e-6;
+bool                             SVOConfig::debug                             = false;
+bool                             SVOConfig::tbb                               = true;
+bool                             SVOConfig::equalize_histogram                = false;
+double                           SVOConfig::clahe_clip_limit                  = 3.0;
+int                              SVOConfig::clahe_tile_size                   = 8;
+int                              SVOConfig::optical_flow_patch_size           = 21;
+float                            SVOConfig::optical_flow_dist_threshold       = 5.0;
+int                              SVOConfig::fast_threshold                    = 20;
+int                              SVOConfig::feature_grid_rows                 = 4;
+int                              SVOConfig::feature_grid_cols                 = 4;
+int                              SVOConfig::max_pyramid_level                 = 3;
+size_t                           SVOConfig::max_keyframe_size                 = 8;
+float                            SVOConfig::keyframe_min_mp_ratio             = 0.8f;
+size_t                           SVOConfig::min_init_map_point_count          = 20;
+float                            SVOConfig::marg_feature_connection_ratio     = 0.2f;
+int                              SVOConfig::new_keyframe_after                = 1;
+double                           SVOConfig::triangulation_dist_threshold      = 0.0025;
+double                           SVOConfig::bearing_huber_const               = 0.01;
+double                           SVOConfig::bearing_cost_scale                = 1.0;
+int                              SVOConfig::single_frame_max_iterations       = 10;
+int                              SVOConfig::window_max_iterations             = 10;
+int                              SVOConfig::window_num_threads                = 2;
+double                           SVOConfig::inv_dist_initial_value            = 1e-3;
+double                           SVOConfig::inv_dist_min_value                = 1e-6;
+double                           SVOConfig::marginalizer_initial_prior_weight = 1e10;
 std::vector<int>                 SVOConfig::camera_models;
 std::vector<std::vector<double>> SVOConfig::camera_intrinsics;
 std::vector<std::vector<double>> SVOConfig::camera_distortions;
@@ -141,15 +144,23 @@ void SVOConfig::ParseConfig(const std::string& file) {
                                                marg_feature_connection_ratio);
   new_keyframe_after            = config.value("new_keyframe_after", new_keyframe_after);
   bearing_huber_const         = config.value("bearing_huber_const", bearing_huber_const);
+  bearing_cost_scale          = config.value("bearing_cost_scale",
+                                    config.value("beraing_cost_scale",
+                                                 bearing_cost_scale));
   single_frame_max_iterations = config.value("single_frame_max_iterations",
                                              single_frame_max_iterations);
   window_max_iterations  = config.value("window_max_iterations", window_max_iterations);
   window_num_threads     = config.value("window_num_threads", window_num_threads);
   inv_dist_initial_value = config.value("inv_dist_initial_value", inv_dist_initial_value);
   inv_dist_min_value     = config.value("inv_dist_min_value", inv_dist_min_value);
+  marginalizer_initial_prior_weight = config.value("marginalizer_initial_prior_weight",
+                                                   marginalizer_initial_prior_weight);
 
   if (bearing_huber_const <= 0.0) {
     bearing_huber_const = 0.01;
+  }
+  if (!std::isfinite(bearing_cost_scale) || bearing_cost_scale <= 0.0) {
+    bearing_cost_scale = 1.0;
   }
   if (bearing_huber_const <= 0.0) {
     bearing_huber_const = 0.01;
@@ -171,6 +182,10 @@ void SVOConfig::ParseConfig(const std::string& file) {
   }
   if (inv_dist_initial_value <= inv_dist_min_value) {
     inv_dist_initial_value = inv_dist_min_value * 10.0;
+  }
+  if (!std::isfinite(marginalizer_initial_prior_weight)
+      || marginalizer_initial_prior_weight <= 0.0) {
+    marginalizer_initial_prior_weight = 1e10;
   }
 
   camera_models.clear();
@@ -217,12 +232,15 @@ void SVOConfig::ParseConfig(const std::string& file) {
                  marg_feature_connection_ratio);
     Logger::Info("SVOConfig.new_keyframe_after: {}", new_keyframe_after);
     Logger::Info("SVOConfig.bearing_huber_const: {}", bearing_huber_const);
+    Logger::Info("SVOConfig.bearing_cost_scale: {}", bearing_cost_scale);
     Logger::Info("SVOConfig.single_frame_max_iterations: {}",
                  single_frame_max_iterations);
     Logger::Info("SVOConfig.window_max_iterations: {}", window_max_iterations);
     Logger::Info("SVOConfig.window_num_threads: {}", window_num_threads);
     Logger::Info("SVOConfig.inv_dist_initial_value: {}", inv_dist_initial_value);
     Logger::Info("SVOConfig.inv_dist_min_value: {}", inv_dist_min_value);
+    Logger::Info("SVOConfig.marginalizer_initial_prior_weight: {}",
+                 marginalizer_initial_prior_weight);
     Logger::Info("SVOConfig.camera_models: {}", camera_models.size());
   }
 }

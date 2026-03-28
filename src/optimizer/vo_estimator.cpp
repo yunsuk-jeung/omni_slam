@@ -1,6 +1,7 @@
 #include <ceres/ceres.h>
 
 #include <algorithm>
+#include <cstdint>
 #include <cmath>
 #include <unordered_map>
 #include <vector>
@@ -20,8 +21,9 @@
 
 namespace omni_slam {
 
-static constexpr int kPoseSize    = 6;
-static constexpr int kBearingSize = 3;
+static constexpr int      kPoseSize                   = 6;
+static constexpr int      kBearingSize                = 3;
+static constexpr uint64_t kMarginalizerInitialFrameId = 0;
 
 static void AddMarginalizationPriorIfAvailable(
   ceres::Problem&                             problem,
@@ -54,8 +56,9 @@ void VOEstimator::OptimizeSingleFrame(std::shared_ptr<Frame> frame,
 
   Eigen::Vector6d box_w_b = SE3BoxplusManifold::ToParams(frame->GetTwb());
 
-  ceres::Problem problem;
-  problem.AddParameterBlock(box_w_b.data(), kPoseSize);
+  ceres::Problem      problem;
+  SE3BoxplusManifold* se3_box_plus_manifold = new SE3BoxplusManifold();
+  problem.AddParameterBlock(box_w_b.data(), kPoseSize, se3_box_plus_manifold);
 
   auto& mp_id_to_bearing = frame->GetObservation(kCamIdx);
 
@@ -79,7 +82,10 @@ void VOEstimator::OptimizeSingleFrame(std::shared_ptr<Frame> frame,
     const Eigen::Vector3d p_w = Twc0 * p_c0;
 
     // bearing residual (pose-only)
-    ceres::CostFunction* cost = new PoseOnlyBearingCost(p_w, bearing, T_b_c);
+    ceres::CostFunction* cost = new PoseOnlyBearingCost(p_w,
+                                                        bearing,
+                                                        T_b_c,
+                                                        SVOConfig::bearing_cost_scale);
 
     // auto* cost = new ceres::AutoDiffCostFunction<PoseOnlyBearingCostAuto,
     //                                              2,  // residual dim
@@ -108,9 +114,10 @@ void VOEstimator::OptimizeSingleFrame(std::shared_ptr<Frame> frame,
   frame->SetTwb(SE3BoxplusManifold::FromParams(box_w_b.data()));
 }
 
-VOEstimator::VOEstimator() {
-  marginalizer_ = std::make_unique<Marginalizer>();
-}
+VOEstimator::VOEstimator()
+  : marginalizer_(
+      std::make_unique<Marginalizer>(kMarginalizerInitialFrameId,
+                                     SVOConfig::marginalizer_initial_prior_weight)) {}
 
 VOEstimator::~VOEstimator() {
   marginalizer_.reset();
@@ -124,7 +131,7 @@ void VOEstimator::OptimizeWindow(SlidingWindow* window) {
   const auto& frames     = window->GetFrames();
   const auto& map_points = window->GetMapPoints();
 
-  if (frames.size() < 3) {
+  if (frames.size() < 2) {
     return;
   }
 
@@ -197,8 +204,9 @@ void VOEstimator::OptimizeWindow(SlidingWindow* window) {
 
     const auto host_obs_it = observations.find(frame_cam_id0);
     if (host_obs_it != observations.end()) {
-      ceres::CostFunction* host_bearing_prior_cost = new BearingPriorCost(
-        host_obs_it->second);
+      ceres::CostFunction*
+        host_bearing_prior_cost = new BearingPriorCost(host_obs_it->second,
+                                                       SVOConfig::bearing_cost_scale);
       problem.AddResidualBlock(host_bearing_prior_cost, nullptr, bearing_param);
     }
 
@@ -214,11 +222,17 @@ void VOEstimator::OptimizeWindow(SlidingWindow* window) {
       ceres::LossFunction* loss = new ceres::HuberLoss(SVOConfig::bearing_huber_const);
       if (frame_cam_id0.frame_id == frame_cam_id1.frame_id) {
         // Stereo within the same frame: use a single pose parameter block.
-        ceres::CostFunction* cost = new BearingStereoCost(bearing, T_b_c1, T_b_c0);
+        ceres::CostFunction* cost = new BearingStereoCost(bearing,
+                                                          T_b_c1,
+                                                          T_b_c0,
+                                                          SVOConfig::bearing_cost_scale);
         problem.AddResidualBlock(cost, loss, bearing_param, inv_dist_param);
       }
       else {
-        ceres::CostFunction* cost = new BearingCost(bearing, T_b_c1, T_b_c0);
+        ceres::CostFunction* cost = new BearingCost(bearing,
+                                                    T_b_c1,
+                                                    T_b_c0,
+                                                    SVOConfig::bearing_cost_scale);
         problem.AddResidualBlock(cost,
                                  loss,
                                  pose_param1,
@@ -361,8 +375,9 @@ void VOEstimator::Marginalize(SlidingWindow* window, std::set<uint64_t> marginal
 
     const auto host_obs_it = observations.find(frame_cam_id0);
     if (host_obs_it != observations.end()) {
-      ceres::CostFunction* host_bearing_prior_cost = new BearingPriorCost(
-        host_obs_it->second);
+      ceres::CostFunction*
+        host_bearing_prior_cost = new BearingPriorCost(host_obs_it->second,
+                                                       SVOConfig::bearing_cost_scale);
       problem.AddResidualBlock(host_bearing_prior_cost, bearing_loss, bearing_param);
     }
 
@@ -377,11 +392,17 @@ void VOEstimator::Marginalize(SlidingWindow* window, std::set<uint64_t> marginal
 
       if (frame_cam_id0.frame_id == frame_cam_id1.frame_id) {
         // Stereo within the same frame: use a single pose parameter block.
-        ceres::CostFunction* cost = new BearingStereoCost(bearing, T_b_c1, T_b_c0);
+        ceres::CostFunction* cost = new BearingStereoCost(bearing,
+                                                          T_b_c1,
+                                                          T_b_c0,
+                                                          SVOConfig::bearing_cost_scale);
         problem.AddResidualBlock(cost, bearing_loss, bearing_param, inv_dist_param);
       }
       else {
-        ceres::CostFunction* cost = new BearingCost(bearing, T_b_c1, T_b_c0);
+        ceres::CostFunction* cost = new BearingCost(bearing,
+                                                    T_b_c1,
+                                                    T_b_c0,
+                                                    SVOConfig::bearing_cost_scale);
         problem.AddResidualBlock(cost,
                                  bearing_loss,
                                  pose_param1,
@@ -402,7 +423,7 @@ void VOEstimator::Marginalize(SlidingWindow* window, std::set<uint64_t> marginal
 
   Eigen::MatrixXd H;
   Eigen::VectorXd Jt_R;
-  CreateHessianFromCRSMatrix(ceres_J, residuals, H, Jt_R);
+  CeresUtil::CreateHessianFromCRSMatrix(ceres_J, residuals, H, Jt_R);
   Statistics::stopTimer("marginalize eval");
 
   H = 0.5 * (H + H.transpose());

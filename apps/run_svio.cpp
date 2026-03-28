@@ -117,7 +117,7 @@ int main(int argc, char** argv) {
   }
 
   omni_slam::StereoVIO  stereo_vio;
-  std::filesystem::path config_path = project_root / "configs/svo_euroc.json";
+  std::filesystem::path config_path = project_root / "configs/svio_euroc.json";
 
   if (!stereo_vio.Setup(config_path.string())) {
     LogE("Failed to initialize SVIO pipeline");
@@ -130,14 +130,13 @@ int main(int argc, char** argv) {
   omni_slam::DatasetSimulator simulator(loader);
   simulator.SetCameraCallback(
     [&stereo_vio](int64_t                                        timestamp_ns,
-                 const std::vector<cv::Mat>&                    images,
-                 const std::vector<omni_slam::CameraParameter>& camera_parameters) {
+                  const std::vector<cv::Mat>&                    images,
+                  const std::vector<omni_slam::CameraParameter>& camera_parameters) {
       stereo_vio.OnCameraFrame(timestamp_ns, images, camera_parameters);
     });
-  simulator.SetImuCallback(
-    [&stereo_vio](const omni_slam::ImuData& imu_data) {
-      stereo_vio.OnImuData(imu_data);
-    });
+  simulator.SetImuCallback([&stereo_vio](const omni_slam::ImuData& imu_data) {
+    stereo_vio.OnImuData(imu_data);
+  });
 
   simulator.Start();
   stereo_vio.Run();

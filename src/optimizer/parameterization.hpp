@@ -4,10 +4,11 @@
 #include <sophus/se3.hpp>
 
 #include "utils/eigen_utils.hpp"
+#include "utils/sophus_utils.hpp"
 
 namespace omni_slam {
 
-// Boxplus update: t += dt, R = Exp(dtheta) * R
+// Boxplus update: t += dt, R = R * Exp(dtheta)
 class SE3BoxplusManifold final : public ceres::Manifold {
 public:
   static constexpr int kAmbientSize = 6;
@@ -23,7 +24,7 @@ public:
     Eigen::Map<const Eigen::Vector3d> dtheta(delta + 3);
 
     const Sophus::SO3d R     = Sophus::SO3d::exp(so3);
-    const Sophus::SO3d R_new = Sophus::SO3d::exp(dtheta) * R;
+    const Sophus::SO3d R_new = R * Sophus::SO3d::exp(dtheta);
 
     Eigen::Map<Eigen::Vector3d> t_out(x_plus_delta);
     Eigen::Map<Eigen::Vector3d> so3_out(x_plus_delta + 3);
@@ -38,7 +39,7 @@ public:
 
     J.setZero();
     J.topLeftCorner<3, 3>().setIdentity();  // ∂t_new/∂dt = I
-    J.bottomRightCorner<3, 3>() = Sophus::SO3d::leftJacobianInverse(
+    J.bottomRightCorner<3, 3>() = SophusUtils::SO3RightJacobianInverse(
       so3);  // ∂so3_new/∂dtheta
     return true;
   }
@@ -55,7 +56,7 @@ public:
     Eigen::Map<Eigen::Vector3d> dt(y_minus_x);
     Eigen::Map<Eigen::Vector3d> dtheta(y_minus_x + 3);
     dt     = t_y - t_x;
-    dtheta = (R_y * R_x.inverse()).log();
+    dtheta = (R_x.inverse() * R_y).log();
     return true;
   }
 
@@ -64,9 +65,9 @@ public:
     Eigen::Map<Eigen::Matrix<double, 6, 6, Eigen::RowMajor>> J(jacobian);
 
     J.setZero();
-    J.topLeftCorner<3, 3>()     = -Eigen::Matrix3d::Identity();  // ∂dt/∂t_x = -I
-    J.bottomRightCorner<3, 3>() = -Sophus::SO3d::leftJacobianInverse(
-      so3_x);  // ∂dtheta/∂so3_x
+    J.topLeftCorner<3, 3>()     = Eigen::Matrix3d::Identity();  // ∂dt/∂t_y = I
+    J.bottomRightCorner<3, 3>() = SophusUtils::SO3RightJacobian(
+      so3_x);  // ∂dtheta/∂so3_y = Jr(so3_x)
     return true;
   }
 
@@ -100,7 +101,7 @@ public:
 
     // tangent basis at f
     Eigen::Matrix<double, 3, 2> B;
-    TangentBasis(f, B);
+    EigenUtil::TangentBasis(f, B);
 
     // lift 2D delta → 3D tangent vector
     Eigen::Vector3d w = B * Eigen::Vector2d(delta[0], delta[1]);
@@ -125,7 +126,7 @@ public:
     Eigen::Vector3d f = Eigen::Map<const Eigen::Vector3d>(x).normalized();
 
     Eigen::Matrix<double, 3, 2> B;
-    TangentBasis(f, B);
+    EigenUtil::TangentBasis(f, B);
 
     // ∂(Exp(B·δ)·f)/∂δ|_{δ=0} = -[f]× B
     Eigen::Map<Eigen::Matrix<double, 3, 2, Eigen::RowMajor>> J(jacobian);
@@ -153,7 +154,7 @@ public:
 
     // Project onto 2D tangent coordinates
     Eigen::Matrix<double, 3, 2> B;
-    TangentBasis(fx, B);
+    EigenUtil::TangentBasis(fx, B);
 
     Eigen::Map<Eigen::Vector2d> delta(y_minus_x);
     delta = B.transpose() * w;
@@ -164,7 +165,7 @@ public:
     Eigen::Vector3d f = Eigen::Map<const Eigen::Vector3d>(x).normalized();
 
     Eigen::Matrix<double, 3, 2> B;
-    TangentBasis(f, B);
+    EigenUtil::TangentBasis(f, B);
 
     // ∂(y ⊟ x)/∂y|_{y=x} = Bᵀ [f]×
     Eigen::Map<Eigen::Matrix<double, 2, 3, Eigen::RowMajor>> J(jacobian);

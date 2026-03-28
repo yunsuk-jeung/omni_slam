@@ -36,8 +36,8 @@
       "description": "Build Stereo VO pipeline in Release mode",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
-        "OMNI_BUILD_VO": "ON",
-        "OMNI_BUILD_VIO": "OFF",
+        "OMNI_BUILD_STEREO_VO": "ON",
+        "OMNI_BUILD_STEREO_VIO": "OFF",
         "OMNI_BUILD_LIO": "OFF",
         "OMNI_BUILD_LOOP": "OFF",
         "OMNI_BUILD_TESTS": "OFF"
@@ -50,8 +50,8 @@
       "description": "Build Stereo VO pipeline in RelWithDebInfo mode",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "RelWithDebInfo",
-        "OMNI_BUILD_VO": "ON",
-        "OMNI_BUILD_VIO": "OFF",
+        "OMNI_BUILD_STEREO_VO": "ON",
+        "OMNI_BUILD_STEREO_VIO": "OFF",
         "OMNI_BUILD_LIO": "OFF",
         "OMNI_BUILD_LOOP": "OFF",
         "OMNI_BUILD_TESTS": "OFF"
@@ -64,10 +64,10 @@
       "description": "Build Stereo VIO pipeline in Debug mode",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "OMNI_BUILD_VO": "OFF",
-        "OMNI_BUILD_VIO": "ON",
+        "OMNI_BUILD_STEREO_VO": "OFF",
+        "OMNI_BUILD_STEREO_VIO": "ON",
         "OMNI_BUILD_LIO": "OFF",
-        "OMNI_BUILD_LOOP": "ON",
+        "OMNI_BUILD_LOOP": "OFF",
         "OMNI_BUILD_TESTS": "OFF"
       }
     },
@@ -78,10 +78,10 @@
       "description": "Build Stereo VIO pipeline in Release mode",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
-        "OMNI_BUILD_VO": "OFF",
-        "OMNI_BUILD_VIO": "ON",
+        "OMNI_BUILD_STEREO_VO": "OFF",
+        "OMNI_BUILD_STEREO_VIO": "ON",
         "OMNI_BUILD_LIO": "OFF",
-        "OMNI_BUILD_LOOP": "ON",
+        "OMNI_BUILD_LOOP": "OFF",
         "OMNI_BUILD_TESTS": "OFF"
       }
     },
@@ -92,10 +92,10 @@
       "description": "Build Stereo VIO pipeline in RelWithDebInfo mode",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "RelWithDebInfo",
-        "OMNI_BUILD_VO": "OFF",
-        "OMNI_BUILD_VIO": "ON",
+        "OMNI_BUILD_STEREO_VO": "OFF",
+        "OMNI_BUILD_STEREO_VIO": "ON",
         "OMNI_BUILD_LIO": "OFF",
-        "OMNI_BUILD_LOOP": "ON",
+        "OMNI_BUILD_LOOP": "OFF",
         "OMNI_BUILD_TESTS": "OFF"
       }
     },
@@ -106,10 +106,10 @@
       "description": "Build LIO pipeline in Debug mode",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "OMNI_BUILD_VO": "OFF",
-        "OMNI_BUILD_VIO": "OFF",
+        "OMNI_BUILD_STEREO_VO": "OFF",
+        "OMNI_BUILD_STEREO_VIO": "OFF",
         "OMNI_BUILD_LIO": "ON",
-        "OMNI_BUILD_LOOP": "ON"
+        "OMNI_BUILD_LOOP": "OFF"
       }
     },
     {
@@ -119,10 +119,10 @@
       "description": "Build LIO pipeline in Release mode",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
-        "OMNI_BUILD_VO": "OFF",
-        "OMNI_BUILD_VIO": "OFF",
+        "OMNI_BUILD_STEREO_VO": "OFF",
+        "OMNI_BUILD_STEREO_VIO": "OFF",
         "OMNI_BUILD_LIO": "ON",
-        "OMNI_BUILD_LOOP": "ON"
+        "OMNI_BUILD_LOOP": "OFF"
       }
     },
     {
@@ -132,10 +132,10 @@
       "description": "Build LIO pipeline in RelWithDebInfo mode",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "RelWithDebInfo",
-        "OMNI_BUILD_VO": "OFF",
-        "OMNI_BUILD_VIO": "OFF",
+        "OMNI_BUILD_STEREO_VO": "OFF",
+        "OMNI_BUILD_STEREO_VIO": "OFF",
         "OMNI_BUILD_LIO": "ON",
-        "OMNI_BUILD_LOOP": "ON"
+        "OMNI_BUILD_LOOP": "OFF"
       }
     },
     {
@@ -145,8 +145,8 @@
       "description": "Build all VO/VIO/LIO/LVIO pipelines in Debug mode",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "OMNI_BUILD_VO": "ON",
-        "OMNI_BUILD_VIO": "ON",
+        "OMNI_BUILD_STEREO_VO": "ON",
+        "OMNI_BUILD_STEREO_VIO": "ON",
         "OMNI_BUILD_LIO": "ON",
         "OMNI_BUILD_LOOP": "ON"
       }
@@ -158,8 +158,8 @@
       "description": "Build all VO/VIO/LIO/LVIO pipelines in Release mode",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
-        "OMNI_BUILD_VO": "ON",
-        "OMNI_BUILD_VIO": "ON",
+        "OMNI_BUILD_STEREO_VO": "ON",
+        "OMNI_BUILD_STEREO_VIO": "ON",
         "OMNI_BUILD_LIO": "ON",
         "OMNI_BUILD_LOOP": "ON"
       }
@@ -171,8 +171,8 @@
       "description": "Build all VO/VIO/LIO/LVIO pipelines in RelWithDebInfo mode",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "RelWithDebInfo",
-        "OMNI_BUILD_VO": "ON",
-        "OMNI_BUILD_VIO": "ON",
+        "OMNI_BUILD_STEREO_VO": "ON",
+        "OMNI_BUILD_STEREO_VIO": "ON",
         "OMNI_BUILD_LIO": "ON",
         "OMNI_BUILD_LOOP": "ON"
       }

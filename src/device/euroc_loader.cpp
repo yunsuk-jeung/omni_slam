@@ -262,7 +262,7 @@ bool EurocLoader::ParseImuCsv(const std::string& csv_path) {
       continue;
     }
 
-    // Parse line: timestamp,wx,wy,wz,ax,ay,az
+    // Parse line (EuRoC): timestamp,wx,wy,wz,ax,ay,az
     std::stringstream        ss(line);
     std::string              token;
     std::vector<std::string> tokens;
@@ -279,10 +279,10 @@ bool EurocLoader::ParseImuCsv(const std::string& csv_path) {
     try {
       ImuData imu;
       imu.t_ns = std::stoll(tokens[0]);
-      imu.acc  = Eigen::Vector3d(std::stod(tokens[1]),
+      imu.gyr  = Eigen::Vector3d(std::stod(tokens[1]),
                                 std::stod(tokens[2]),
                                 std::stod(tokens[3]));
-      imu.gyr  = Eigen::Vector3d(std::stod(tokens[4]),
+      imu.acc  = Eigen::Vector3d(std::stod(tokens[4]),
                                 std::stod(tokens[5]),
                                 std::stod(tokens[6]));
 

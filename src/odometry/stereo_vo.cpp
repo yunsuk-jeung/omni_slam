@@ -17,7 +17,6 @@
 #include "optimizer/vo_estimator.hpp"
 #include "odometry/sliding_window.hpp"
 #include "odometry/stereo_vo.hpp"
-#include "stereo_vo.hpp"
 
 namespace omni_slam {
 StereoVO::StereoVO()
@@ -172,13 +171,11 @@ void StereoVO::Track(std::shared_ptr<Frame>& frame) {
   ScopedTimer loop_timer("loop_timer_tracking");
 
   // use last frame's pose for initial pose
-  const auto& frame_ids = sliding_window_->GetFrameIds();
-  if (!frame_ids.empty()) {
-    const uint64_t         latest_id    = *frame_ids.rbegin();
-    std::shared_ptr<Frame> latest_frame = sliding_window_->GetFrame(latest_id);
-    if (latest_frame) {
-      frame->GetTwb() = latest_frame->GetTwb();
-    }
+  const auto&            frame_ids    = sliding_window_->GetFrameIds();
+  const uint64_t         latest_id    = *frame_ids.rbegin();
+  std::shared_ptr<Frame> latest_frame = sliding_window_->GetFrame(latest_id);
+  if (latest_frame) {
+    frame->GetTwb() = latest_frame->GetTwb();
   }
 
   sliding_window_->AddFrame(frame);
