@@ -12,6 +12,9 @@ class SVIOConfig : public SVOConfig {
 public:
   static void ParseConfig(const std::string& file);
 
+  // Initial prior weight for bias blocks in VIO marginalizer.
+  static double marginalizer_initial_bias_weight;
+
   // IMU calibration outputs (typically from kalibr/allan tools).
   static double                acc_noise_density;
   static double                gyr_noise_density;

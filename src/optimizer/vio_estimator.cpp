@@ -30,7 +30,6 @@ static constexpr int      kBearingSize                   = 3;
 static constexpr int      kInertialStateDim              = 3;
 static constexpr int      kInertialStateSize             = 3 * kInertialStateDim;
 static constexpr uint64_t kMarginalizerInitialFrameId    = 0;
-static constexpr double   kMarginalizerInitialBiasWeight = 100.0;
 
 static void AddMarginalizationPriorIfAvailable(
   ceres::Problem&                             problem,
@@ -163,7 +162,7 @@ VIOEstimator::VIOEstimator()
   : marginalizer_(
       std::make_unique<Marginalizer>(kMarginalizerInitialFrameId,
                                      SVIOConfig::marginalizer_initial_prior_weight,
-                                     kMarginalizerInitialBiasWeight))
+                                     SVIOConfig::marginalizer_initial_bias_weight))
   , inertial_states_by_frame_{}
   , imu_factors_by_to_frame_{} {}
 

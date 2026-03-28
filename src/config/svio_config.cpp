@@ -11,6 +11,7 @@
 
 namespace omni_slam {
 
+double                SVIOConfig::marginalizer_initial_bias_weight = 100.0;
 double                SVIOConfig::acc_noise_density        = 0.08;
 double                SVIOConfig::gyr_noise_density        = 0.004;
 double                SVIOConfig::acc_random_walk          = 0.0002;
@@ -101,6 +102,8 @@ void SVIOConfig::ParseConfig(const std::string& file) {
     imu_node = &config["imu"];
   }
 
+  marginalizer_initial_bias_weight = config.value("marginalizer_initial_bias_weight",
+                                                   marginalizer_initial_bias_weight);
   acc_noise_density        = ReadDoubleWithAliases(*imu_node,
                                                    {"acc_noise_density",
                                                     "accelerometer_noise_density",
@@ -133,8 +136,14 @@ void SVIOConfig::ParseConfig(const std::string& file) {
   acc_random_walk          = std::max(acc_random_walk, 1e-12);
   gyr_random_walk          = std::max(gyr_random_walk, 1e-12);
   imu_min_integration_dt_s = std::max(imu_min_integration_dt_s, 1e-9);
+  if (!std::isfinite(marginalizer_initial_bias_weight)
+      || marginalizer_initial_bias_weight <= 0.0) {
+    marginalizer_initial_bias_weight = 100.0;
+  }
 
   if (SVIOConfig::debug) {
+    Logger::Info("SVIOConfig.marginalizer_initial_bias_weight: {}",
+                 marginalizer_initial_bias_weight);
     Logger::Info("SVIOConfig.imu_acc_noise_density: {}", acc_noise_density);
     Logger::Info("SVIOConfig.imu_gyr_noise_density: {}", gyr_noise_density);
     Logger::Info("SVIOConfig.imu_acc_random_walk: {}", acc_random_walk);
