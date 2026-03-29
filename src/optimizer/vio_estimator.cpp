@@ -25,11 +25,11 @@
 namespace omni_slam {
 namespace {
 
-static constexpr int      kPoseSize                      = 6;
-static constexpr int      kBearingSize                   = 3;
-static constexpr int      kInertialStateDim              = 3;
-static constexpr int      kInertialStateSize             = 3 * kInertialStateDim;
-static constexpr uint64_t kMarginalizerInitialFrameId    = 0;
+static constexpr int      kPoseSize                   = 6;
+static constexpr int      kBearingSize                = 3;
+static constexpr int      kInertialStateDim           = 3;
+static constexpr int      kInertialStateSize          = 3 * kInertialStateDim;
+static constexpr uint64_t kMarginalizerInitialFrameId = 0;
 
 static void AddMarginalizationPriorIfAvailable(
   ceres::Problem&                             problem,

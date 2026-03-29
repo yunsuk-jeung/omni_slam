@@ -12,11 +12,11 @@
 namespace omni_slam {
 
 double                SVIOConfig::marginalizer_initial_bias_weight = 100.0;
-double                SVIOConfig::acc_noise_density        = 0.08;
-double                SVIOConfig::gyr_noise_density        = 0.004;
-double                SVIOConfig::acc_random_walk          = 0.0002;
-double                SVIOConfig::gyr_random_walk          = 0.00002;
-double                SVIOConfig::imu_min_integration_dt_s = 1e-6;
+double                SVIOConfig::acc_noise_density                = 0.08;
+double                SVIOConfig::gyr_noise_density                = 0.004;
+double                SVIOConfig::acc_random_walk                  = 0.0002;
+double                SVIOConfig::gyr_random_walk                  = 0.00002;
+double                SVIOConfig::imu_min_integration_dt_s         = 1e-6;
 const Eigen::Vector3d SVIOConfig::g_w = Eigen::Vector3d(0.0, 0.0, -9.81);
 
 namespace {
@@ -103,32 +103,32 @@ void SVIOConfig::ParseConfig(const std::string& file) {
   }
 
   marginalizer_initial_bias_weight = config.value("marginalizer_initial_bias_weight",
-                                                   marginalizer_initial_bias_weight);
-  acc_noise_density        = ReadDoubleWithAliases(*imu_node,
-                                                   {"acc_noise_density",
-                                                    "accelerometer_noise_density",
-                                                    "acc_noise_sigma"},
+                                                  marginalizer_initial_bias_weight);
+  acc_noise_density                = ReadDoubleWithAliases(*imu_node,
+                                                           {"acc_noise_density",
+                                                            "accelerometer_noise_density",
+                                                            "acc_noise_sigma"},
                                             acc_noise_density);
-  gyr_noise_density        = ReadDoubleWithAliases(*imu_node,
-                                                   {"gyr_noise_density",
-                                                    "gyro_noise_density",
-                                                    "gyroscope_noise_density",
-                                                    "gyr_noise_sigma"},
+  gyr_noise_density                = ReadDoubleWithAliases(*imu_node,
+                                                           {"gyr_noise_density",
+                                                            "gyro_noise_density",
+                                                            "gyroscope_noise_density",
+                                                            "gyr_noise_sigma"},
                                             gyr_noise_density);
-  acc_random_walk          = ReadDoubleWithAliases(*imu_node,
-                                                   {"acc_random_walk",
-                                                    "accelerometer_random_walk",
-                                                    "acc_bias_rw_sigma"},
+  acc_random_walk                  = ReadDoubleWithAliases(*imu_node,
+                                                           {"acc_random_walk",
+                                                            "accelerometer_random_walk",
+                                                            "acc_bias_rw_sigma"},
                                           acc_random_walk);
-  gyr_random_walk          = ReadDoubleWithAliases(*imu_node,
-                                                   {"gyr_random_walk",
-                                                    "gyro_random_walk",
-                                                    "gyroscope_random_walk",
-                                                    "gyr_bias_rw_sigma"},
+  gyr_random_walk                  = ReadDoubleWithAliases(*imu_node,
+                                                           {"gyr_random_walk",
+                                                            "gyro_random_walk",
+                                                            "gyroscope_random_walk",
+                                                            "gyr_bias_rw_sigma"},
                                           gyr_random_walk);
-  imu_min_integration_dt_s = ReadDoubleWithAliases(*imu_node,
-                                                   {"min_integration_dt_s",
-                                                    "integration_min_dt_s"},
+  imu_min_integration_dt_s         = ReadDoubleWithAliases(*imu_node,
+                                                           {"min_integration_dt_s",
+                                                            "integration_min_dt_s"},
                                                    imu_min_integration_dt_s);
 
   acc_noise_density        = std::max(acc_noise_density, 1e-12);
