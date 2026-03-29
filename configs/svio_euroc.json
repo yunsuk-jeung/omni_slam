@@ -12,6 +12,7 @@
   "max_pyramid_level": 3,
   "max_window": 10,
   "max_keyframe_size": 7,
+  "max_inertial_states": 3,
   "keyframe_min_mp_ratio": 0.2,
   "min_init_map_point_count": 20,
   "marg_feature_connection_ratio": 0.2,

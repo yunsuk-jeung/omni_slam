@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <string>
 
 #include <Eigen/Core>
@@ -11,6 +12,9 @@ namespace omni_slam {
 class SVIOConfig : public SVOConfig {
 public:
   static void ParseConfig(const std::string& file);
+
+  // Maximum number of inertial states kept during VIO optimization.
+  static size_t max_inertial_states;
 
   // Initial prior weight for bias blocks in VIO marginalizer.
   static double marginalizer_initial_bias_weight;

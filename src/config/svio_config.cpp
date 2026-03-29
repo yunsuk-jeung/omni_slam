@@ -11,6 +11,7 @@
 
 namespace omni_slam {
 
+size_t                SVIOConfig::max_inertial_states                = 3;
 double                SVIOConfig::marginalizer_initial_bias_weight = 100.0;
 double                SVIOConfig::acc_noise_density                = 0.08;
 double                SVIOConfig::gyr_noise_density                = 0.004;
@@ -104,6 +105,9 @@ void SVIOConfig::ParseConfig(const std::string& file) {
 
   marginalizer_initial_bias_weight = config.value("marginalizer_initial_bias_weight",
                                                   marginalizer_initial_bias_weight);
+  max_inertial_states              = ReadSizeTWithAliases(config,
+                                             {"max_inertial_states"},
+                                             max_inertial_states);
   acc_noise_density                = ReadDoubleWithAliases(*imu_node,
                                                            {"acc_noise_density",
                                                             "accelerometer_noise_density",
@@ -140,8 +144,12 @@ void SVIOConfig::ParseConfig(const std::string& file) {
       || marginalizer_initial_bias_weight <= 0.0) {
     marginalizer_initial_bias_weight = 100.0;
   }
+  if (max_inertial_states < 1) {
+    max_inertial_states = 1;
+  }
 
   if (SVIOConfig::debug) {
+    Logger::Info("SVIOConfig.max_inertial_states: {}", max_inertial_states);
     Logger::Info("SVIOConfig.marginalizer_initial_bias_weight: {}",
                  marginalizer_initial_bias_weight);
     Logger::Info("SVIOConfig.imu_acc_noise_density: {}", acc_noise_density);
