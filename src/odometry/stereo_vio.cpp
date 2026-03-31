@@ -330,18 +330,9 @@ void StereoVIO::Track(std::shared_ptr<Frame>&     frame,
   }
 
   // select marginal frames
-  std::set<uint64_t> marginal_none_keyframe_ids;
-  std::set<uint64_t> marginal_keyframe_ids;
-  SelectMarginalFrames(marginal_none_keyframe_ids, marginal_keyframe_ids);
-
-  // todo: change logic to collect marginal frames in one container
   std::set<uint64_t> marginal_frame_ids;
-  for (const auto& id : marginal_none_keyframe_ids) {
-    marginal_frame_ids.insert(id);
-  }
-  for (const auto& id : marginal_keyframe_ids) {
-    marginal_frame_ids.insert(id);
-  }
+  std::set<uint64_t> marginal_preint_ids;
+  SelectMarginalFrames(marginal_frame_ids, marginal_preint_ids);
 
   // marginalize
   {
@@ -356,8 +347,10 @@ void StereoVIO::Track(std::shared_ptr<Frame>&     frame,
 
     for (const auto& id : marginal_frame_ids) {
       created_map_point_nums_.erase(id);
-      inertial_states_.erase(id);
+    }
+    for (const auto& id : marginal_preint_ids) {
       imu_preintegrations_.erase(id);
+      inertial_states_.erase(id);
     }
   }
 }
@@ -490,10 +483,10 @@ int StereoVIO::InitializeMapPoints(std::shared_ptr<Frame>& frame) {
   return init_count;
 }
 
-void StereoVIO::SelectMarginalFrames(std::set<uint64_t>& marginal_none_keyframe_ids,
-                                     std::set<uint64_t>& marginal_keyframe_ids) {
-  marginal_none_keyframe_ids.clear();
-  marginal_keyframe_ids.clear();
+void StereoVIO::SelectMarginalFrames(std::set<uint64_t>& marginal_frame_ids,
+                                     std::set<uint64_t>& marginal_imu_preint_ids) {
+  marginal_frame_ids.clear();
+  marginal_imu_preint_ids.clear();
 
   const auto& frame_ids    = sliding_window_->GetFrameIds();
   const auto& keyframe_ids = sliding_window_->GetKeyframeIds();
@@ -502,15 +495,30 @@ void StereoVIO::SelectMarginalFrames(std::set<uint64_t>& marginal_none_keyframe_
     return;
   }
 
-  const uint64_t latest_id = *frame_ids.rbegin();
+  bool     has_marginalize_up_to_id = false;
+  uint64_t marginalize_up_to_id     = 0;
+  if (imu_preintegrations_.size() > SVIOConfig::max_inertial_states) {
+    const size_t num_imu_preint_to_marg = imu_preintegrations_.size()
+                                          - SVIOConfig::max_inertial_states;
+
+    auto imu_preint_it = imu_preintegrations_.begin();
+    for (size_t i = 0; i < num_imu_preint_to_marg; ++i, ++imu_preint_it) {
+      marginal_imu_preint_ids.insert(imu_preint_it->first);
+    }
+    if (!marginal_imu_preint_ids.empty()) {
+      has_marginalize_up_to_id = true;
+      marginalize_up_to_id     = *marginal_imu_preint_ids.rbegin();
+    }
+  }
+
   for (const auto id : frame_ids) {
-    if (id == latest_id) {
+    if (has_marginalize_up_to_id && id > marginalize_up_to_id) {
       continue;
     }
     if (keyframe_ids.find(id) != keyframe_ids.end()) {
       continue;
     }
-    marginal_none_keyframe_ids.insert(id);
+    marginal_frame_ids.insert(id);
   }
 
   if (keyframe_ids.size() <= SVIOConfig::max_keyframe_size) {
@@ -518,38 +526,40 @@ void StereoVIO::SelectMarginalFrames(std::set<uint64_t>& marginal_none_keyframe_
   }
 
   std::map<uint64_t, int> connected_map_points;
-  std::shared_ptr<Frame>  latest_frame = sliding_window_->GetFrame(latest_id);
-  if (latest_frame) {
-    const auto& obs = latest_frame->GetObservations().front();
-    for (const auto& [mp_id, _] : obs) {
-      auto mp = sliding_window_->GetMapPoint(mp_id);
-      if (!mp || mp->GetStatus() < MapPoint::Status::TRACKING) {
-        continue;
-      }
+  std::shared_ptr<Frame>  latest_frame = sliding_window_->GetFrame(*frame_ids.rbegin());
+  if (!latest_frame) {
+    return;
+  }
 
-      connected_map_points[mp->GetHostFrameCamId().frame_id]++;
+  const auto& obs = latest_frame->GetObservations().front();
+  for (const auto& [mp_id, _] : obs) {
+    auto mp = sliding_window_->GetMapPoint(mp_id);
+    if (!mp || mp->GetStatus() < MapPoint::Status::TRACKING) {
+      continue;
     }
+
+    connected_map_points[mp->GetHostFrameCamId().frame_id]++;
   }
 
   auto kf_ids = keyframe_ids;
   while (kf_ids.size() > SVIOConfig::max_keyframe_size) {
-    if (kf_ids.size() <= 2) {
-      break;
-    }
-
     bool     selected   = false;
     uint64_t id_to_marg = std::numeric_limits<uint64_t>::max();
 
-    auto end_minus_2 = std::prev(kf_ids.end(), 2);
-    for (auto it = kf_ids.begin(); it != end_minus_2; ++it) {
+    auto end_minus_inertial_states = std::prev(kf_ids.end(),
+                                               SVIOConfig::max_inertial_states);
+    for (auto it = kf_ids.begin(); it != end_minus_inertial_states; ++it) {
       const uint64_t kf_id   = *it;
       const int      count   = connected_map_points[kf_id];
       int            created = created_map_point_nums_[kf_id];
-
-      const double ratio = static_cast<double>(count) / static_cast<double>(created);
+      if (created <= 0) {
+        id_to_marg = kf_id;
+        selected   = true;
+        break;
+      }
       if (count == 0
-          || float(count) / float(created)
-               < float(SVIOConfig::marg_feature_connection_ratio)) {
+          || (static_cast<float>(count) / static_cast<float>(created))
+               < static_cast<float>(SVIOConfig::marg_feature_connection_ratio)) {
         id_to_marg = kf_id;
         selected   = true;
         break;
@@ -561,13 +571,13 @@ void StereoVIO::SelectMarginalFrames(std::set<uint64_t>& marginal_none_keyframe_
       uint64_t       min_score_id = std::numeric_limits<uint64_t>::max();
       double         min_score    = std::numeric_limits<double>::max();
 
-      for (auto it1 = kf_ids.begin(); it1 != end_minus_2; ++it1) {
+      for (auto it1 = kf_ids.begin(); it1 != end_minus_inertial_states; ++it1) {
         std::shared_ptr<Frame> frame_i = sliding_window_->GetFrame(*it1);
         if (!frame_i) {
           continue;
         }
         double denom = 0.0;
-        for (auto it2 = kf_ids.begin(); it2 != end_minus_2; ++it2) {
+        for (auto it2 = kf_ids.begin(); it2 != end_minus_inertial_states; ++it2) {
           std::shared_ptr<Frame> frame_j = sliding_window_->GetFrame(*it2);
           if (!frame_j) {
             continue;
@@ -600,7 +610,7 @@ void StereoVIO::SelectMarginalFrames(std::set<uint64_t>& marginal_none_keyframe_
     }
 
     kf_ids.erase(id_to_marg);
-    marginal_keyframe_ids.insert(id_to_marg);
+    marginal_frame_ids.insert(id_to_marg);
   }
 }
 
