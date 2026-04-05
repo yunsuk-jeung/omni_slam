@@ -31,10 +31,6 @@ public:
 
 private:
   void ClearPrior();
-  void SetPrior(const std::set<uint64_t>& frame_ids,
-                const Eigen::MatrixXd&    A,
-                const Eigen::VectorXd&    b,
-                const Eigen::VectorXd&    x0);
 
 private:
   std::unique_ptr<MarginalizationPrior> marginalization_prior_;

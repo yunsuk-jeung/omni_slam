@@ -27,23 +27,26 @@ static constexpr uint64_t kMarginalizerInitialFrameId = 0;
 
 static void AddMarginalizationPriorIfAvailable(
   ceres::Problem&                             problem,
-  Marginalizer*                               marginalizer,
+  const MarginalizationPrior&                 prior,
   const std::unordered_map<uint64_t, size_t>& frame_id_to_index,
   std::vector<Eigen::Vector6d>&               pose_params) {
-  if (!marginalizer) {
-    LogE("Marginalizer doesn't exist");
+  if (prior.frame_ids_.empty() || prior.block_sizes_.empty() || prior.J_.rows() == 0
+      || prior.r_.size() == 0 || prior.x0_.size() == 0) {
     return;
   }
 
   std::vector<double*> prior_pose_blocks;
-  prior_pose_blocks.reserve(marginalizer->GetFrameIds().size());
+  prior_pose_blocks.reserve(prior.frame_ids_.size());
 
-  for (const uint64_t frame_id : marginalizer->GetFrameIds()) {
+  for (const uint64_t frame_id : prior.frame_ids_) {
     auto it = frame_id_to_index.find(frame_id);
+    if (it == frame_id_to_index.end() || it->second >= pose_params.size()) {
+      return;
+    }
     prior_pose_blocks.push_back(pose_params[it->second].data());
   }
 
-  ceres::CostFunction* prior_cost = marginalizer->CreateCost();
+  ceres::CostFunction* prior_cost = new MarginalizationCost(prior);
   problem.AddResidualBlock(prior_cost, nullptr, prior_pose_blocks);
 }
 
@@ -115,12 +118,26 @@ void VOEstimator::OptimizeSingleFrame(std::shared_ptr<Frame> frame,
 }
 
 VOEstimator::VOEstimator()
-  : marginalizer_(
-      std::make_unique<Marginalizer>(kMarginalizerInitialFrameId,
-                                     SVOConfig::marginalizer_initial_prior_weight)) {}
+  : marginalization_prior_(std::make_unique<MarginalizationPrior>()) {
+  marginalization_prior_->frame_ids_.insert(kMarginalizerInitialFrameId);
+  marginalization_prior_->J_ = SVOConfig::marginalizer_initial_prior_weight
+                               * Eigen::MatrixXd::Identity(kPoseSize, kPoseSize);
+  marginalization_prior_->r_           = Eigen::VectorXd::Zero(kPoseSize);
+  marginalization_prior_->x0_          = Eigen::VectorXd::Zero(kPoseSize);
+  marginalization_prior_->block_sizes_ = {kPoseSize};
+}
 
-VOEstimator::~VOEstimator() {
-  marginalizer_.reset();
+VOEstimator::~VOEstimator() = default;
+
+void VOEstimator::ClearPrior() {
+  if (!marginalization_prior_) {
+    return;
+  }
+  marginalization_prior_->J_.resize(0, 0);
+  marginalization_prior_->r_.resize(0);
+  marginalization_prior_->x0_.resize(0);
+  marginalization_prior_->frame_ids_.clear();
+  marginalization_prior_->block_sizes_.clear();
 }
 
 void VOEstimator::OptimizeWindow(SlidingWindow* window) {
@@ -180,7 +197,7 @@ void VOEstimator::OptimizeWindow(SlidingWindow* window) {
   }
 
   AddMarginalizationPriorIfAvailable(problem,
-                                     marginalizer_.get(),
+                                     *marginalization_prior_,
                                      frame_id_to_index,
                                      pose_params);
 
@@ -273,7 +290,7 @@ void VOEstimator::Marginalize(SlidingWindow* window, std::set<uint64_t> marginal
     return;
   }
 
-  const auto& prev_frame_ids = marginalizer_->GetFrameIds();
+  const auto& prev_frame_ids = marginalization_prior_->frame_ids_;
 
   std::set<uint64_t> remain_frame_ids;
 
@@ -352,7 +369,7 @@ void VOEstimator::Marginalize(SlidingWindow* window, std::set<uint64_t> marginal
   }
 
   AddMarginalizationPriorIfAvailable(problem,
-                                     marginalizer_.get(),
+                                     *marginalization_prior_,
                                      frame_id_to_index,
                                      pose_params);
 
@@ -445,7 +462,7 @@ void VOEstimator::Marginalize(SlidingWindow* window, std::set<uint64_t> marginal
 
   Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> saes(Amm);
   if (saes.info() != Eigen::Success) {
-    marginalizer_->Clear();
+    ClearPrior();
     return;
   }
 
@@ -471,7 +488,38 @@ void VOEstimator::Marginalize(SlidingWindow* window, std::set<uint64_t> marginal
   }
   Statistics::startTimer("marginalize saes2");
 
-  marginalizer_->SetPrior(remain_frame_ids, A, b, x0);
+  marginalization_prior_->frame_ids_          = remain_frame_ids;
+  marginalization_prior_->preintegration_ids_ = {};
+  marginalization_prior_->block_sizes_        = std::vector<int>(remain_frame_ids.size(),
+                                                          kPoseSize);
+  marginalization_prior_->x0_                 = x0;
+
+  Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> saes_prior(A);
+  if (saes_prior.info() != Eigen::Success) {
+    LogE("Marginalize prior decompose fail");
+    ClearPrior();
+  }
+  else {
+    constexpr double      eps      = 1e-8;
+    const Eigen::VectorXd eig_vals = saes_prior.eigenvalues();
+    const Eigen::MatrixXd eig_vecs = saes_prior.eigenvectors();
+
+    Eigen::VectorXd sqrt_vals(eig_vals.size());
+    Eigen::VectorXd inv_sqrt_vals(eig_vals.size());
+    for (int i = 0; i < eig_vals.size(); ++i) {
+      if (eig_vals[i] > eps) {
+        sqrt_vals[i]     = std::sqrt(eig_vals[i]);
+        inv_sqrt_vals[i] = 1.0 / sqrt_vals[i];
+      }
+      else {
+        sqrt_vals[i]     = 0.0;
+        inv_sqrt_vals[i] = 0.0;
+      }
+    }
+
+    marginalization_prior_->J_ = sqrt_vals.asDiagonal() * eig_vecs.transpose();
+    marginalization_prior_->r_ = inv_sqrt_vals.asDiagonal() * eig_vecs.transpose() * b;
+  }
   Statistics::stopTimer("marginalize saes2");
 
   LogD("ceres_J : {} x {} ", ceres_J.num_rows, ceres_J.num_cols);
