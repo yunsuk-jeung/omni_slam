@@ -1,9 +1,11 @@
 #include <chrono>
 #include <cmath>
+#include <algorithm>
 #include <limits>
 #include <set>
 #include <unordered_map>
 #include <unordered_set>
+
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
 
@@ -491,12 +493,7 @@ void StereoVIO::SelectMarginalFrames(std::set<uint64_t>& marginal_frame_ids,
   const auto& frame_ids    = sliding_window_->GetFrameIds();
   const auto& keyframe_ids = sliding_window_->GetKeyframeIds();
 
-  if (frame_ids.empty()) {
-    return;
-  }
-
-  bool     has_marginalize_up_to_id = false;
-  uint64_t marginalize_up_to_id     = 0;
+  uint64_t marginalize_up_to_id = 0;
   if (imu_preintegrations_.size() > SVIOConfig::max_inertial_states) {
     const size_t num_imu_preint_to_marg = imu_preintegrations_.size()
                                           - SVIOConfig::max_inertial_states;
@@ -505,14 +502,11 @@ void StereoVIO::SelectMarginalFrames(std::set<uint64_t>& marginal_frame_ids,
     for (size_t i = 0; i < num_imu_preint_to_marg; ++i, ++imu_preint_it) {
       marginal_imu_preint_ids.insert(imu_preint_it->first);
     }
-    if (!marginal_imu_preint_ids.empty()) {
-      has_marginalize_up_to_id = true;
-      marginalize_up_to_id     = *marginal_imu_preint_ids.rbegin();
-    }
+    marginalize_up_to_id = *marginal_imu_preint_ids.rbegin();
   }
 
   for (const auto id : frame_ids) {
-    if (has_marginalize_up_to_id && id > marginalize_up_to_id) {
+    if (id > marginalize_up_to_id) {
       continue;
     }
     if (keyframe_ids.find(id) != keyframe_ids.end()) {
@@ -527,9 +521,6 @@ void StereoVIO::SelectMarginalFrames(std::set<uint64_t>& marginal_frame_ids,
 
   std::map<uint64_t, int> connected_map_points;
   std::shared_ptr<Frame>  latest_frame = sliding_window_->GetFrame(*frame_ids.rbegin());
-  if (!latest_frame) {
-    return;
-  }
 
   const auto& obs = latest_frame->GetObservations().front();
   for (const auto& [mp_id, _] : obs) {
@@ -546,8 +537,14 @@ void StereoVIO::SelectMarginalFrames(std::set<uint64_t>& marginal_frame_ids,
     bool     selected   = false;
     uint64_t id_to_marg = std::numeric_limits<uint64_t>::max();
 
-    auto end_minus_inertial_states = std::prev(kf_ids.end(),
-                                               SVIOConfig::max_inertial_states);
+    const size_t keep_tail_count = std::min(SVIOConfig::max_inertial_states,
+                                            kf_ids.size() - 1);
+
+    auto end_minus_inertial_states = std::prev(kf_ids.end(), keep_tail_count);
+
+    if (end_minus_inertial_states == kf_ids.begin()) {
+      break;
+    }
     for (auto it = kf_ids.begin(); it != end_minus_inertial_states; ++it) {
       const uint64_t kf_id   = *it;
       const int      count   = connected_map_points[kf_id];
