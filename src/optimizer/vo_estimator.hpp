@@ -3,11 +3,14 @@
 #include <cstdint>
 #include <memory>
 #include <set>
+#include <vector>
+
+#include <Eigen/Core>
 
 namespace omni_slam {
 class Frame;
 class SlidingWindow;
-class Marginalizer;
+struct MarginalizationPrior;
 class VOEstimator {
 public:
   /**
@@ -27,6 +30,13 @@ public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
 private:
-  std::unique_ptr<Marginalizer> marginalizer_;
+  void ClearPrior();
+  void SetPrior(const std::set<uint64_t>& frame_ids,
+                const Eigen::MatrixXd&    A,
+                const Eigen::VectorXd&    b,
+                const Eigen::VectorXd&    x0);
+
+private:
+  std::unique_ptr<MarginalizationPrior> marginalization_prior_;
 };
 }  // namespace omni_slam
