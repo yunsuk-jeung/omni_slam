@@ -158,7 +158,7 @@ void StereoVIO::Process(std::shared_ptr<Frame>&     frame,
     has_result_    = true;
   }
 
-  Statistics::reportAll();
+  // Statistics::reportAll();
 }
 
 void StereoVIO::PopImuDataUntil(int64_t timestamp_ns, std::vector<ImuData>& imu_data) {
@@ -327,8 +327,8 @@ void StereoVIO::Track(std::shared_ptr<Frame>&     frame,
   {
     ScopedTimer timer("optimize_window");
     estimator_->OptimizeWindow(this->sliding_window_.get(),
-                               &inertial_states_,
-                               &imu_preintegrations_);
+                               inertial_states_,
+                               imu_preintegrations_);
   }
 
   // select marginal frames
@@ -336,11 +336,20 @@ void StereoVIO::Track(std::shared_ptr<Frame>&     frame,
   std::set<uint64_t> marginal_preint_ids;
   SelectMarginalFrames(marginal_frame_ids, marginal_preint_ids);
 
-  // marginalize
   {
-    ScopedTimer timer("marginalize ");
-    estimator_->Marginalize(this->sliding_window_.get(), marginal_frame_ids);
+    LogE("frame id : {}", latest_frame->GetId());
+    int id = marginal_frame_ids.empty() ? -1 : *marginal_frame_ids.begin();
+    LogI("margin frame : {}", id);
+    id = marginal_preint_ids.empty() ? -1 : *marginal_preint_ids.begin();
+    LogI("margin preint: {}", id);
   }
+  // marginalize
+  ScopedTimer timer("marginalize ");
+  estimator_->Marginalize(this->sliding_window_.get(),
+                          marginal_frame_ids,
+                          marginal_preint_ids,
+                          inertial_states_,
+                          imu_preintegrations_);
 
   // remove keyframe
   {
@@ -349,10 +358,10 @@ void StereoVIO::Track(std::shared_ptr<Frame>&     frame,
 
     for (const auto& id : marginal_frame_ids) {
       created_map_point_nums_.erase(id);
+      inertial_states_.erase(id);
     }
     for (const auto& id : marginal_preint_ids) {
       imu_preintegrations_.erase(id);
-      inertial_states_.erase(id);
     }
   }
 }
@@ -476,11 +485,11 @@ int StereoVIO::InitializeMapPoints(std::shared_ptr<Frame>& frame) {
     candidates.erase(id);
   }
 
-  LogD("init : {}, oldCount :{}, cand : {} -> {}",
-       init_count,
-       old_count,
-       try_count,
-       candidates.size());
+  // LogD("init : {}, oldCount :{}, cand : {} -> {}",
+  //      init_count,
+  //      old_count,
+  //      try_count,
+  //      candidates.size());
 
   return init_count;
 }
@@ -513,6 +522,14 @@ void StereoVIO::SelectMarginalFrames(std::set<uint64_t>& marginal_frame_ids,
       continue;
     }
     marginal_frame_ids.insert(id);
+  }
+
+  // Also select preintegrations whose from_frame is being marginalized,
+  // to prevent orphaned preintegrations after frame removal
+  for (const auto& [to_id, preint] : imu_preintegrations_) {
+    if (marginal_frame_ids.count(preint.GetFromFrameId()) > 0) {
+      marginal_imu_preint_ids.insert(to_id);
+    }
   }
 
   if (keyframe_ids.size() <= SVIOConfig::max_keyframe_size) {
