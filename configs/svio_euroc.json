@@ -1,5 +1,5 @@
 {
-  "debug": true,
+  "debug": false,
   "tbb": true,
   "equalize_histogram": true,
   "clahe_clip_limit": 3.0,

@@ -25,6 +25,8 @@ constexpr float kMapPointRadiusUi   = 1.5f;
 constexpr float kTrajectoryRadiusUi = 1.0f;
 constexpr float kAxisLength         = 0.2f;
 constexpr float kAxisRadius         = 0.01f;
+constexpr float kOriginAxisLength   = 1.0f;
+constexpr float kOriginAxisRadius   = 0.03f;
 
 const rerun::components::Color kTrackColor(255, 255, 0, 200);
 const rerun::components::Color kMapColor(0, 255, 255, 200);
@@ -95,6 +97,41 @@ rerun::Transform3D MakeTransform(const Sophus::SE3d& T) {
   return rerun::Transform3D(translation, rerun::Rotation3D(quat), true);
 }
 
+void LogOriginAxes(rerun::RecordingStream& rec) {
+  std::vector<rerun::components::Position3D> origins;
+  std::vector<rerun::components::Vector3D>   vectors;
+  std::vector<rerun::components::Color>      colors;
+  std::vector<rerun::components::Radius>     radii;
+
+  origins.reserve(3);
+  vectors.reserve(3);
+  colors.reserve(3);
+  radii.reserve(3);
+
+  const rerun::components::Position3D origin(0.0f, 0.0f, 0.0f);
+
+  origins.push_back(origin);
+  vectors.emplace_back(kOriginAxisLength, 0.0f, 0.0f);
+  colors.emplace_back(kAxisXColor);
+  radii.emplace_back(rerun::components::Radius::scene_units(kOriginAxisRadius));
+
+  origins.push_back(origin);
+  vectors.emplace_back(0.0f, kOriginAxisLength, 0.0f);
+  colors.emplace_back(kAxisYColor);
+  radii.emplace_back(rerun::components::Radius::scene_units(kOriginAxisRadius));
+
+  origins.push_back(origin);
+  vectors.emplace_back(0.0f, 0.0f, kOriginAxisLength);
+  colors.emplace_back(kAxisZColor);
+  radii.emplace_back(rerun::components::Radius::scene_units(kOriginAxisRadius));
+
+  rec.log_static("world/origin_axes",
+          rerun::Arrows3D::from_vectors(vectors)
+            .with_origins(origins)
+            .with_colors(colors)
+            .with_radii(radii));
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -126,6 +163,7 @@ int main(int argc, char** argv) {
 
   rerun::RecordingStream rec("stereo_vo");
   rec.spawn().exit_on_failure();
+  LogOriginAxes(rec);
 
   omni_slam::DatasetSimulator simulator(loader);
   simulator.SetCameraCallback(
@@ -145,8 +183,8 @@ int main(int argc, char** argv) {
   while (loader.HasCameraData()) {
     if (stereo_vo.FetchResult(result) && result.timestamp_ns != last_timestamp) {
       last_timestamp = result.timestamp_ns;
-      rec.set_time_duration_nanos("t", result.timestamp_ns);
       rec.set_time_sequence("frame_id", static_cast<int64_t>(result.frame_id));
+      rec.set_time_timestamp_nanos_since_epoch("frame_time", result.timestamp_ns);
 
       if (result.images.size() > 0) {
         rec.log("cam0/image", MakeRerunImage(result.images[0]));
