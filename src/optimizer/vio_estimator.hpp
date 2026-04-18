@@ -28,7 +28,7 @@ public:
                       const std::map<uint64_t, ImuPreintegration>& imu_preintegrations);
   void Marginalize(SlidingWindow*                               window,
                    std::set<uint64_t>                           marginal_frame_ids,
-                   std::set<uint64_t>                           marginal_preintegration_ids,
+                   std::set<uint64_t>                           marginal_inertial_state_ids,
                    const std::map<uint64_t, InertialState>&     inertial_states,
                    const std::map<uint64_t, ImuPreintegration>& imu_preintegrations);
 

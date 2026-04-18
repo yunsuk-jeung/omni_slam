@@ -268,7 +268,10 @@ void StereoVIO::Track(std::shared_ptr<Frame>&     frame,
   latest_frame             = sliding_window_->GetFrame(latest_id);
 
   frame->GetTwb()          = latest_frame->GetTwb();
-  predicted_inertial_state = inertial_states_[latest_id];
+  const auto latest_state_it = inertial_states_.find(latest_id);
+  OMNI_ASSERT_MESSAGE(latest_state_it != inertial_states_.end(),
+                      "latest frame has no inertial state");
+  predicted_inertial_state = latest_state_it->second;
 
   OMNI_ASSERT(imu_data.size() >= 2);
 
@@ -291,7 +294,7 @@ void StereoVIO::Track(std::shared_ptr<Frame>&     frame,
                                     + T_w_b_i.so3() * preintegration.GetDeltaV();
     frame->SetTwb(Sophus::SE3d(R_w_b_j, t_w_b_j));
     predicted_inertial_state.v_w_b = v_w_b_j;
-    imu_preintegrations_.insert_or_assign(preintegration.GetToFrameId(),
+    imu_preintegrations_.insert_or_assign(preintegration.GetFromFrameId(),
                                           std::move(preintegration));
     inertial_states_[frame->GetId()] = predicted_inertial_state;
   }
@@ -322,6 +325,7 @@ void StereoVIO::Track(std::shared_ptr<Frame>&     frame,
   //   ScopedTimer timer("optimize_frame");
   //   VIOEstimator::OptimizeSingleFrame(frame, this->sliding_window_.get());
   // }
+  LogE("frame id : {}", frame->GetId());
 
   // sliding window bundle
   {
@@ -333,21 +337,28 @@ void StereoVIO::Track(std::shared_ptr<Frame>&     frame,
 
   // select marginal frames
   std::set<uint64_t> marginal_frame_ids;
-  std::set<uint64_t> marginal_preint_ids;
-  SelectMarginalFrames(marginal_frame_ids, marginal_preint_ids);
+  std::set<uint64_t> marginal_inertial_state_ids;
+  SelectMarginalFrames(marginal_frame_ids, marginal_inertial_state_ids);
 
   {
-    LogE("frame id : {}", latest_frame->GetId());
-    int id = marginal_frame_ids.empty() ? -1 : *marginal_frame_ids.begin();
-    LogI("margin frame : {}", id);
-    id = marginal_preint_ids.empty() ? -1 : *marginal_preint_ids.begin();
-    LogI("margin preint: {}", id);
+    auto join_ids = [](const std::set<uint64_t>& ids) {
+      std::string s;
+      for (const auto id : ids) {
+        if (!s.empty()) {
+          s += ",";
+        }
+        s += std::to_string(id);
+      }
+      return s;
+    };
+    LogI("margin frame_ids   : [{}]", join_ids(marginal_frame_ids));
+    LogI("margin inertial_ids: [{}]", join_ids(marginal_inertial_state_ids));
   }
   // marginalize
   ScopedTimer timer("marginalize ");
   estimator_->Marginalize(this->sliding_window_.get(),
                           marginal_frame_ids,
-                          marginal_preint_ids,
+                          marginal_inertial_state_ids,
                           inertial_states_,
                           imu_preintegrations_);
 
@@ -358,10 +369,14 @@ void StereoVIO::Track(std::shared_ptr<Frame>&     frame,
 
     for (const auto& id : marginal_frame_ids) {
       created_map_point_nums_.erase(id);
-      inertial_states_.erase(id);
     }
-    for (const auto& id : marginal_preint_ids) {
+    for (const auto& id : marginal_inertial_state_ids) {
+      inertial_states_.erase(id);
+      OMNI_ASSERT_MESSAGE(inertial_states_.count(id) == 0,
+                          "marginal inertial state not removed");
       imu_preintegrations_.erase(id);
+      OMNI_ASSERT_MESSAGE(imu_preintegrations_.count(id) == 0,
+                          "marginal preintegration not removed");
     }
   }
 }
@@ -495,136 +510,158 @@ int StereoVIO::InitializeMapPoints(std::shared_ptr<Frame>& frame) {
 }
 
 void StereoVIO::SelectMarginalFrames(std::set<uint64_t>& marginal_frame_ids,
-                                     std::set<uint64_t>& marginal_imu_preint_ids) {
+                                     std::set<uint64_t>& marginal_inertial_state_ids) {
   marginal_frame_ids.clear();
-  marginal_imu_preint_ids.clear();
+  marginal_inertial_state_ids.clear();
 
   const auto& frame_ids    = sliding_window_->GetFrameIds();
   const auto& keyframe_ids = sliding_window_->GetKeyframeIds();
-
-  uint64_t marginalize_up_to_id = 0;
-  if (imu_preintegrations_.size() > SVIOConfig::max_inertial_states) {
-    const size_t num_imu_preint_to_marg = imu_preintegrations_.size()
-                                          - SVIOConfig::max_inertial_states;
-
-    auto imu_preint_it = imu_preintegrations_.begin();
-    for (size_t i = 0; i < num_imu_preint_to_marg; ++i, ++imu_preint_it) {
-      marginal_imu_preint_ids.insert(imu_preint_it->first);
-    }
-    marginalize_up_to_id = *marginal_imu_preint_ids.rbegin();
-  }
-
-  for (const auto id : frame_ids) {
-    if (id > marginalize_up_to_id) {
-      continue;
-    }
-    if (keyframe_ids.find(id) != keyframe_ids.end()) {
-      continue;
-    }
-    marginal_frame_ids.insert(id);
-  }
-
-  // Also select preintegrations whose from_frame is being marginalized,
-  // to prevent orphaned preintegrations after frame removal
-  for (const auto& [to_id, preint] : imu_preintegrations_) {
-    if (marginal_frame_ids.count(preint.GetFromFrameId()) > 0) {
-      marginal_imu_preint_ids.insert(to_id);
-    }
-  }
-
-  if (keyframe_ids.size() <= SVIOConfig::max_keyframe_size) {
+  if (frame_ids.empty()) {
     return;
   }
 
-  std::map<uint64_t, int> connected_map_points;
-  std::shared_ptr<Frame>  latest_frame = sliding_window_->GetFrame(*frame_ids.rbegin());
-
-  const auto& obs = latest_frame->GetObservations().front();
-  for (const auto& [mp_id, _] : obs) {
-    auto mp = sliding_window_->GetMapPoint(mp_id);
-    if (!mp || mp->GetStatus() < MapPoint::Status::TRACKING) {
-      continue;
+  // Phase 1: select oldest inertial states that exceed max_inertial_states.
+  if (inertial_states_.size() > SVIOConfig::max_inertial_states) {
+    const size_t num_inertial_states_to_marg = inertial_states_.size()
+                                               - SVIOConfig::max_inertial_states;
+    auto inertial_state_it = inertial_states_.begin();
+    for (size_t i = 0; i < num_inertial_states_to_marg; ++i, ++inertial_state_it) {
+      marginal_inertial_state_ids.insert(inertial_state_it->first);
     }
-
-    connected_map_points[mp->GetHostFrameCamId().frame_id]++;
   }
 
-  auto kf_ids = keyframe_ids;
-  while (kf_ids.size() > SVIOConfig::max_keyframe_size) {
-    bool     selected   = false;
-    uint64_t id_to_marg = std::numeric_limits<uint64_t>::max();
+  auto has_inertial_state = [&](uint64_t frame_id) {
+    return inertial_states_.count(frame_id) > 0;
+  };
 
-    const size_t keep_tail_count = std::min(SVIOConfig::max_inertial_states,
-                                            kf_ids.size() - 1);
-
-    auto end_minus_inertial_states = std::prev(kf_ids.end(), keep_tail_count);
-
-    if (end_minus_inertial_states == kf_ids.begin()) {
-      break;
+  // Phase 3: marginalize non-keyframes that have no inertial state.
+  // Frames whose inertial state is being marginalized this step must wait
+  // until the inertial state is actually removed before the frame can go.
+  for (const auto id : frame_ids) {
+    if (keyframe_ids.count(id) > 0) {
+      continue;
     }
-    for (auto it = kf_ids.begin(); it != end_minus_inertial_states; ++it) {
-      const uint64_t kf_id   = *it;
-      const int      count   = connected_map_points[kf_id];
-      int            created = created_map_point_nums_[kf_id];
-      if (created <= 0) {
-        id_to_marg = kf_id;
-        selected   = true;
-        break;
-      }
-      if (count == 0
-          || (static_cast<float>(count) / static_cast<float>(created))
-               < static_cast<float>(SVIOConfig::marg_feature_connection_ratio)) {
-        id_to_marg = kf_id;
-        selected   = true;
-        break;
-      }
+    if (!has_inertial_state(id)) {
+      marginal_frame_ids.insert(id);
     }
+  }
 
-    if (!selected) {
-      const uint64_t last_kf_id   = *kf_ids.rbegin();
-      uint64_t       min_score_id = std::numeric_limits<uint64_t>::max();
-      double         min_score    = std::numeric_limits<double>::max();
-
-      for (auto it1 = kf_ids.begin(); it1 != end_minus_inertial_states; ++it1) {
-        std::shared_ptr<Frame> frame_i = sliding_window_->GetFrame(*it1);
-        if (!frame_i) {
+  // Phase 4: keyframe overflow - only keyframes without retained inertial states
+  // are eligible for removal.
+  if (keyframe_ids.size() > SVIOConfig::max_keyframe_size) {
+    std::map<uint64_t, int> connected_map_points;
+    const uint64_t          latest_frame_id = *frame_ids.rbegin();
+    std::shared_ptr<Frame>  latest_frame    = sliding_window_->GetFrame(latest_frame_id);
+    if (latest_frame && !latest_frame->GetObservations().empty()) {
+      const auto& obs = latest_frame->GetObservations().front();
+      for (const auto& [mp_id, _] : obs) {
+        auto mp = sliding_window_->GetMapPoint(mp_id);
+        if (!mp || mp->GetStatus() < MapPoint::Status::TRACKING) {
           continue;
         }
-        double denom = 0.0;
-        for (auto it2 = kf_ids.begin(); it2 != end_minus_inertial_states; ++it2) {
-          std::shared_ptr<Frame> frame_j = sliding_window_->GetFrame(*it2);
-          if (!frame_j) {
+
+        connected_map_points[mp->GetHostFrameCamId().frame_id]++;
+      }
+    }
+
+    auto kf_ids = keyframe_ids;
+    while (kf_ids.size() > SVIOConfig::max_keyframe_size) {
+      bool     selected   = false;
+      uint64_t id_to_marg = std::numeric_limits<uint64_t>::max();
+      if (kf_ids.size() <= 1) {
+        break;
+      }
+
+      const size_t keep_tail_count = std::min(SVIOConfig::max_inertial_states + 1u,
+                                              kf_ids.size() - 1u);
+
+      const auto end_minus_inertial_states = std::prev(kf_ids.end(), keep_tail_count);
+      if (end_minus_inertial_states == kf_ids.begin()) {
+        break;
+      }
+
+      for (auto it = kf_ids.begin(); it != end_minus_inertial_states; ++it) {
+        const uint64_t kf_id = *it;
+        if (has_inertial_state(kf_id)) {
+          continue;
+        }
+
+        const int  count      = connected_map_points[kf_id];
+        const auto created_it = created_map_point_nums_.find(kf_id);
+        const int  created    = (created_it == created_map_point_nums_.end())
+                                  ? 0
+                                  : created_it->second;
+        if (created <= 0) {
+          id_to_marg = kf_id;
+          selected   = true;
+          break;
+        }
+        if (count == 0
+            || (static_cast<float>(count) / static_cast<float>(created))
+                 < static_cast<float>(SVIOConfig::marg_feature_connection_ratio)) {
+          id_to_marg = kf_id;
+          selected   = true;
+          break;
+        }
+      }
+
+      if (!selected) {
+        const uint64_t last_kf_id   = *kf_ids.rbegin();
+        uint64_t       min_score_id = std::numeric_limits<uint64_t>::max();
+        double         min_score    = std::numeric_limits<double>::max();
+
+        for (auto it1 = kf_ids.begin(); it1 != end_minus_inertial_states; ++it1) {
+          if (has_inertial_state(*it1)) {
             continue;
           }
-          denom += 1.0
-                   / ((frame_i->GetTwb().translation() - frame_j->GetTwb().translation())
-                        .norm()
-                      + 1e-5);
-        }
 
-        std::shared_ptr<Frame> last_kf = sliding_window_->GetFrame(last_kf_id);
-        if (!last_kf) {
-          continue;
-        }
-        double score = std::sqrt((frame_i->GetTwb().translation()
-                                  - last_kf->GetTwb().translation())
-                                   .norm())
-                       * denom;
+          std::shared_ptr<Frame> frame_i = sliding_window_->GetFrame(*it1);
+          if (!frame_i) {
+            continue;
+          }
 
-        if (score < min_score) {
-          min_score_id = *it1;
-          min_score    = score;
+          double denom = 0.0;
+          for (auto it2 = kf_ids.begin(); it2 != end_minus_inertial_states; ++it2) {
+            if (has_inertial_state(*it2)) {
+              continue;
+            }
+
+            std::shared_ptr<Frame> frame_j = sliding_window_->GetFrame(*it2);
+            if (!frame_j) {
+              continue;
+            }
+            denom += 1.0
+                     / ((frame_i->GetTwb().translation()
+                         - frame_j->GetTwb().translation())
+                          .norm()
+                        + 1e-5);
+          }
+
+          std::shared_ptr<Frame> last_kf = sliding_window_->GetFrame(last_kf_id);
+          if (!last_kf) {
+            continue;
+          }
+
+          const double score = std::sqrt((frame_i->GetTwb().translation()
+                                          - last_kf->GetTwb().translation())
+                                           .norm())
+                               * denom;
+
+          if (score < min_score) {
+            min_score_id = *it1;
+            min_score    = score;
+          }
         }
+        id_to_marg = min_score_id;
       }
-      id_to_marg = min_score_id;
-    }
 
-    if (id_to_marg == std::numeric_limits<uint64_t>::max()) {
-      break;
-    }
+      if (id_to_marg == std::numeric_limits<uint64_t>::max()) {
+        break;
+      }
 
-    kf_ids.erase(id_to_marg);
-    marginal_frame_ids.insert(id_to_marg);
+      kf_ids.erase(id_to_marg);
+      marginal_frame_ids.insert(id_to_marg);
+    }
   }
 }
 

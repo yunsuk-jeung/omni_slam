@@ -56,7 +56,7 @@ private:
   int            InitializeMapPoints(std::shared_ptr<Frame>& frame);
 
   void SelectMarginalFrames(std::set<uint64_t>& marginal_frame_ids,
-                            std::set<uint64_t>& marginal_imu_preint_ids);
+                            std::set<uint64_t>& marginal_inertial_state_ids);
 
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
