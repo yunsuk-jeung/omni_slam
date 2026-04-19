@@ -13,7 +13,9 @@ add_test(NAME CoreTests COMMAND core_tests)
 
 # Optimizer tests
 add_executable(optimizer_tests
+  optimizer/test_cost_function_autodiff.cpp
   optimizer/test_imu_preintegration_cost.cpp
+  optimizer/test_marginalization_cost.cpp
   ${CMAKE_SOURCE_DIR}/src/odometry/imu_preintegration.cpp
 )
 
