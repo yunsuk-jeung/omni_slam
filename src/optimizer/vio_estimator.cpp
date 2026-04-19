@@ -214,9 +214,9 @@ VIOEstimator::VIOEstimator()
                              * Eigen::MatrixXd::Identity(3u, 3u);
   marginalization_prior_->J_(5, 5) = SVIOConfig::marginalizer_initial_prior_weight;
 
-  marginalization_prior_->J_
-    .topLeftCorner(6u, 6u) = SVIOConfig::marginalizer_initial_prior_weight
-                             * Eigen::MatrixXd::Identity(6u, 6u);
+  // marginalization_prior_->J_
+  //   .topLeftCorner(6u, 6u) = SVIOConfig::marginalizer_initial_prior_weight
+  //                            * Eigen::MatrixXd::Identity(6u, 6u);
 
   // marginalization_prior_->J_
   //   .block(kPoseSize,

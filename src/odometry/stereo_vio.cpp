@@ -267,7 +267,7 @@ void StereoVIO::Track(std::shared_ptr<Frame>&     frame,
   const uint64_t latest_id = *frame_ids.rbegin();
   latest_frame             = sliding_window_->GetFrame(latest_id);
 
-  frame->GetTwb()          = latest_frame->GetTwb();
+  frame->GetTwb()            = latest_frame->GetTwb();
   const auto latest_state_it = inertial_states_.find(latest_id);
   OMNI_ASSERT_MESSAGE(latest_state_it != inertial_states_.end(),
                       "latest frame has no inertial state");
