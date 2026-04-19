@@ -126,10 +126,10 @@ void LogOriginAxes(rerun::RecordingStream& rec) {
   radii.emplace_back(rerun::components::Radius::scene_units(kOriginAxisRadius));
 
   rec.log_static("world/origin_axes",
-          rerun::Arrows3D::from_vectors(vectors)
-            .with_origins(origins)
-            .with_colors(colors)
-            .with_radii(radii));
+                 rerun::Arrows3D::from_vectors(vectors)
+                   .with_origins(origins)
+                   .with_colors(colors)
+                   .with_radii(radii));
 }
 
 }  // namespace
@@ -248,6 +248,13 @@ int main(int argc, char** argv) {
         }
         rec.log("world/map_points", rerun::Points3D(points3d));
       }
+
+      rec.log("acc_bias/x", rerun::Scalars(result.acc_bias.x()));
+      rec.log("acc_bias/y", rerun::Scalars(result.acc_bias.y()));
+      rec.log("acc_bias/z", rerun::Scalars(result.acc_bias.z()));
+      rec.log("gyr_bias/x", rerun::Scalars(result.gyr_bias.x()));
+      rec.log("gyr_bias/y", rerun::Scalars(result.gyr_bias.y()));
+      rec.log("gyr_bias/z", rerun::Scalars(result.gyr_bias.z()));
 
       if (!result.T_w_b_window.empty()) {
         const auto&           T_w_b = result.T_w_b_window.back();

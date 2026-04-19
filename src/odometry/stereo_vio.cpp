@@ -700,6 +700,12 @@ OdometryResult StereoVIO::BuildOdometryResult(const std::shared_ptr<Frame>& fram
     result.tracking.uvs[i] = tracking_result->GetUvs(i);
   }
 
+  const auto inertial_it = inertial_states_.find(frame->GetId());
+  if (inertial_it != inertial_states_.end()) {
+    result.acc_bias = inertial_it->second.bias_acc;
+    result.gyr_bias = inertial_it->second.bias_gyr;
+  }
+
   const auto& map_points = sliding_window_->GetMapPoints();
   result.map_points.reserve(map_points.size());
   result.map_point_uvs.resize(cam_num);

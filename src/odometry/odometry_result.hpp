@@ -25,6 +25,9 @@ struct OdometryResult {
   TrackingData                          tracking;
   std::vector<Eigen::Vector4f>          map_points;
   std::vector<std::vector<cv::Point2f>> map_point_uvs;
+
+  Eigen::Vector3d acc_bias = Eigen::Vector3d::Zero();
+  Eigen::Vector3d gyr_bias = Eigen::Vector3d::Zero();
 };
 
 }  // namespace omni_slam

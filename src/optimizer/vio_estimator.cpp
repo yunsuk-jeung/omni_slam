@@ -289,6 +289,7 @@ void VIOEstimator::OptimizeWindow(
   for (const auto& [frame_id, _] : frames) {
     const auto state_it = inertial_states.find(frame_id);
     if (state_it == inertial_states.end()) {
+      OMNI_ASSERT_MESSAGE(true, "inertial state missing");
       continue;
     }
     inertial_id_to_index[frame_id] = velocity_params.size();
