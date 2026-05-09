@@ -646,9 +646,12 @@ struct ImuPreintegrationCostAuto {
   static constexpr int kResidualSize   = 15;
   static constexpr int kPoseSize       = 6;
   static constexpr int kStateBlockSize = 3;
+  using ResidualSqrtScale              = Eigen::Matrix<double, kResidualSize, 1>;
 
-  ImuPreintegrationCostAuto(const ImuPreintegration& preintegration,
-                            const Eigen::Vector3d&   gravity_vector_w)
+  ImuPreintegrationCostAuto(
+    const ImuPreintegration& preintegration,
+    const Eigen::Vector3d&   gravity_vector_w,
+    ResidualSqrtScale        residual_sqrt_scale = ResidualSqrtScale::Ones())
     : delta_r_(preintegration.GetDeltaR())
     , delta_v_(preintegration.GetDeltaV())
     , delta_p_(preintegration.GetDeltaP())
@@ -667,6 +670,7 @@ struct ImuPreintegrationCostAuto {
     if (llt.info() == Eigen::Success) {
       sqrt_information_ = llt.matrixL().transpose();
     }
+    sqrt_information_ = residual_sqrt_scale.asDiagonal() * sqrt_information_;
   }
 
   template <typename T>
@@ -772,9 +776,11 @@ public:
   static constexpr int        kResidualSize                = 15;
   static constexpr int        kNumParamBlocks              = 8;
   inline static constexpr int kBlockSizes[kNumParamBlocks] = {6, 6, 3, 3, 3, 3, 3, 3};
+  using ResidualSqrtScale = Eigen::Matrix<double, kResidualSize, 1>;
 
   ImuPreintegrationCost(const ImuPreintegration& preintegration,
-                        const Eigen::Vector3d&   gravity_vector_w)
+                        const Eigen::Vector3d&   gravity_vector_w,
+                        ResidualSqrtScale residual_sqrt_scale = ResidualSqrtScale::Ones())
     : delta_r_(preintegration.GetDeltaR())
     , delta_v_(preintegration.GetDeltaV())
     , delta_p_(preintegration.GetDeltaP())
@@ -793,6 +799,7 @@ public:
     if (llt.info() == Eigen::Success) {
       sqrt_information_ = llt.matrixL().transpose();
     }
+    sqrt_information_ = residual_sqrt_scale.asDiagonal() * sqrt_information_;
   }
 
   bool Evaluate(double const* const* params,

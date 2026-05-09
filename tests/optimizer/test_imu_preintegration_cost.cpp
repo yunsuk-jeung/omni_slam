@@ -44,17 +44,16 @@ protected:
   }
 
   // Evaluate residual for given state
-  Eigen::Matrix<double, 15, 1> EvaluateResidual(
-    const ImuPreintegration& preint,
-    const Eigen::Vector3d&   gravity,
-    const Sophus::SE3d&      T_w_b_i,
-    const Sophus::SE3d&      T_w_b_j,
-    const Eigen::Vector3d&   v_i,
-    const Eigen::Vector3d&   v_j,
-    const Eigen::Vector3d&   ba_i,
-    const Eigen::Vector3d&   bg_i,
-    const Eigen::Vector3d&   ba_j,
-    const Eigen::Vector3d&   bg_j) {
+  Eigen::Matrix<double, 15, 1> EvaluateResidual(const ImuPreintegration& preint,
+                                                const Eigen::Vector3d&   gravity,
+                                                const Sophus::SE3d&      T_w_b_i,
+                                                const Sophus::SE3d&      T_w_b_j,
+                                                const Eigen::Vector3d&   v_i,
+                                                const Eigen::Vector3d&   v_j,
+                                                const Eigen::Vector3d&   ba_i,
+                                                const Eigen::Vector3d&   bg_i,
+                                                const Eigen::Vector3d&   ba_j,
+                                                const Eigen::Vector3d&   bg_j) {
     ImuPreintegrationCost cost(preint, gravity);
 
     Eigen::Vector6d pose_i = SE3BoxplusManifold::ToParams(T_w_b_i);
@@ -67,10 +66,14 @@ protected:
     Eigen::Vector3d baj = ba_j;
     Eigen::Vector3d bgj = bg_j;
 
-    const double* params[] = {pose_i.data(), pose_j.data(),
-                              vi.data(),     vj.data(),
-                              bai.data(),    bgi.data(),
-                              baj.data(),    bgj.data()};
+    const double* params[] = {pose_i.data(),
+                              pose_j.data(),
+                              vi.data(),
+                              vj.data(),
+                              bai.data(),
+                              bgi.data(),
+                              baj.data(),
+                              bgj.data()};
 
     Eigen::Matrix<double, 15, 1> residual;
     cost.Evaluate(params, residual.data(), nullptr);
@@ -85,19 +88,25 @@ TEST_F(ImuPreintegrationCostTest, ZeroMotionResidual) {
   const Eigen::Vector3d acc_meas = -gravity;  // accelerometer reads -g when static
   const Eigen::Vector3d gyr_meas = Eigen::Vector3d::Zero();
 
-  const double dt       = 0.1;
-  const int    steps    = 10;
-  auto         preint   = MakePreintegration(acc_meas, gyr_meas, dt, steps);
+  const double dt     = 0.1;
+  const int    steps  = 10;
+  auto         preint = MakePreintegration(acc_meas, gyr_meas, dt, steps);
 
-  const Sophus::SE3d T_w_b = Sophus::SE3d();  // identity
-  const Eigen::Vector3d v  = Eigen::Vector3d::Zero();
-  const Eigen::Vector3d ba = Eigen::Vector3d::Zero();
-  const Eigen::Vector3d bg = Eigen::Vector3d::Zero();
+  const Sophus::SE3d    T_w_b = Sophus::SE3d();  // identity
+  const Eigen::Vector3d v     = Eigen::Vector3d::Zero();
+  const Eigen::Vector3d ba    = Eigen::Vector3d::Zero();
+  const Eigen::Vector3d bg    = Eigen::Vector3d::Zero();
 
-  auto residual = EvaluateResidual(preint, gravity,
-                                   T_w_b, T_w_b,  // same pose
-                                   v, v,           // same velocity
-                                   ba, bg, ba, bg);
+  auto residual = EvaluateResidual(preint,
+                                   gravity,
+                                   T_w_b,
+                                   T_w_b,  // same pose
+                                   v,
+                                   v,  // same velocity
+                                   ba,
+                                   bg,
+                                   ba,
+                                   bg);
 
   EXPECT_NEAR(residual.norm(), 0.0, 1e-6)
     << "Residual should be zero for stationary body\n"
@@ -112,8 +121,8 @@ TEST_F(ImuPreintegrationCostTest, FreeFallResidual) {
   const Eigen::Vector3d acc_meas = Eigen::Vector3d::Zero();
   const Eigen::Vector3d gyr_meas = Eigen::Vector3d::Zero();
 
-  const double dt    = 0.5;
-  const int    steps = 50;
+  const double dt     = 0.5;
+  const int    steps  = 50;
   auto         preint = MakePreintegration(acc_meas, gyr_meas, dt, steps);
 
   const Eigen::Vector3d p_i(0, 0, 0);
@@ -121,15 +130,12 @@ TEST_F(ImuPreintegrationCostTest, FreeFallResidual) {
   const Eigen::Vector3d p_j = p_i + v_i * dt + 0.5 * gravity * dt * dt;
   const Eigen::Vector3d v_j = v_i + gravity * dt;
 
-  const Sophus::SE3d T_i(Sophus::SO3d(), p_i);
-  const Sophus::SE3d T_j(Sophus::SO3d(), p_j);
+  const Sophus::SE3d    T_i(Sophus::SO3d(), p_i);
+  const Sophus::SE3d    T_j(Sophus::SO3d(), p_j);
   const Eigen::Vector3d ba = Eigen::Vector3d::Zero();
   const Eigen::Vector3d bg = Eigen::Vector3d::Zero();
 
-  auto residual = EvaluateResidual(preint, gravity,
-                                   T_i, T_j,
-                                   v_i, v_j,
-                                   ba, bg, ba, bg);
+  auto residual = EvaluateResidual(preint, gravity, T_i, T_j, v_i, v_j, ba, bg, ba, bg);
 
   EXPECT_NEAR(residual.norm(), 0.0, 1e-6)
     << "Residual should be zero for consistent free-fall state\n"
@@ -138,27 +144,24 @@ TEST_F(ImuPreintegrationCostTest, FreeFallResidual) {
 
 // Pure rotation: body rotates in place with zero gravity and no linear acceleration.
 TEST_F(ImuPreintegrationCostTest, PureRotationResidual) {
-  const Eigen::Vector3d gravity    = Eigen::Vector3d::Zero();
-  const Eigen::Vector3d acc_meas   = Eigen::Vector3d::Zero();
+  const Eigen::Vector3d gravity  = Eigen::Vector3d::Zero();
+  const Eigen::Vector3d acc_meas = Eigen::Vector3d::Zero();
   const Eigen::Vector3d gyr_meas(0.1, 0, 0);  // rotate around x-axis
 
-  const double dt    = 0.5;
-  const int    steps = 50;
+  const double dt     = 0.5;
+  const int    steps  = 50;
   auto         preint = MakePreintegration(acc_meas, gyr_meas, dt, steps);
 
   const Sophus::SO3d R_i;
   const Sophus::SO3d R_j = R_i * preint.GetDeltaR();
 
-  const Sophus::SE3d T_i(R_i, Eigen::Vector3d::Zero());
-  const Sophus::SE3d T_j(R_j, Eigen::Vector3d::Zero());
+  const Sophus::SE3d    T_i(R_i, Eigen::Vector3d::Zero());
+  const Sophus::SE3d    T_j(R_j, Eigen::Vector3d::Zero());
   const Eigen::Vector3d v  = Eigen::Vector3d::Zero();
   const Eigen::Vector3d ba = Eigen::Vector3d::Zero();
   const Eigen::Vector3d bg = Eigen::Vector3d::Zero();
 
-  auto residual = EvaluateResidual(preint, gravity,
-                                   T_i, T_j,
-                                   v, v,
-                                   ba, bg, ba, bg);
+  auto residual = EvaluateResidual(preint, gravity, T_i, T_j, v, v, ba, bg, ba, bg);
 
   EXPECT_NEAR(residual.norm(), 0.0, 1e-6)
     << "Residual should be zero for consistent pure rotation\n"
@@ -187,26 +190,27 @@ TEST_F(ImuPreintegrationCostTest, JacobianCheck) {
   Eigen::Vector3d ba_j(0.012, -0.018, 0.006);
   Eigen::Vector3d bg_j(0.0012, -0.0008, 0.0004);
 
-  std::vector<const double*> params = {
-    pose_i.data(), pose_j.data(),
-    v_i.data(),    v_j.data(),
-    ba_i.data(),   bg_i.data(),
-    ba_j.data(),   bg_j.data()
-  };
+  std::vector<const double*> params = {pose_i.data(),
+                                       pose_j.data(),
+                                       v_i.data(),
+                                       v_j.data(),
+                                       ba_i.data(),
+                                       bg_i.data(),
+                                       ba_j.data(),
+                                       bg_j.data()};
 
   // Use Ceres' numeric diff checker
   ceres::NumericDiffOptions numeric_diff_options;
   numeric_diff_options.relative_step_size = 1e-7;
 
-  std::vector<std::vector<double>> jacobian_diff;
-  ceres::GradientChecker checker(cost, nullptr, numeric_diff_options);
+  std::vector<std::vector<double>>     jacobian_diff;
+  ceres::GradientChecker               checker(cost, nullptr, numeric_diff_options);
   ceres::GradientChecker::ProbeResults results;
-  bool ok = checker.Probe(params.data(), 1e-4, &results);
+  bool                                 ok = checker.Probe(params.data(), 1e-4, &results);
 
-  EXPECT_TRUE(ok)
-    << "Analytic/numeric Jacobian mismatch.\n"
-    << "Max relative error: " << results.maximum_relative_error << "\n"
-    << results.error_log;
+  EXPECT_TRUE(ok) << "Analytic/numeric Jacobian mismatch.\n"
+                  << "Max relative error: " << results.maximum_relative_error << "\n"
+                  << results.error_log;
 
   delete cost;
 }
@@ -221,26 +225,30 @@ TEST_F(ImuPreintegrationCostTest, BiasChangeResidual) {
 
   auto preint = MakePreintegration(acc_meas, gyr_meas, 0.1, 10);
 
-  const Sophus::SE3d T_w_b;
+  const Sophus::SE3d    T_w_b;
   const Eigen::Vector3d v  = Eigen::Vector3d::Zero();
   const Eigen::Vector3d ba = Eigen::Vector3d::Zero();
   const Eigen::Vector3d bg = Eigen::Vector3d::Zero();
 
   // Same bias → zero residual
-  auto residual_same = EvaluateResidual(preint, gravity,
-                                        T_w_b, T_w_b,
-                                        v, v,
-                                        ba, bg, ba, bg);
+  auto
+    residual_same = EvaluateResidual(preint, gravity, T_w_b, T_w_b, v, v, ba, bg, ba, bg);
   EXPECT_NEAR(residual_same.norm(), 0.0, 1e-6);
 
   // Different bias at j → non-zero residual
   const Eigen::Vector3d ba_j(0.1, 0.0, 0.0);
   const Eigen::Vector3d bg_j(0.0, 0.01, 0.0);
 
-  auto residual_diff = EvaluateResidual(preint, gravity,
-                                        T_w_b, T_w_b,
-                                        v, v,
-                                        ba, bg, ba_j, bg_j);
+  auto residual_diff = EvaluateResidual(preint,
+                                        gravity,
+                                        T_w_b,
+                                        T_w_b,
+                                        v,
+                                        v,
+                                        ba,
+                                        bg,
+                                        ba_j,
+                                        bg_j);
 
   EXPECT_GT(residual_diff.norm(), 0.01)
     << "Residual should be non-zero for mismatched bias";
@@ -258,16 +266,62 @@ TEST_F(ImuPreintegrationCostTest, ZeroDtReturnsZero) {
   Eigen::Vector3d ba   = Eigen::Vector3d::Zero();
   Eigen::Vector3d bg   = Eigen::Vector3d::Zero();
 
-  const double* params[] = {pose.data(), pose.data(),
-                            v.data(),    v.data(),
-                            ba.data(),   bg.data(),
-                            ba.data(),   bg.data()};
+  const double* params[] = {pose.data(),
+                            pose.data(),
+                            v.data(),
+                            v.data(),
+                            ba.data(),
+                            bg.data(),
+                            ba.data(),
+                            bg.data()};
 
   Eigen::Matrix<double, 15, 1> residual;
-  bool ok = cost.Evaluate(params, residual.data(), nullptr);
+  bool                         ok = cost.Evaluate(params, residual.data(), nullptr);
 
   EXPECT_TRUE(ok);
   EXPECT_NEAR(residual.norm(), 0.0, 1e-12);
+}
+
+TEST_F(ImuPreintegrationCostTest, CovarianceDoesNotDependOnStepSubdivision) {
+  auto integrate = [](int steps) {
+    ImuPreintegration::Parameters params;
+    params.acc_noise_sigma   = 0.08;
+    params.gyr_noise_sigma   = 0.004;
+    params.acc_bias_rw_sigma = 0.00004;
+    params.gyr_bias_rw_sigma = 0.000002;
+
+    ImuPreintegration preint(0,
+                             1,
+                             Eigen::Vector3d::Zero(),
+                             Eigen::Vector3d::Zero(),
+                             params);
+
+    const double dt_step = 1.0 / static_cast<double>(steps);
+    for (int i = 0; i < steps; ++i) {
+      ImuData imu0;
+      imu0.t_ns = static_cast<int64_t>(i * dt_step * 1e9);
+      imu0.acc.setZero();
+      imu0.gyr.setZero();
+
+      ImuData imu1;
+      imu1.t_ns = static_cast<int64_t>((i + 1) * dt_step * 1e9);
+      imu1.acc.setZero();
+      imu1.gyr.setZero();
+      preint.IntegrateMeasurement(imu0, imu1);
+    }
+    return preint.GetCovariance();
+  };
+
+  const Eigen::Matrix15d cov_10  = integrate(10);
+  const Eigen::Matrix15d cov_100 = integrate(100);
+
+  const double vel_trace_10  = cov_10.block<3, 3>(6, 6).trace();
+  const double vel_trace_100 = cov_100.block<3, 3>(6, 6).trace();
+  const double ba_trace_10   = cov_10.block<3, 3>(9, 9).trace();
+  const double ba_trace_100  = cov_100.block<3, 3>(9, 9).trace();
+
+  EXPECT_NEAR(vel_trace_10, vel_trace_100, vel_trace_10 * 1e-6);
+  EXPECT_NEAR(ba_trace_10, ba_trace_100, ba_trace_10 * 1e-6);
 }
 
 // Ceres optimization: given wrong initial velocity, optimizer should recover.
@@ -276,8 +330,8 @@ TEST_F(ImuPreintegrationCostTest, CeresOptimizationRecoversVelocity) {
   const Eigen::Vector3d acc_meas = -gravity;
   const Eigen::Vector3d gyr_meas = Eigen::Vector3d::Zero();
 
-  const double dt = 1.0;
-  auto preint = MakePreintegration(acc_meas, gyr_meas, dt, 100);
+  const double dt     = 1.0;
+  auto         preint = MakePreintegration(acc_meas, gyr_meas, dt, 100);
 
   // Ground truth: stationary
   Eigen::Vector6d pose_i = Eigen::Vector6d::Zero();
@@ -294,16 +348,21 @@ TEST_F(ImuPreintegrationCostTest, CeresOptimizationRecoversVelocity) {
   v_j = Eigen::Vector3d(-0.5, 1.0, -0.2);
 
   ceres::Problem problem;
-  auto* manifold = new SE3BoxplusManifold();
+  auto*          manifold = new SE3BoxplusManifold();
   problem.AddParameterBlock(pose_i.data(), 6, manifold);
   problem.AddParameterBlock(pose_j.data(), 6, manifold);
 
   ceres::CostFunction* cost = new ImuPreintegrationCost(preint, gravity);
-  problem.AddResidualBlock(cost, nullptr,
-                           pose_i.data(), pose_j.data(),
-                           v_i.data(), v_j.data(),
-                           ba_i.data(), bg_i.data(),
-                           ba_j.data(), bg_j.data());
+  problem.AddResidualBlock(cost,
+                           nullptr,
+                           pose_i.data(),
+                           pose_j.data(),
+                           v_i.data(),
+                           v_j.data(),
+                           ba_i.data(),
+                           bg_i.data(),
+                           ba_j.data(),
+                           bg_j.data());
 
   problem.SetParameterBlockConstant(pose_i.data());
   problem.SetParameterBlockConstant(pose_j.data());

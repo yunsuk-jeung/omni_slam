@@ -22,6 +22,30 @@
 #include "odometry/stereo_vio.hpp"
 
 namespace omni_slam {
+namespace {
+
+ImuData InterpolateImuData(const ImuData& imu0,
+                           const ImuData& imu1,
+                           int64_t        timestamp_ns) {
+  if (imu0.t_ns == imu1.t_ns) {
+    ImuData out = imu0;
+    out.t_ns    = timestamp_ns;
+    return out;
+  }
+
+  const double alpha = std::clamp(static_cast<double>(timestamp_ns - imu0.t_ns)
+                                    / static_cast<double>(imu1.t_ns - imu0.t_ns),
+                                  0.0,
+                                  1.0);
+  ImuData      out;
+  out.t_ns = timestamp_ns;
+  out.acc  = (1.0 - alpha) * imu0.acc + alpha * imu1.acc;
+  out.gyr  = (1.0 - alpha) * imu0.gyr + alpha * imu1.gyr;
+  return out;
+}
+
+}  // namespace
+
 StereoVIO::StereoVIO()
   : frame_queue_{}
   , result_queue_{}
@@ -39,6 +63,8 @@ StereoVIO::StereoVIO()
   , imu_data_buffer_{}
   , has_pending_imu_{false}
   , pending_imu_{}
+  , has_last_frame_imu_{false}
+  , last_frame_imu_{}
   , inertial_states_{}
   , imu_parameters{} {
   sliding_window_ = std::make_unique<SlidingWindow>();
@@ -164,28 +190,68 @@ void StereoVIO::Process(std::shared_ptr<Frame>&     frame,
 void StereoVIO::PopImuDataUntil(int64_t timestamp_ns, std::vector<ImuData>& imu_data) {
   imu_data.clear();
 
+  auto append_sample = [&](const ImuData& sample) {
+    if (!imu_data.empty() && sample.t_ns <= imu_data.back().t_ns) {
+      return;
+    }
+    imu_data.push_back(sample);
+  };
+
+  bool    has_before = false;
+  ImuData before;
+  if (has_last_frame_imu_) {
+    append_sample(last_frame_imu_);
+    before     = last_frame_imu_;
+    has_before = true;
+  }
+
+  auto consume_before = [&](const ImuData& sample) {
+    append_sample(sample);
+    before     = sample;
+    has_before = true;
+  };
+
+  bool    has_after = false;
+  ImuData after;
+
   if (has_pending_imu_) {
     if (pending_imu_.t_ns <= timestamp_ns) {
-      imu_data.push_back(pending_imu_);
+      consume_before(pending_imu_);
       has_pending_imu_ = false;
     }
     else {
-      return;
+      after     = pending_imu_;
+      has_after = true;
     }
   }
 
   ImuData imu;
-  while (imu_queue_.try_pop(imu)) {
+  while (!has_after && imu_queue_.try_pop(imu)) {
     imu_queue_size_.fetch_sub(1, std::memory_order_relaxed);
     if (imu.t_ns <= timestamp_ns) {
-      imu_data.push_back(imu);
+      consume_before(imu);
       continue;
     }
 
     pending_imu_     = imu;
     has_pending_imu_ = true;
+    after            = imu;
+    has_after        = true;
     break;
   }
+
+  if (!has_before) {
+    return;
+  }
+
+  ImuData frame_imu = before;
+  if (before.t_ns < timestamp_ns && has_after) {
+    frame_imu = InterpolateImuData(before, after, timestamp_ns);
+    append_sample(frame_imu);
+  }
+
+  last_frame_imu_     = frame_imu;
+  has_last_frame_imu_ = true;
 }
 
 bool StereoVIO::Initialize(std::shared_ptr<Frame>&     frame,
@@ -222,7 +288,7 @@ bool StereoVIO::Initialize(std::shared_ptr<Frame>&     frame,
   OMNI_ASSERT(!imu_data.empty());
 
   // use first imu as a gravity direction
-  const Eigen::Vector3d& acc0_b       = imu_data.front().acc;
+  const Eigen::Vector3d& acc0_b       = imu_data.back().acc;
   const double           acc0_norm    = acc0_b.norm();
   const double           gravity_norm = SVIOConfig::g_w.norm();
   const double           kEps         = 1e-9;

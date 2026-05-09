@@ -11,8 +11,13 @@
 
 namespace omni_slam {
 
-size_t                SVIOConfig::max_inertial_states                = 3;
+size_t                SVIOConfig::max_inertial_states              = 5;
 double                SVIOConfig::marginalizer_initial_bias_weight = 100.0;
+double                SVIOConfig::imu_residual_scale               = 1.0;
+double                SVIOConfig::imu_position_residual_scale      = 1.0;
+double                SVIOConfig::imu_rotation_residual_scale      = 1.0;
+double                SVIOConfig::imu_velocity_residual_scale      = 1.0;
+double                SVIOConfig::imu_bias_residual_scale          = 1.0;
 double                SVIOConfig::acc_noise_density                = 0.08;
 double                SVIOConfig::gyr_noise_density                = 0.004;
 double                SVIOConfig::acc_random_walk                  = 0.0002;
@@ -106,33 +111,54 @@ void SVIOConfig::ParseConfig(const std::string& file) {
   marginalizer_initial_bias_weight = config.value("marginalizer_initial_bias_weight",
                                                   marginalizer_initial_bias_weight);
   max_inertial_states              = ReadSizeTWithAliases(config,
-                                             {"max_inertial_states"},
+                                                          {"max_inertial_states"},
                                              max_inertial_states);
-  acc_noise_density                = ReadDoubleWithAliases(*imu_node,
-                                                           {"acc_noise_density",
-                                                            "accelerometer_noise_density",
-                                                            "acc_noise_sigma"},
+  imu_residual_scale               = ReadDoubleWithAliases(*imu_node,
+                                                           {"residual_scale", "imu_residual_scale"},
+                                             config.value("imu_residual_scale",
+                                                          imu_residual_scale));
+  imu_position_residual_scale      = ReadDoubleWithAliases(
+    *imu_node,
+    {"position_residual_scale", "pos_residual_scale", "imu_position_residual_scale"},
+    config.value("imu_position_residual_scale", imu_position_residual_scale));
+  imu_rotation_residual_scale = ReadDoubleWithAliases(
+    *imu_node,
+    {"rotation_residual_scale", "rot_residual_scale", "imu_rotation_residual_scale"},
+    config.value("imu_rotation_residual_scale", imu_rotation_residual_scale));
+  imu_velocity_residual_scale = ReadDoubleWithAliases(
+    *imu_node,
+    {"velocity_residual_scale", "vel_residual_scale", "imu_velocity_residual_scale"},
+    config.value("imu_velocity_residual_scale", imu_velocity_residual_scale));
+  imu_bias_residual_scale  = ReadDoubleWithAliases(*imu_node,
+                                                   {"bias_residual_scale",
+                                                    "imu_bias_residual_scale"},
+                                                  config.value("imu_bias_residual_scale",
+                                                               imu_bias_residual_scale));
+  acc_noise_density        = ReadDoubleWithAliases(*imu_node,
+                                                   {"acc_noise_density",
+                                                    "accelerometer_noise_density",
+                                                    "acc_noise_sigma"},
                                             acc_noise_density);
-  gyr_noise_density                = ReadDoubleWithAliases(*imu_node,
-                                                           {"gyr_noise_density",
-                                                            "gyro_noise_density",
-                                                            "gyroscope_noise_density",
-                                                            "gyr_noise_sigma"},
+  gyr_noise_density        = ReadDoubleWithAliases(*imu_node,
+                                                   {"gyr_noise_density",
+                                                    "gyro_noise_density",
+                                                    "gyroscope_noise_density",
+                                                    "gyr_noise_sigma"},
                                             gyr_noise_density);
-  acc_random_walk                  = ReadDoubleWithAliases(*imu_node,
-                                                           {"acc_random_walk",
-                                                            "accelerometer_random_walk",
-                                                            "acc_bias_rw_sigma"},
+  acc_random_walk          = ReadDoubleWithAliases(*imu_node,
+                                                   {"acc_random_walk",
+                                                    "accelerometer_random_walk",
+                                                    "acc_bias_rw_sigma"},
                                           acc_random_walk);
-  gyr_random_walk                  = ReadDoubleWithAliases(*imu_node,
-                                                           {"gyr_random_walk",
-                                                            "gyro_random_walk",
-                                                            "gyroscope_random_walk",
-                                                            "gyr_bias_rw_sigma"},
+  gyr_random_walk          = ReadDoubleWithAliases(*imu_node,
+                                                   {"gyr_random_walk",
+                                                    "gyro_random_walk",
+                                                    "gyroscope_random_walk",
+                                                    "gyr_bias_rw_sigma"},
                                           gyr_random_walk);
-  imu_min_integration_dt_s         = ReadDoubleWithAliases(*imu_node,
-                                                           {"min_integration_dt_s",
-                                                            "integration_min_dt_s"},
+  imu_min_integration_dt_s = ReadDoubleWithAliases(*imu_node,
+                                                   {"min_integration_dt_s",
+                                                    "integration_min_dt_s"},
                                                    imu_min_integration_dt_s);
 
   acc_noise_density        = std::max(acc_noise_density, 1e-12);
@@ -147,11 +173,27 @@ void SVIOConfig::ParseConfig(const std::string& file) {
   if (max_inertial_states < 1) {
     max_inertial_states = 1;
   }
+  auto sanitize_scale = [](double scale) {
+    return (std::isfinite(scale) && scale >= 0.0) ? scale : 1.0;
+  };
+  imu_residual_scale          = sanitize_scale(imu_residual_scale);
+  imu_position_residual_scale = sanitize_scale(imu_position_residual_scale);
+  imu_rotation_residual_scale = sanitize_scale(imu_rotation_residual_scale);
+  imu_velocity_residual_scale = sanitize_scale(imu_velocity_residual_scale);
+  imu_bias_residual_scale     = sanitize_scale(imu_bias_residual_scale);
 
   if (SVIOConfig::debug) {
     Logger::Info("SVIOConfig.max_inertial_states: {}", max_inertial_states);
     Logger::Info("SVIOConfig.marginalizer_initial_bias_weight: {}",
                  marginalizer_initial_bias_weight);
+    Logger::Info("SVIOConfig.imu_residual_scale: {}", imu_residual_scale);
+    Logger::Info("SVIOConfig.imu_position_residual_scale: {}",
+                 imu_position_residual_scale);
+    Logger::Info("SVIOConfig.imu_rotation_residual_scale: {}",
+                 imu_rotation_residual_scale);
+    Logger::Info("SVIOConfig.imu_velocity_residual_scale: {}",
+                 imu_velocity_residual_scale);
+    Logger::Info("SVIOConfig.imu_bias_residual_scale: {}", imu_bias_residual_scale);
     Logger::Info("SVIOConfig.imu_acc_noise_density: {}", acc_noise_density);
     Logger::Info("SVIOConfig.imu_gyr_noise_density: {}", gyr_noise_density);
     Logger::Info("SVIOConfig.imu_acc_random_walk: {}", acc_random_walk);

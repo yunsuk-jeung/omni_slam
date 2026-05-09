@@ -91,6 +91,8 @@ private:
   std::vector<ImuData>           imu_data_buffer_;
   bool                           has_pending_imu_;
   ImuData                        pending_imu_;
+  bool                           has_last_frame_imu_;
+  ImuData                        last_frame_imu_;
   ImuPreintegration::Parameters  imu_parameters;
 };
 
