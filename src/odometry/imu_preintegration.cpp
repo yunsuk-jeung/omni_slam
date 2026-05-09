@@ -47,6 +47,7 @@ void ImuPreintegration::Reset(const Eigen::Vector3d& bias_acc,
   jacobian_.setIdentity();
   covariance_.setZero();
   integration_steps_ = 0;
+  imu_measurements_.clear();
 }
 
 void ImuPreintegration::SetBias(const Eigen::Vector3d& bias_acc,
@@ -69,6 +70,14 @@ bool ImuPreintegration::IntegrateMeasurement(const ImuData& imu0, const ImuData&
   if (dt_sec < parameters_.min_integration_dt_s) {
     return false;
   }
+
+  // Cache the raw samples so Repropagate can replay this integration.
+  // Dedupe by timestamp because the typical pairwise call pattern shares
+  // the right-end sample with the next step's left-end sample.
+  if (imu_measurements_.empty() || imu_measurements_.back().t_ns != imu0.t_ns) {
+    imu_measurements_.push_back(imu0);
+  }
+  imu_measurements_.push_back(imu1);
 
   // Midpoint state propagation with start/end samples.
   const Eigen::Vector3d acc0 = imu0.acc - bias_acc_;
@@ -108,6 +117,20 @@ bool ImuPreintegration::IntegrateMeasurements(const std::vector<ImuData>& imu_da
     }
   }
   return integrated;
+}
+
+bool ImuPreintegration::Repropagate(const Eigen::Vector3d& bias_acc,
+                                    const Eigen::Vector3d& bias_gyr) {
+  if (imu_measurements_.size() < 2) {
+    SetBias(bias_acc, bias_gyr);
+    return false;
+  }
+
+  // Move the buffer aside; Reset() will clear it. Re-integration repopulates
+  // it via IntegrateMeasurement.
+  std::vector<ImuData> saved = std::move(imu_measurements_);
+  Reset(bias_acc, bias_gyr);
+  return IntegrateMeasurements(saved);
 }
 
 void ImuPreintegration::PropagateState(const Sophus::SO3d&    delta_r_next,

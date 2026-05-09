@@ -56,6 +56,15 @@ public:
   bool IntegrateMeasurement(const ImuData& imu0, const ImuData& imu1);
   bool IntegrateMeasurements(const std::vector<ImuData>& imu_data);
 
+  // Re-integrate the buffered IMU samples with a new bias linearization point.
+  // The cost function captures bias_acc_/bias_gyr_ at construction and only
+  // applies first-order corrections; calling this after the optimizer updates
+  // the bias keeps the deltas/Jacobians consistent with the new operating
+  // point and prevents drift from stale linearization.
+  bool Repropagate(const Eigen::Vector3d& bias_acc, const Eigen::Vector3d& bias_gyr);
+
+  const std::vector<ImuData>& GetImuMeasurements() const { return imu_measurements_; }
+
   CorrectedDelta GetBiasCorrectedDelta(const Eigen::Vector3d& bias_acc,
                                        const Eigen::Vector3d& bias_gyr) const;
 
@@ -112,6 +121,11 @@ private:
   Eigen::Matrix15d covariance_;
 
   size_t integration_steps_;
+
+  // Buffer of raw IMU samples consumed by IntegrateMeasurement(s).
+  // Retained so Repropagate can replay integration with an updated bias
+  // linearization point.
+  std::vector<ImuData> imu_measurements_;
 };
 
 }  // namespace omni_slam

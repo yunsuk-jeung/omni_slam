@@ -401,6 +401,19 @@ void StereoVIO::Track(std::shared_ptr<Frame>&     frame,
                                imu_preintegrations_);
   }
 
+  // Re-integrate preintegrations with the freshly optimized bias.
+  // The cost function only applies a first-order correction around the bias
+  // captured at construction; replaying the integration with the updated
+  // bias keeps the next window's deltas/Jacobians consistent and prevents
+  // intermittent bias spikes from stale linearization.
+  for (auto& [from_id, preintegration] : imu_preintegrations_) {
+    const auto state_it = inertial_states_.find(from_id);
+    if (state_it == inertial_states_.end()) {
+      continue;
+    }
+    preintegration.Repropagate(state_it->second.bias_acc, state_it->second.bias_gyr);
+  }
+
   // select marginal frames
   std::set<uint64_t> marginal_frame_ids;
   std::set<uint64_t> marginal_inertial_state_ids;
