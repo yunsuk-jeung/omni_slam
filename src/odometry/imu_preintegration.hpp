@@ -17,18 +17,15 @@ struct InertialState {
   Eigen::Vector3d bias_gyr = Eigen::Vector3d::Zero();
 };
 
-// IMU preintegration with a 15D error-state model:
-// [dp, dtheta, dv, dba, dbg].
 class ImuPreintegration {
 public:
   ImuPreintegration() = delete;
 
   struct Parameters {
-    // Standard deviations of IMU white noise and bias random walk.
-    double acc_noise_sigma      = 0.08;
-    double gyr_noise_sigma      = 0.004;
-    double acc_bias_rw_sigma    = 0.0002;
-    double gyr_bias_rw_sigma    = 0.00002;
+    double acc_noise_sigma      = 0.016;
+    double gyr_noise_sigma      = 0.000282;
+    double acc_bias_rw_sigma    = 0.001;
+    double gyr_bias_rw_sigma    = 0.0001;
     double min_integration_dt_s = 1e-6;
   };
 

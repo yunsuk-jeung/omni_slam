@@ -204,10 +204,10 @@ void ImuPreintegration::PropagateError(const Eigen::Matrix3d& R_start,
                               * parameters_.acc_bias_rw_sigma;
   const double sigma_bg_rw2 = parameters_.gyr_bias_rw_sigma
                               * parameters_.gyr_bias_rw_sigma;
-  Q.block<3, 3>(0, 0)   = I3 * sigma_acc2 * inv_dt;
-  Q.block<3, 3>(3, 3)   = I3 * sigma_gyr2 * inv_dt;
-  Q.block<3, 3>(6, 6)   = I3 * sigma_acc2 * inv_dt;
-  Q.block<3, 3>(9, 9)   = I3 * sigma_gyr2 * inv_dt;
+  Q.block<3, 3>(0, 0)   = I3 * 2.0 * sigma_acc2 * inv_dt;
+  Q.block<3, 3>(3, 3)   = I3 * 2.0 * sigma_gyr2 * inv_dt;
+  Q.block<3, 3>(6, 6)   = I3 * 2.0 * sigma_acc2 * inv_dt;
+  Q.block<3, 3>(9, 9)   = I3 * 2.0 * sigma_gyr2 * inv_dt;
   Q.block<3, 3>(12, 12) = I3 * sigma_ba_rw2 * inv_dt;
   Q.block<3, 3>(15, 15) = I3 * sigma_bg_rw2 * inv_dt;
 
