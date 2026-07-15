@@ -1,6 +1,6 @@
+#include <algorithm>
 #include <chrono>
 #include <cmath>
-#include <algorithm>
 #include <limits>
 #include <set>
 #include <unordered_map>
@@ -9,17 +9,17 @@
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
 
-#include "utils/logger.hpp"
-#include "utils/timer.hpp"
-#include "utils/omni_assert.hpp"
 #include "config/svio_config.hpp"
 #include "database/Frame.hpp"
 #include "database/MapPoint.hpp"
 #include "feature_tracking/optical_flow.hpp"
-#include "optimizer/geometry.hpp"
-#include "optimizer/vio_estimator.hpp"
 #include "odometry/sliding_window.hpp"
 #include "odometry/stereo_vio.hpp"
+#include "optimizer/geometry.hpp"
+#include "optimizer/vio_estimator.hpp"
+#include "utils/logger.hpp"
+#include "utils/omni_assert.hpp"
+#include "utils/timer.hpp"
 
 namespace omni_slam {
 namespace {
@@ -33,11 +33,12 @@ ImuData InterpolateImuData(const ImuData& imu0,
     return out;
   }
 
-  const double alpha = std::clamp(static_cast<double>(timestamp_ns - imu0.t_ns)
-                                    / static_cast<double>(imu1.t_ns - imu0.t_ns),
-                                  0.0,
-                                  1.0);
-  ImuData      out;
+  const double alpha =
+    std::clamp(static_cast<double>(timestamp_ns - imu0.t_ns)
+                 / static_cast<double>(imu1.t_ns - imu0.t_ns),
+               0.0,
+               1.0);
+  ImuData out;
   out.t_ns = timestamp_ns;
   out.acc  = (1.0 - alpha) * imu0.acc + alpha * imu1.acc;
   out.gyr  = (1.0 - alpha) * imu0.gyr + alpha * imu1.gyr;
@@ -90,7 +91,8 @@ bool StereoVIO::Setup(const std::string& config_path) {
   imu_parameters.min_integration_dt_s = SVIOConfig::imu_min_integration_dt_s;
 
   sliding_window_->SetMaxSize(SVIOConfig::max_keyframe_size + 1u);
-  optical_flow_ = std::make_unique<OpticalFlow>(kCamNum, frame_queue_, result_queue_);
+  optical_flow_ =
+    std::make_unique<OpticalFlow>(kCamNum, frame_queue_, result_queue_);
 
   return true;
 }
@@ -115,9 +117,10 @@ void StereoVIO::Shutdown() {
   }
 }
 
-void StereoVIO::OnCameraFrame(int64_t                             timestamp_ns,
-                              const std::vector<cv::Mat>&         images,
-                              const std::vector<CameraParameter>& camera_parameters) {
+void StereoVIO::OnCameraFrame(
+  int64_t                             timestamp_ns,
+  const std::vector<cv::Mat>&         images,
+  const std::vector<CameraParameter>& camera_parameters) {
   if (images.empty() || images[0].empty()) {
     Logger::Warn("Received camera frame with empty left image");
     return;
@@ -187,7 +190,8 @@ void StereoVIO::Process(std::shared_ptr<Frame>&     frame,
   // Statistics::reportAll();
 }
 
-void StereoVIO::PopImuDataUntil(int64_t timestamp_ns, std::vector<ImuData>& imu_data) {
+void StereoVIO::PopImuDataUntil(int64_t               timestamp_ns,
+                                std::vector<ImuData>& imu_data) {
   imu_data.clear();
 
   auto append_sample = [&](const ImuData& sample) {
@@ -265,11 +269,12 @@ bool StereoVIO::Initialize(std::shared_ptr<Frame>&     frame,
   int created_map_point_num = InitializeMapPoints(frame);
 
   if (created_map_point_num < SVIOConfig::min_init_map_point_count) {
-    Logger::Warn("StereoVIO initialization failed at frame {} (map points: {}, required: "
-                 "{}), resetting sliding window",
-                 frame->GetId(),
-                 created_map_point_num,
-                 SVIOConfig::min_init_map_point_count);
+    Logger::Warn(
+      "StereoVIO initialization failed at frame {} (map points: {}, required: "
+      "{}), resetting sliding window",
+      frame->GetId(),
+      created_map_point_num,
+      SVIOConfig::min_init_map_point_count);
 
     sliding_window_->Clear();
     inertial_states_.clear();
@@ -297,8 +302,8 @@ bool StereoVIO::Initialize(std::shared_ptr<Frame>&     frame,
     const Sophus::SE3d    T_w_b          = frame->GetTwb();
     const Eigen::Vector3d measured_dir_w = (T_w_b.so3() * acc0_b).normalized();
     const Eigen::Vector3d target_dir_w   = -SVIOConfig::g_w / gravity_norm;
-    const Eigen::Quaterniond
-      q_w_align = Eigen::Quaterniond::FromTwoVectors(measured_dir_w, target_dir_w);
+    const Eigen::Quaterniond q_w_align =
+      Eigen::Quaterniond::FromTwoVectors(measured_dir_w, target_dir_w);
     const Sophus::SO3d R_w_align(q_w_align.normalized());
     frame->SetTwb(Sophus::SE3d(R_w_align * T_w_b.so3(), T_w_b.translation()));
   }
@@ -352,12 +357,13 @@ void StereoVIO::Track(std::shared_ptr<Frame>&     frame,
     const Sophus::SE3d&   T_w_b_i = latest_frame->GetTwb();
     const Sophus::SO3d    R_w_b_j = T_w_b_i.so3() * preintegration.GetDeltaR();
     const Eigen::Vector3d g_w     = SVIOConfig::g_w;
-    const Eigen::Vector3d t_w_b_j = T_w_b_i.translation()
-                                    + predicted_inertial_state.v_w_b * dt_sec
-                                    + 0.5 * g_w * dt_sec * dt_sec
-                                    + T_w_b_i.so3() * preintegration.GetDeltaP();
-    const Eigen::Vector3d v_w_b_j = predicted_inertial_state.v_w_b + g_w * dt_sec
-                                    + T_w_b_i.so3() * preintegration.GetDeltaV();
+    const Eigen::Vector3d t_w_b_j =
+      T_w_b_i.translation() + predicted_inertial_state.v_w_b * dt_sec
+      + 0.5 * g_w * dt_sec * dt_sec
+      + T_w_b_i.so3() * preintegration.GetDeltaP();
+    const Eigen::Vector3d v_w_b_j =
+      predicted_inertial_state.v_w_b + g_w * dt_sec
+      + T_w_b_i.so3() * preintegration.GetDeltaV();
     frame->SetTwb(Sophus::SE3d(R_w_b_j, t_w_b_j));
     predicted_inertial_state.v_w_b = v_w_b_j;
     imu_preintegrations_.insert_or_assign(preintegration.GetFromFrameId(),
@@ -411,7 +417,8 @@ void StereoVIO::Track(std::shared_ptr<Frame>&     frame,
     if (state_it == inertial_states_.end()) {
       continue;
     }
-    preintegration.Repropagate(state_it->second.bias_acc, state_it->second.bias_gyr);
+    preintegration.Repropagate(state_it->second.bias_acc,
+                               state_it->second.bias_gyr);
   }
 
   // select marginal frames
@@ -547,7 +554,8 @@ int StereoVIO::InitializeMapPoints(std::shared_ptr<Frame>& frame) {
         continue;
       }
 
-      std::shared_ptr<Frame> frame1 = sliding_window_->GetFrame(frame_cam_id1.frame_id);
+      std::shared_ptr<Frame> frame1 =
+        sliding_window_->GetFrame(frame_cam_id1.frame_id);
       if (!frame1) {
         continue;
       }
@@ -561,7 +569,8 @@ int StereoVIO::InitializeMapPoints(std::shared_ptr<Frame>& frame) {
         continue;
       }
 
-      Eigen::Vector4d t_c0_x = Geometry::triangulate(bearing0, bearing1, T_c1_c0);
+      Eigen::Vector4d t_c0_x =
+        Geometry::triangulate(bearing0, bearing1, T_c1_c0);
       if (t_c0_x.array().isFinite().all() && t_c0_x[3] > 0 && t_c0_x[3] < 3.0) {
         mp->GetBearing()        = t_c0_x.head<3>();
         mp->GetInvDist()        = t_c0_x[3];
@@ -588,8 +597,9 @@ int StereoVIO::InitializeMapPoints(std::shared_ptr<Frame>& frame) {
   return init_count;
 }
 
-void StereoVIO::SelectMarginalFrames(std::set<uint64_t>& marginal_frame_ids,
-                                     std::set<uint64_t>& marginal_inertial_state_ids) {
+void StereoVIO::SelectMarginalFrames(
+  std::set<uint64_t>& marginal_frame_ids,
+  std::set<uint64_t>& marginal_inertial_state_ids) {
   marginal_frame_ids.clear();
   marginal_inertial_state_ids.clear();
 
@@ -601,10 +611,11 @@ void StereoVIO::SelectMarginalFrames(std::set<uint64_t>& marginal_frame_ids,
 
   // Phase 1: select oldest inertial states that exceed max_inertial_states.
   if (inertial_states_.size() > SVIOConfig::max_inertial_states) {
-    const size_t num_inertial_states_to_marg = inertial_states_.size()
-                                               - SVIOConfig::max_inertial_states;
+    const size_t num_inertial_states_to_marg =
+      inertial_states_.size() - SVIOConfig::max_inertial_states;
     auto inertial_state_it = inertial_states_.begin();
-    for (size_t i = 0; i < num_inertial_states_to_marg; ++i, ++inertial_state_it) {
+    for (size_t i = 0; i < num_inertial_states_to_marg;
+         ++i, ++inertial_state_it) {
       marginal_inertial_state_ids.insert(inertial_state_it->first);
     }
   }
@@ -625,12 +636,13 @@ void StereoVIO::SelectMarginalFrames(std::set<uint64_t>& marginal_frame_ids,
     }
   }
 
-  // Phase 4: keyframe overflow - only keyframes without retained inertial states
-  // are eligible for removal.
+  // Phase 4: keyframe overflow - only keyframes without retained inertial
+  // states are eligible for removal.
   if (keyframe_ids.size() > SVIOConfig::max_keyframe_size) {
     std::map<uint64_t, int> connected_map_points;
     const uint64_t          latest_frame_id = *frame_ids.rbegin();
-    std::shared_ptr<Frame>  latest_frame    = sliding_window_->GetFrame(latest_frame_id);
+    std::shared_ptr<Frame>  latest_frame =
+      sliding_window_->GetFrame(latest_frame_id);
     if (latest_frame && !latest_frame->GetObservations().empty()) {
       const auto& obs = latest_frame->GetObservations().front();
       for (const auto& [mp_id, _] : obs) {
@@ -651,10 +663,11 @@ void StereoVIO::SelectMarginalFrames(std::set<uint64_t>& marginal_frame_ids,
         break;
       }
 
-      const size_t keep_tail_count = std::min(SVIOConfig::max_inertial_states + 1u,
-                                              kf_ids.size() - 1u);
+      const size_t keep_tail_count =
+        std::min(SVIOConfig::max_inertial_states + 1u, kf_ids.size() - 1u);
 
-      const auto end_minus_inertial_states = std::prev(kf_ids.end(), keep_tail_count);
+      const auto end_minus_inertial_states = std::prev(kf_ids.end(),
+                                                       keep_tail_count);
       if (end_minus_inertial_states == kf_ids.begin()) {
         break;
       }
@@ -677,7 +690,8 @@ void StereoVIO::SelectMarginalFrames(std::set<uint64_t>& marginal_frame_ids,
         }
         if (count == 0
             || (static_cast<float>(count) / static_cast<float>(created))
-                 < static_cast<float>(SVIOConfig::marg_feature_connection_ratio)) {
+                 < static_cast<float>(
+                   SVIOConfig::marg_feature_connection_ratio)) {
           id_to_marg = kf_id;
           selected   = true;
           break;
@@ -689,7 +703,8 @@ void StereoVIO::SelectMarginalFrames(std::set<uint64_t>& marginal_frame_ids,
         uint64_t       min_score_id = std::numeric_limits<uint64_t>::max();
         double         min_score    = std::numeric_limits<double>::max();
 
-        for (auto it1 = kf_ids.begin(); it1 != end_minus_inertial_states; ++it1) {
+        for (auto it1 = kf_ids.begin(); it1 != end_minus_inertial_states;
+             ++it1) {
           if (has_inertial_state(*it1)) {
             continue;
           }
@@ -700,7 +715,8 @@ void StereoVIO::SelectMarginalFrames(std::set<uint64_t>& marginal_frame_ids,
           }
 
           double denom = 0.0;
-          for (auto it2 = kf_ids.begin(); it2 != end_minus_inertial_states; ++it2) {
+          for (auto it2 = kf_ids.begin(); it2 != end_minus_inertial_states;
+               ++it2) {
             if (has_inertial_state(*it2)) {
               continue;
             }
@@ -716,7 +732,8 @@ void StereoVIO::SelectMarginalFrames(std::set<uint64_t>& marginal_frame_ids,
                         + 1e-5);
           }
 
-          std::shared_ptr<Frame> last_kf = sliding_window_->GetFrame(last_kf_id);
+          std::shared_ptr<Frame> last_kf =
+            sliding_window_->GetFrame(last_kf_id);
           if (!last_kf) {
             continue;
           }
@@ -744,7 +761,8 @@ void StereoVIO::SelectMarginalFrames(std::set<uint64_t>& marginal_frame_ids,
   }
 }
 
-OdometryResult StereoVIO::BuildOdometryResult(const std::shared_ptr<Frame>& frame) {
+OdometryResult StereoVIO::BuildOdometryResult(
+  const std::shared_ptr<Frame>& frame) {
   TrackingResult* tracking_result = frame->GetTrackingResultPtr();
 
   OdometryResult result;
@@ -804,8 +822,8 @@ OdometryResult StereoVIO::BuildOdometryResult(const std::shared_ptr<Frame>& fram
       continue;
     }
 
-    std::shared_ptr<Frame> host_frame = sliding_window_->GetFrame(
-      mp->GetHostFrameCamId().frame_id);
+    std::shared_ptr<Frame> host_frame =
+      sliding_window_->GetFrame(mp->GetHostFrameCamId().frame_id);
     if (!host_frame) {
       continue;
     }

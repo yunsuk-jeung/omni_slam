@@ -1,5 +1,6 @@
-#include "utils/logger.hpp"
 #include <gtest/gtest.h>
+
+#include "utils/logger.hpp"
 
 namespace omni_slam {
 

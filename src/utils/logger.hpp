@@ -2,8 +2,8 @@
 
 #include <chrono>
 #include <filesystem>
-#include <iomanip>
 #include <format>
+#include <iomanip>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -12,22 +12,24 @@
 #include <utility>
 #include <vector>
 
-#include "utils/fmt_eigen.hpp"
-
 #include <spdlog/sinks/basic_file_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
 
+#include "utils/fmt_eigen.hpp"
+
 namespace omni_slam {
 
 class Logger {
-public:
+ public:
   static void Init(bool enable_file_logging = true) {
     if (!logger_) {
       if (enable_file_logging) {
-        // Keep logs in project-root/logs regardless of process working directory.
+        // Keep logs in project-root/logs regardless of process working
+        // directory.
 #ifdef OMNI_SLAM_SOURCE_DIR
-        const auto log_dir = std::filesystem::path(OMNI_SLAM_SOURCE_DIR) / "logs";
+        const auto log_dir = std::filesystem::path(OMNI_SLAM_SOURCE_DIR)
+                             / "logs";
 #else
         const auto log_dir = std::filesystem::path("logs");
 #endif
@@ -37,14 +39,15 @@ public:
         auto              now  = std::chrono::system_clock::now();
         auto              time = std::chrono::system_clock::to_time_t(now);
         std::stringstream ss;
-        ss << "omni_slam_" << std::put_time(std::localtime(&time), "%Y%m%d_%H%M%S")
-           << ".log";
+        ss << "omni_slam_"
+           << std::put_time(std::localtime(&time), "%Y%m%d_%H%M%S") << ".log";
         const std::string log_file = (log_dir / ss.str()).string();
 
         // Create sinks for both console and file output
-        auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
-        auto file_sink    = std::make_shared<spdlog::sinks::basic_file_sink_mt>(log_file,
-                                                                             true);
+        auto console_sink =
+          std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+        auto file_sink =
+          std::make_shared<spdlog::sinks::basic_file_sink_mt>(log_file, true);
 
         std::vector<spdlog::sink_ptr> sinks{console_sink, file_sink};
         logger_ = std::make_shared<spdlog::logger>("omni_slam",
@@ -87,11 +90,15 @@ public:
       logger_->error("[{}:{}] {}", file, line, fmt_view);
     }
     else {
-      auto arg_tuple = std::tuple<std::decay_t<Args>...>(std::forward<Args>(args)...);
-      auto format_args =
-        std::apply([](auto&... unpacked) { return std::make_format_args(unpacked...); },
-                   arg_tuple);
-      logger_->error("[{}:{}] {}", file, line, std::vformat(fmt_view, format_args));
+      auto arg_tuple =
+        std::tuple<std::decay_t<Args>...>(std::forward<Args>(args)...);
+      auto format_args = std::apply(
+        [](auto&... unpacked) { return std::make_format_args(unpacked...); },
+        arg_tuple);
+      logger_->error("[{}:{}] {}",
+                     file,
+                     line,
+                     std::vformat(fmt_view, format_args));
     }
   }
 
@@ -108,7 +115,7 @@ public:
     return last_slash;
   }
 
-private:
+ private:
   static inline std::shared_ptr<spdlog::logger> logger_;
 };
 
@@ -117,9 +124,9 @@ private:
 #define LogD(fmt, ...) omni_slam::Logger::Debug(fmt, ##__VA_ARGS__);
 #define LogI(fmt, ...) omni_slam::Logger::Info(fmt, ##__VA_ARGS__);
 #define LogW(fmt, ...) omni_slam::Logger::Warn(fmt, ##__VA_ARGS__);
-#define LogE(fmt, ...)                                                                   \
-  omni_slam::Logger::Error(omni_slam::Logger::extractFileName(__FILE__),                 \
-                           __LINE__,                                                     \
-                           fmt,                                                          \
+#define LogE(fmt, ...)                                                         \
+  omni_slam::Logger::Error(omni_slam::Logger::extractFileName(__FILE__),       \
+                           __LINE__,                                           \
+                           fmt,                                                \
                            ##__VA_ARGS__);
 #define DEBUG_POINT() LogE("THIS Line is for debugging");

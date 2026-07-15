@@ -2,9 +2,9 @@
 
 #include <cstddef>
 #include <memory>
-#include <vector>
 #include <set>
 #include <unordered_map>
+#include <vector>
 
 namespace omni_slam {
 
@@ -12,7 +12,7 @@ class Frame;
 class MapPoint;
 
 class SlidingWindow {
-public:
+ public:
   explicit SlidingWindow(size_t max_size = 0);
 
   void   SetMaxSize(size_t max_size);
@@ -31,22 +31,25 @@ public:
   std::shared_ptr<MapPoint> GetOrCreateMapPointCandidate(const uint64_t& id);
   bool                      GetHasMapPoint(const uint64_t& id) const;
 
-  const std::unordered_map<uint64_t, std::shared_ptr<Frame>>& GetFrames() const {
+  const std::unordered_map<uint64_t, std::shared_ptr<Frame>>& GetFrames()
+    const {
     return frames_;
   }
   const std::set<uint64_t>& GetFrameIds() const { return frame_ids_; };
   const std::set<uint64_t>& GetKeyframeIds() const { return keyframe_ids_; }
-  const std::unordered_map<uint64_t, std::shared_ptr<MapPoint>>& GetMapPoints() const {
+  const std::unordered_map<uint64_t, std::shared_ptr<MapPoint>>& GetMapPoints()
+    const {
     return map_points_;
   };
 
-  std::unordered_map<uint64_t, std::shared_ptr<MapPoint>>& GetMapPointCandidates() {
+  std::unordered_map<uint64_t, std::shared_ptr<MapPoint>>&
+  GetMapPointCandidates() {
     return map_point_candidates_;
   };
 
   void Clear();
 
-private:
+ private:
   size_t                                                  max_size_;
   uint64_t                                                next_map_point_id_;
   std::set<uint64_t>                                      frame_ids_;

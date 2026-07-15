@@ -1,13 +1,14 @@
 #include <filesystem>
 
-#include "utils/logger.hpp"
-#include "device/vio_loader.hpp"
 #include "device/euroc_loader.hpp"
+#include "device/vio_loader.hpp"
+#include "utils/logger.hpp"
 
 namespace omni_slam {
 
-std::unique_ptr<VioLoader> VIOLoaderFactory::CreateLoader(const std::string& dataset_path,
-                                                          DatasetType        type) {
+std::unique_ptr<VioLoader> VIOLoaderFactory::CreateLoader(
+  const std::string& dataset_path,
+  DatasetType        type) {
   // Auto-detect if requested
   if (type == DatasetType::AUTO) {
     LogD("Auto-detecting dataset type for: {}", dataset_path);
@@ -42,7 +43,8 @@ std::unique_ptr<VioLoader> VIOLoaderFactory::CreateLoader(const std::string& dat
   return loader;
 }
 
-DatasetType VIOLoaderFactory::DetectDatasetType(const std::string& dataset_path) {
+DatasetType VIOLoaderFactory::DetectDatasetType(
+  const std::string& dataset_path) {
   namespace fs = std::filesystem;
 
   if (!fs::exists(dataset_path)) {

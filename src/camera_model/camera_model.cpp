@@ -1,5 +1,4 @@
 #include "camera_model/camera_model.hpp"
-
 #include "camera_model/pinhole_radtan.hpp"
 
 namespace omni_slam {

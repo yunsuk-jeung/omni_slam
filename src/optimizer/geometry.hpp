@@ -2,11 +2,12 @@
 
 #include <cmath>
 #include <limits>
+
 #include <sophus/se3.hpp>
 
 namespace omni_slam {
 class Geometry {
-public:
+ public:
   static Eigen::Matrix<double, 4, 1> triangulate(const Eigen::Vector3d& r0,
                                                  const Eigen::Vector3d& r1,
                                                  const Sophus::SE3d&    T_1_0) {
@@ -21,19 +22,21 @@ public:
     A.row(3) = r1[1] * P2.row(2) - r1[2] * P2.row(1);
 
     Eigen::JacobiSVD<Eigen::Matrix<double, 4, 4>> mySVD(A, Eigen::ComputeFullV);
-    Eigen::Vector4d                               world_point = mySVD.matrixV().col(3);
+    Eigen::Vector4d world_point = mySVD.matrixV().col(3);
 
     const double w         = world_point[3];
     const double head_norm = world_point.template head<3>().norm();
     if (head_norm <= std::numeric_limits<double>::epsilon()
         || std::abs(w) <= std::numeric_limits<double>::epsilon()) {
-      return Eigen::Vector4d::Constant(std::numeric_limits<double>::quiet_NaN());
+      return Eigen::Vector4d::Constant(
+        std::numeric_limits<double>::quiet_NaN());
     }
 
     const Eigen::Vector3d p_c0 = world_point.template head<3>() / w;
     const double          dist = p_c0.norm();
     if (dist <= std::numeric_limits<double>::epsilon()) {
-      return Eigen::Vector4d::Constant(std::numeric_limits<double>::quiet_NaN());
+      return Eigen::Vector4d::Constant(
+        std::numeric_limits<double>::quiet_NaN());
     }
 
     Eigen::Vector3d bearing  = p_c0 / dist;

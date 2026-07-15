@@ -1,6 +1,5 @@
-#include <gtest/gtest.h>
-
 #include <ceres/ceres.h>
+#include <gtest/gtest.h>
 #include <sophus/se3.hpp>
 
 #include "odometry/imu_preintegration.hpp"
@@ -10,7 +9,7 @@
 namespace omni_slam {
 
 class ImuPreintegrationCostTest : public ::testing::Test {
-protected:
+ protected:
   static constexpr double kEps = 1e-6;
 
   // Build a preintegration from constant IMU measurements
@@ -45,15 +44,15 @@ protected:
 
   // Evaluate residual for given state
   Eigen::Matrix<double, 15, 1> EvaluateResidual(const ImuPreintegration& preint,
-                                                const Eigen::Vector3d&   gravity,
-                                                const Sophus::SE3d&      T_w_b_i,
-                                                const Sophus::SE3d&      T_w_b_j,
-                                                const Eigen::Vector3d&   v_i,
-                                                const Eigen::Vector3d&   v_j,
-                                                const Eigen::Vector3d&   ba_i,
-                                                const Eigen::Vector3d&   bg_i,
-                                                const Eigen::Vector3d&   ba_j,
-                                                const Eigen::Vector3d&   bg_j) {
+                                                const Eigen::Vector3d& gravity,
+                                                const Sophus::SE3d&    T_w_b_i,
+                                                const Sophus::SE3d&    T_w_b_j,
+                                                const Eigen::Vector3d& v_i,
+                                                const Eigen::Vector3d& v_j,
+                                                const Eigen::Vector3d& ba_i,
+                                                const Eigen::Vector3d& bg_i,
+                                                const Eigen::Vector3d& ba_j,
+                                                const Eigen::Vector3d& bg_j) {
     ImuPreintegrationCost cost(preint, gravity);
 
     Eigen::Vector6d pose_i = SE3BoxplusManifold::ToParams(T_w_b_i);
@@ -85,7 +84,8 @@ protected:
 // If the states are perfectly consistent, residual should be ~zero.
 TEST_F(ImuPreintegrationCostTest, ZeroMotionResidual) {
   const Eigen::Vector3d gravity(0, 0, -9.81);
-  const Eigen::Vector3d acc_meas = -gravity;  // accelerometer reads -g when static
+  const Eigen::Vector3d acc_meas =
+    -gravity;  // accelerometer reads -g when static
   const Eigen::Vector3d gyr_meas = Eigen::Vector3d::Zero();
 
   const double dt     = 0.1;
@@ -135,14 +135,16 @@ TEST_F(ImuPreintegrationCostTest, FreeFallResidual) {
   const Eigen::Vector3d ba = Eigen::Vector3d::Zero();
   const Eigen::Vector3d bg = Eigen::Vector3d::Zero();
 
-  auto residual = EvaluateResidual(preint, gravity, T_i, T_j, v_i, v_j, ba, bg, ba, bg);
+  auto residual =
+    EvaluateResidual(preint, gravity, T_i, T_j, v_i, v_j, ba, bg, ba, bg);
 
   EXPECT_NEAR(residual.norm(), 0.0, 1e-6)
     << "Residual should be zero for consistent free-fall state\n"
     << "residual: " << residual.transpose();
 }
 
-// Pure rotation: body rotates in place with zero gravity and no linear acceleration.
+// Pure rotation: body rotates in place with zero gravity and no linear
+// acceleration.
 TEST_F(ImuPreintegrationCostTest, PureRotationResidual) {
   const Eigen::Vector3d gravity  = Eigen::Vector3d::Zero();
   const Eigen::Vector3d acc_meas = Eigen::Vector3d::Zero();
@@ -161,7 +163,8 @@ TEST_F(ImuPreintegrationCostTest, PureRotationResidual) {
   const Eigen::Vector3d ba = Eigen::Vector3d::Zero();
   const Eigen::Vector3d bg = Eigen::Vector3d::Zero();
 
-  auto residual = EvaluateResidual(preint, gravity, T_i, T_j, v, v, ba, bg, ba, bg);
+  auto residual =
+    EvaluateResidual(preint, gravity, T_i, T_j, v, v, ba, bg, ba, bg);
 
   EXPECT_NEAR(residual.norm(), 0.0, 1e-6)
     << "Residual should be zero for consistent pure rotation\n"
@@ -203,13 +206,14 @@ TEST_F(ImuPreintegrationCostTest, JacobianCheck) {
   ceres::NumericDiffOptions numeric_diff_options;
   numeric_diff_options.relative_step_size = 1e-7;
 
-  std::vector<std::vector<double>>     jacobian_diff;
-  ceres::GradientChecker               checker(cost, nullptr, numeric_diff_options);
+  std::vector<std::vector<double>> jacobian_diff;
+  ceres::GradientChecker           checker(cost, nullptr, numeric_diff_options);
   ceres::GradientChecker::ProbeResults results;
-  bool                                 ok = checker.Probe(params.data(), 1e-4, &results);
+  bool ok = checker.Probe(params.data(), 1e-4, &results);
 
   EXPECT_TRUE(ok) << "Analytic/numeric Jacobian mismatch.\n"
-                  << "Max relative error: " << results.maximum_relative_error << "\n"
+                  << "Max relative error: " << results.maximum_relative_error
+                  << "\n"
                   << results.error_log;
 
   delete cost;
@@ -231,24 +235,16 @@ TEST_F(ImuPreintegrationCostTest, BiasChangeResidual) {
   const Eigen::Vector3d bg = Eigen::Vector3d::Zero();
 
   // Same bias → zero residual
-  auto
-    residual_same = EvaluateResidual(preint, gravity, T_w_b, T_w_b, v, v, ba, bg, ba, bg);
+  auto residual_same =
+    EvaluateResidual(preint, gravity, T_w_b, T_w_b, v, v, ba, bg, ba, bg);
   EXPECT_NEAR(residual_same.norm(), 0.0, 1e-6);
 
   // Different bias at j → non-zero residual
   const Eigen::Vector3d ba_j(0.1, 0.0, 0.0);
   const Eigen::Vector3d bg_j(0.0, 0.01, 0.0);
 
-  auto residual_diff = EvaluateResidual(preint,
-                                        gravity,
-                                        T_w_b,
-                                        T_w_b,
-                                        v,
-                                        v,
-                                        ba,
-                                        bg,
-                                        ba_j,
-                                        bg_j);
+  auto residual_diff =
+    EvaluateResidual(preint, gravity, T_w_b, T_w_b, v, v, ba, bg, ba_j, bg_j);
 
   EXPECT_GT(residual_diff.norm(), 0.01)
     << "Residual should be non-zero for mismatched bias";
@@ -276,7 +272,7 @@ TEST_F(ImuPreintegrationCostTest, ZeroDtReturnsZero) {
                             bg.data()};
 
   Eigen::Matrix<double, 15, 1> residual;
-  bool                         ok = cost.Evaluate(params, residual.data(), nullptr);
+  bool ok = cost.Evaluate(params, residual.data(), nullptr);
 
   EXPECT_TRUE(ok);
   EXPECT_NEAR(residual.norm(), 0.0, 1e-12);

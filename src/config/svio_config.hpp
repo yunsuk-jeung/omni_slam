@@ -10,7 +10,7 @@
 namespace omni_slam {
 
 class SVIOConfig : public SVOConfig {
-public:
+ public:
   static void ParseConfig(const std::string& file);
 
   // Maximum number of inertial states kept during VIO optimization.
@@ -20,7 +20,8 @@ public:
   static double marginalizer_initial_bias_weight;
 
   // Multipliers applied to the square-root information of IMU residual groups.
-  // Values below 1.0 make visual residuals dominate when IMU calibration/timing is rough.
+  // Values below 1.0 make visual residuals dominate when IMU calibration/timing
+  // is rough.
   static double imu_residual_scale;
   static double imu_position_residual_scale;
   static double imu_rotation_residual_scale;

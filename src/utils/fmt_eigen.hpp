@@ -1,10 +1,11 @@
 #pragma once
 
-#include <Eigen/Dense>
 #include <format>
 #include <iomanip>
 #include <sstream>
 #include <string>
+
+#include <Eigen/Dense>
 
 namespace omni_slam {
 
@@ -23,9 +24,13 @@ inline EigenFormat FmtEigen(const Eigen::MatrixBase<Derived>& mat) {
                          0,
                          ", ",
                          is_vector ? "\n" : ",\n",
-                         is_vector ? "[" : "                                         [",
+                         is_vector
+                           ? "["
+                           : "                                         [",
                          "]",
-                         is_vector ? "" : "-------------------------------------------\n",
+                         is_vector
+                           ? ""
+                           : "-------------------------------------------\n",
                          "");
 
   std::stringstream ss;

@@ -4,8 +4,10 @@
 #include <atomic>
 #include <cstdint>
 #include <memory>
-#include <tbb/concurrent_queue.h>
+
 #include <opencv2/core.hpp>
+#include <tbb/concurrent_queue.h>
+
 #include "feature_tracking/tracking_result.hpp"
 
 namespace cv {
@@ -16,7 +18,7 @@ namespace omni_slam {
 
 class Frame;
 class OpticalFlow {
-public:
+ public:
   OpticalFlow() = delete;
   OpticalFlow(const size_t                                   cam_num,
               tbb::concurrent_queue<std::shared_ptr<Frame>>& in_queue,
@@ -26,7 +28,7 @@ public:
 
   void Run(std::atomic<bool>& running);
 
-private:
+ private:
   void PrepareImagesAndPyramids(std::shared_ptr<Frame>& curr_frame);
   void Process(std::shared_ptr<Frame>& curr_frame);
 
@@ -34,7 +36,7 @@ private:
   void TrackStereo(const std::shared_ptr<Frame>& curr_frame);
   void DetectFeatures(const std::shared_ptr<Frame>& curr_frame);
 
-private:
+ private:
   const size_t                                   kCamNum;
   tbb::concurrent_queue<std::shared_ptr<Frame>>& in_queue_;
   tbb::concurrent_queue<std::shared_ptr<Frame>>& out_queue_;

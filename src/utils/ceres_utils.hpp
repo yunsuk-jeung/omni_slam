@@ -1,11 +1,12 @@
 #pragma once
 
-#include <ceres/crs_matrix.h>
 #include <Eigen/Dense>
+#include <ceres/crs_matrix.h>
 
 namespace omni_slam::CeresUtil {
 
-inline bool TransposeCRSMatrix(const ceres::CRSMatrix& J, ceres::CRSMatrix& Jt) {
+inline bool TransposeCRSMatrix(const ceres::CRSMatrix& J,
+                               ceres::CRSMatrix&       Jt) {
   const int num_rows = J.num_rows;
   const int num_cols = J.num_cols;
   const int nnz      = static_cast<int>(J.values.size());

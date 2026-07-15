@@ -10,14 +10,16 @@
 
 #include "camera_model/camera_model.hpp"
 #include "config/svo_config.hpp"
-#include "device/vio_loader.hpp"
 #include "device/device_interface.hpp"
+#include "device/vio_loader.hpp"
 
 namespace omni_slam {
 
 class DatasetSimulator final : public DeviceInterface {
-public:
-  explicit DatasetSimulator(VioLoader& loader, double speed = 1.0, bool realtime = true)
+ public:
+  explicit DatasetSimulator(VioLoader& loader,
+                            double     speed    = 1.0,
+                            bool       realtime = true)
     : loader_(loader)
     , speed_(speed)
     , realtime_(realtime) {}
@@ -53,7 +55,7 @@ public:
   void SetRealtime(bool realtime) { realtime_ = realtime; }
   void SetSpeed(double speed) { speed_ = speed; }
 
-private:
+ private:
   void FeedImages() {
     if (!camera_callback_) {
       return;
@@ -72,9 +74,10 @@ private:
       }
 
       if (realtime_) {
-        const auto dt_ns   = frame.t_ns - start_ts;
-        const auto wait_ns = static_cast<int64_t>(static_cast<double>(dt_ns) / speed_);
-        const auto target  = start_time + std::chrono::nanoseconds(wait_ns);
+        const auto dt_ns = frame.t_ns - start_ts;
+        const auto wait_ns =
+          static_cast<int64_t>(static_cast<double>(dt_ns) / speed_);
+        const auto target = start_time + std::chrono::nanoseconds(wait_ns);
         std::this_thread::sleep_until(target);
       }
 
@@ -147,9 +150,10 @@ private:
       }
 
       if (realtime_) {
-        const auto dt_ns   = imu.t_ns - start_ts;
-        const auto wait_ns = static_cast<int64_t>(static_cast<double>(dt_ns) / speed_);
-        const auto target  = start_time + std::chrono::nanoseconds(wait_ns);
+        const auto dt_ns = imu.t_ns - start_ts;
+        const auto wait_ns =
+          static_cast<int64_t>(static_cast<double>(dt_ns) / speed_);
+        const auto target = start_time + std::chrono::nanoseconds(wait_ns);
         std::this_thread::sleep_until(target);
       }
 

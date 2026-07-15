@@ -1,13 +1,14 @@
 #pragma once
 
 #include <memory>
-#include "utils/types.hpp"
+
 #include "device/dataset_types.hpp"
+#include "utils/types.hpp"
 
 namespace omni_slam {
 
 class VioLoader {
-public:
+ public:
   virtual ~VioLoader() = default;
 
   // Initialize the loader with dataset path
@@ -52,14 +53,15 @@ enum class DatasetType {
 };
 
 class VIOLoaderFactory {
-public:
+ public:
   // Create a dataset loader based on dataset type
   // If type is AUTO, the factory will attempt to auto-detect the dataset type
   // Returns nullptr if the dataset type cannot be determined or created
-  static std::unique_ptr<VioLoader> CreateLoader(const std::string& dataset_path,
-                                                 DatasetType type = DatasetType::AUTO);
+  static std::unique_ptr<VioLoader> CreateLoader(
+    const std::string& dataset_path,
+    DatasetType        type = DatasetType::AUTO);
 
-private:
+ private:
   // Auto-detect dataset type from directory structure
   static DatasetType DetectDatasetType(const std::string& dataset_path);
 

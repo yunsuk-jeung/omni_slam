@@ -3,12 +3,13 @@
 #include <cstdint>
 #include <map>
 #include <vector>
+
 #include <opencv2/core.hpp>
 
 namespace omni_slam {
 
 class TrackingResult {
-public:
+ public:
   TrackingResult() = delete;
   TrackingResult(const size_t& cam_num)
     : kCamNum{cam_num}
@@ -38,12 +39,16 @@ public:
   }
 
   std::vector<size_t>&       GetIds(size_t cam_idx) { return ids_[cam_idx]; }
-  const std::vector<size_t>& GetIds(size_t cam_idx) const { return ids_[cam_idx]; }
+  const std::vector<size_t>& GetIds(size_t cam_idx) const {
+    return ids_[cam_idx];
+  }
 
-  std::vector<cv::Point2f>&       GetUvs(size_t cam_idx) { return uvs_[cam_idx]; }
-  const std::vector<cv::Point2f>& GetUvs(size_t cam_idx) const { return uvs_[cam_idx]; }
+  std::vector<cv::Point2f>& GetUvs(size_t cam_idx) { return uvs_[cam_idx]; }
+  const std::vector<cv::Point2f>& GetUvs(size_t cam_idx) const {
+    return uvs_[cam_idx];
+  }
 
-private:
+ private:
   const size_t                          kCamNum;
   std::vector<std::vector<size_t>>      ids_;
   std::vector<std::vector<cv::Point2f>> uvs_;

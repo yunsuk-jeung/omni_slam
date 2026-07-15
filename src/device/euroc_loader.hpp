@@ -12,7 +12,7 @@
 namespace omni_slam {
 
 class EurocLoader : public VioLoader {
-public:
+ public:
   EurocLoader()           = default;
   ~EurocLoader() override = default;
 
@@ -38,7 +38,7 @@ public:
   std::string GetDatasetName() const override;
   bool        IsStereo() const override;
 
-private:
+ private:
   // Helper methods
   bool ParseCameraCsv(const std::string& csv_path, int cam_id);
   bool ParseImuCsv(const std::string& csv_path);

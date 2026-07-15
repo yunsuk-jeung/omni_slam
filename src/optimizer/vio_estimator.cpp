@@ -1,13 +1,11 @@
-#include "optimizer/vio_estimator.hpp"
-
-#include <ceres/ceres.h>
-
 #include <algorithm>
-#include <cstdint>
 #include <cmath>
+#include <cstdint>
 #include <limits>
 #include <unordered_map>
 #include <vector>
+
+#include <ceres/ceres.h>
 
 #include "config/svio_config.hpp"
 #include "config/svo_config.hpp"
@@ -17,6 +15,7 @@
 #include "optimizer/cost_function.hpp"
 #include "optimizer/marginalizer.hpp"
 #include "optimizer/parameterization.hpp"
+#include "optimizer/vio_estimator.hpp"
 #include "utils/ceres_utils.hpp"
 #include "utils/eigen_utils.hpp"
 #include "utils/logger.hpp"
@@ -55,15 +54,206 @@ static Eigen::Matrix<double, kImuResidualSize, 1> MakeImuResidualSqrtScale() {
   return scale;
 }
 
+// Ceres parameter blocks shared by window optimization and marginalization:
+// camera poses plus per-frame inertial states (velocity, accel bias, gyro
+// bias), each indexed by frame id. Vectors must be reserved (or fully built)
+// before handing block pointers to ceres so they stay stable.
+struct WindowBlocks {
+  std::vector<Eigen::Vector6d>         pose_params;
+  std::unordered_map<uint64_t, size_t> frame_id_to_index;
+
+  std::vector<Eigen::Vector3d>         velocity_params;
+  std::vector<Eigen::Vector3d>         bias_acc_params;
+  std::vector<Eigen::Vector3d>         bias_gyr_params;
+  std::unordered_map<uint64_t, size_t> inertial_id_to_index;
+
+  void AddPose(uint64_t frame_id, const Sophus::SE3d& T_w_b) {
+    frame_id_to_index[frame_id] = pose_params.size();
+    pose_params.push_back(SE3BoxplusManifold::ToParams(T_w_b));
+  }
+
+  void AddInertialState(uint64_t frame_id, const InertialState& state) {
+    inertial_id_to_index[frame_id] = velocity_params.size();
+    velocity_params.push_back(state.v_w_b);
+    bias_acc_params.push_back(state.bias_acc);
+    bias_gyr_params.push_back(state.bias_gyr);
+  }
+
+  bool HasFrame(uint64_t frame_id) const {
+    return frame_id_to_index.contains(frame_id);
+  }
+
+  bool HasInertialState(uint64_t frame_id) const {
+    return inertial_id_to_index.contains(frame_id);
+  }
+
+  double* PoseParam(uint64_t frame_id) {
+    return pose_params[frame_id_to_index.at(frame_id)].data();
+  }
+};
+
+static double SanitizeInvDist(double inv_dist) {
+  if (!std::isfinite(inv_dist) || inv_dist <= SVOConfig::inv_dist_min_value) {
+    return SVOConfig::inv_dist_initial_value;
+  }
+  return inv_dist;
+}
+
+static void RegisterPoseBlocks(ceres::Problem& problem, WindowBlocks& blocks) {
+  auto* se3_box_plus_manifold = new SE3BoxplusManifold();
+  for (auto& param : blocks.pose_params) {
+    problem.AddParameterBlock(param.data(), kPoseSize, se3_box_plus_manifold);
+  }
+}
+
+static void RegisterInertialBlocks(ceres::Problem& problem,
+                                   WindowBlocks&   blocks) {
+  for (size_t i = 0; i < blocks.velocity_params.size(); ++i) {
+    problem.AddParameterBlock(blocks.velocity_params[i].data(),
+                              kInertialStateDim);
+    problem.AddParameterBlock(blocks.bias_acc_params[i].data(),
+                              kInertialStateDim);
+    problem.AddParameterBlock(blocks.bias_gyr_params[i].data(),
+                              kInertialStateDim);
+  }
+}
+
+static void RegisterMapPointBlocks(ceres::Problem&               problem,
+                                   std::vector<Eigen::Vector3d>& bearing_params,
+                                   std::vector<double>& inv_dist_params) {
+  auto* bearing_manifold = new BearingTangentManifold();
+  for (auto& bearing : bearing_params) {
+    problem.AddParameterBlock(bearing.data(), kBearingSize, bearing_manifold);
+  }
+  for (auto& inv_dist : inv_dist_params) {
+    problem.AddParameterBlock(&inv_dist, 1);
+    problem.SetParameterLowerBound(&inv_dist, 0, SVOConfig::inv_dist_min_value);
+  }
+}
+
+enum class ImuCostType { kAnalytic, kAutoDiff };
+enum class AddImuFactorResult { kAdded, kSkippedDt, kSkippedMissingBlock };
+
+static AddImuFactorResult AddImuFactor(
+  ceres::Problem&                                   problem,
+  WindowBlocks&                                     blocks,
+  const ImuPreintegration&                          preintegration,
+  const Eigen::Matrix<double, kImuResidualSize, 1>& residual_sqrt_scale,
+  ImuCostType                                       cost_type) {
+  if (preintegration.GetDeltaTimeSec() <= 0.0) {
+    return AddImuFactorResult::kSkippedDt;
+  }
+
+  const uint64_t from_id = preintegration.GetFromFrameId();
+  const uint64_t to_id   = preintegration.GetToFrameId();
+  if (!blocks.HasFrame(from_id) || !blocks.HasFrame(to_id)
+      || !blocks.HasInertialState(from_id) || !blocks.HasInertialState(to_id)) {
+    return AddImuFactorResult::kSkippedMissingBlock;
+  }
+
+  ceres::CostFunction* imu_cost = nullptr;
+  switch (cost_type) {
+  case ImuCostType::kAnalytic:
+    imu_cost = new ImuPreintegrationCost(preintegration,
+                                         SVIOConfig::g_w,
+                                         residual_sqrt_scale);
+    break;
+  case ImuCostType::kAutoDiff:
+    imu_cost = new ImuPreintegrationAutoDiffCost(
+      new ImuPreintegrationCostAuto(preintegration,
+                                    SVIOConfig::g_w,
+                                    residual_sqrt_scale));
+    break;
+  }
+
+  const size_t from_inertial_idx = blocks.inertial_id_to_index.at(from_id);
+  const size_t to_inertial_idx   = blocks.inertial_id_to_index.at(to_id);
+  problem.AddResidualBlock(imu_cost,
+                           nullptr,
+                           blocks.PoseParam(from_id),
+                           blocks.PoseParam(to_id),
+                           blocks.velocity_params[from_inertial_idx].data(),
+                           blocks.velocity_params[to_inertial_idx].data(),
+                           blocks.bias_acc_params[from_inertial_idx].data(),
+                           blocks.bias_gyr_params[from_inertial_idx].data(),
+                           blocks.bias_acc_params[to_inertial_idx].data(),
+                           blocks.bias_gyr_params[to_inertial_idx].data());
+  return AddImuFactorResult::kAdded;
+}
+
+// Adds the host-frame bearing prior plus one stereo/cross-frame bearing
+// residual per observation of `mp` whose frame has a pose block.
+static void AddBearingResidualsForMapPoint(ceres::Problem& problem,
+                                           SlidingWindow*  window,
+                                           const std::shared_ptr<MapPoint>& mp,
+                                           WindowBlocks& blocks,
+                                           double*       bearing_param,
+                                           double*       inv_dist_param,
+                                           bool          robustify_host_prior) {
+  const FrameCamId frame_cam_id0 = mp->GetHostFrameCamId();
+  auto             frame0        = window->GetFrame(frame_cam_id0.frame_id);
+  if (!frame0 || !blocks.HasFrame(frame_cam_id0.frame_id)) {
+    return;
+  }
+
+  const Sophus::SE3d& T_b_c0       = frame0->GetTbc(frame_cam_id0.cam_id);
+  double*             pose_param0  = blocks.PoseParam(frame_cam_id0.frame_id);
+  const auto&         observations = mp->GetObservation();
+
+  const auto host_obs_it = observations.find(frame_cam_id0);
+  if (host_obs_it != observations.end()) {
+    ceres::CostFunction* host_bearing_prior_cost =
+      new BearingPriorCost(host_obs_it->second, SVOConfig::bearing_cost_scale);
+    ceres::LossFunction* loss =
+      robustify_host_prior
+        ? new ceres::HuberLoss(SVOConfig::bearing_huber_const)
+        : nullptr;
+    problem.AddResidualBlock(host_bearing_prior_cost, loss, bearing_param);
+  }
+
+  for (const auto& [frame_cam_id1, bearing] : observations) {
+    if (frame_cam_id0 == frame_cam_id1) {
+      continue;
+    }
+    if (!blocks.HasFrame(frame_cam_id1.frame_id)) {
+      continue;
+    }
+
+    auto frame1 = window->GetFrame(frame_cam_id1.frame_id);
+    if (!frame1) {
+      continue;
+    }
+
+    const Sophus::SE3d& T_b_c1 = frame1->GetTbc(frame_cam_id1.cam_id);
+
+    ceres::LossFunction* loss =
+      new ceres::HuberLoss(SVOConfig::bearing_huber_const);
+    if (frame_cam_id0.frame_id == frame_cam_id1.frame_id) {
+      ceres::CostFunction* cost =
+        new BearingStereoCost(bearing,
+                              T_b_c1,
+                              T_b_c0,
+                              SVOConfig::bearing_cost_scale);
+      problem.AddResidualBlock(cost, loss, bearing_param, inv_dist_param);
+    }
+    else {
+      double* pose_param1 = blocks.PoseParam(frame_cam_id1.frame_id);
+      ceres::CostFunction* cost =
+        new BearingCost(bearing, T_b_c1, T_b_c0, SVOConfig::bearing_cost_scale);
+      problem.AddResidualBlock(cost,
+                               loss,
+                               pose_param1,
+                               pose_param0,
+                               bearing_param,
+                               inv_dist_param);
+    }
+  }
+}
+
 static void AddMarginalizationPriorIfAvailable(
-  ceres::Problem&                             problem,
-  const MarginalizationPrior&                 prior,
-  const std::unordered_map<uint64_t, size_t>& frame_id_to_index,
-  const std::unordered_map<uint64_t, size_t>& inertial_id_to_index,
-  std::vector<Eigen::Vector6d>&               pose_params,
-  std::vector<Eigen::Vector3d>&               velocity_params,
-  std::vector<Eigen::Vector3d>&               bias_acc_params,
-  std::vector<Eigen::Vector3d>&               bias_gyr_params) {
+  ceres::Problem&             problem,
+  const MarginalizationPrior& prior,
+  WindowBlocks&               blocks) {
   if (prior.block_sizes_.empty() || prior.J_.rows() == 0 || prior.r_.size() == 0
       || prior.x0_.size() == 0) {
     LogW("Prior skipped: empty data (blocks={}, J_rows={}, r={}, x0={})",
@@ -74,7 +264,7 @@ static void AddMarginalizationPriorIfAvailable(
     return;
   }
 
-  std::vector<double*> prior_pose_blocks;
+  std::vector<double*> prior_param_blocks;
   const auto&          frame_ids          = prior.frame_ids_;
   const auto&          preintegration_ids = prior.preintegration_ids_;
   const auto&          block_sizes        = prior.block_sizes_;
@@ -90,9 +280,10 @@ static void AddMarginalizationPriorIfAvailable(
   size_t       per_inertial_block_count = 0;
   if (!preintegration_ids.empty()) {
     if (extra_block_count % preintegration_ids.size() != 0) {
-      LogW("Prior skipped: extra_block_count({}) not divisible by preint_ids({})",
-           extra_block_count,
-           preintegration_ids.size());
+      LogW(
+        "Prior skipped: extra_block_count({}) not divisible by preint_ids({})",
+        extra_block_count,
+        preintegration_ids.size());
       return;
     }
     per_inertial_block_count = extra_block_count / preintegration_ids.size();
@@ -108,45 +299,46 @@ static void AddMarginalizationPriorIfAvailable(
     return;
   }
 
-  prior_pose_blocks.reserve(frame_ids.size()
-                            + preintegration_ids.size() * per_inertial_block_count);
+  prior_param_blocks.reserve(
+    frame_ids.size() + preintegration_ids.size() * per_inertial_block_count);
 
   for (const uint64_t frame_id : frame_ids) {
-    auto it = frame_id_to_index.find(frame_id);
-    if (it == frame_id_to_index.end()) {
+    auto it = blocks.frame_id_to_index.find(frame_id);
+    if (it == blocks.frame_id_to_index.end()) {
       LogW("Prior skipped: frame_id {} not found in window", frame_id);
       return;
     }
     const size_t idx = it->second;
-    if (idx >= pose_params.size()) {
+    if (idx >= blocks.pose_params.size()) {
       LogW("Prior skipped: frame_id {} idx {} >= pose_params size {}",
            frame_id,
            idx,
-           pose_params.size());
+           blocks.pose_params.size());
       return;
     }
-    prior_pose_blocks.push_back(pose_params[idx].data());
+    prior_param_blocks.push_back(blocks.pose_params[idx].data());
   }
 
   for (const uint64_t frame_id : preintegration_ids) {
-    auto it = inertial_id_to_index.find(frame_id);
-    if (it == inertial_id_to_index.end()) {
+    auto it = blocks.inertial_id_to_index.find(frame_id);
+    if (it == blocks.inertial_id_to_index.end()) {
       LogW("Prior skipped: preint id {} not found in inertial index", frame_id);
       return;
     }
     const size_t idx = it->second;
-    if (idx >= velocity_params.size() || idx >= bias_acc_params.size()
-        || idx >= bias_gyr_params.size()) {
+    if (idx >= blocks.velocity_params.size()
+        || idx >= blocks.bias_acc_params.size()
+        || idx >= blocks.bias_gyr_params.size()) {
       LogW("Prior skipped: preint id {} idx {} out of inertial param bounds",
            frame_id,
            idx);
       return;
     }
     if (per_inertial_block_count == 3) {
-      prior_pose_blocks.push_back(velocity_params[idx].data());
+      prior_param_blocks.push_back(blocks.velocity_params[idx].data());
     }
-    prior_pose_blocks.push_back(bias_acc_params[idx].data());
-    prior_pose_blocks.push_back(bias_gyr_params[idx].data());
+    prior_param_blocks.push_back(blocks.bias_acc_params[idx].data());
+    prior_param_blocks.push_back(blocks.bias_gyr_params[idx].data());
   }
 
   LogI("Prior added: frame_ids=[{}], preint_ids=[{}], blocks={}, residuals={}",
@@ -156,7 +348,7 @@ static void AddMarginalizationPriorIfAvailable(
        prior.r_.size());
 
   ceres::CostFunction* prior_cost = new MarginalizationCost(prior);
-  problem.AddResidualBlock(prior_cost, nullptr, prior_pose_blocks);
+  problem.AddResidualBlock(prior_cost, nullptr, prior_param_blocks);
 }
 
 }  // namespace
@@ -182,8 +374,8 @@ void VIOEstimator::OptimizeSingleFrame(std::shared_ptr<Frame> frame,
       continue;
     }
 
-    std::shared_ptr<Frame> host_frame = window->GetFrame(
-      mp->GetHostFrameCamId().frame_id);
+    std::shared_ptr<Frame> host_frame =
+      window->GetFrame(mp->GetHostFrameCamId().frame_id);
     if (!host_frame) {
       continue;
     }
@@ -193,11 +385,13 @@ void VIOEstimator::OptimizeSingleFrame(std::shared_ptr<Frame> frame,
     const Eigen::Vector3d p_w   = Twc0 * p_c0;
     const Sophus::SE3d&   T_b_c = frame->GetTbc(kCamIdx);
 
-    ceres::CostFunction* cost = new PoseOnlyBearingCost(p_w,
-                                                        bearing,
-                                                        T_b_c,
-                                                        SVOConfig::bearing_cost_scale);
-    ceres::LossFunction* loss = new ceres::HuberLoss(SVOConfig::bearing_huber_const);
+    ceres::CostFunction* cost =
+      new PoseOnlyBearingCost(p_w,
+                              bearing,
+                              T_b_c,
+                              SVOConfig::bearing_cost_scale);
+    ceres::LossFunction* loss =
+      new ceres::HuberLoss(SVOConfig::bearing_huber_const);
     problem.AddResidualBlock(cost, loss, box_w_b.data());
   }
 
@@ -216,32 +410,32 @@ void VIOEstimator::OptimizeSingleFrame(std::shared_ptr<Frame> frame,
 VIOEstimator::VIOEstimator()
   : marginalization_prior_(std::make_unique<MarginalizationPrior>()) {
   marginalization_prior_->frame_ids_.insert(kMarginalizerInitialFrameId);
-  marginalization_prior_->preintegration_ids_.insert(kMarginalizerInitialFrameId);
+  marginalization_prior_->preintegration_ids_.insert(
+    kMarginalizerInitialFrameId);
 
   constexpr int kInitialPriorSize = kPoseSize + 2 * kBiasSize;
   marginalization_prior_->x0_     = Eigen::VectorXd::Zero(kInitialPriorSize);
   marginalization_prior_->J_      = Eigen::MatrixXd::Zero(kInitialPriorSize,
                                                      kInitialPriorSize);
-  marginalization_prior_->J_
-    .topLeftCorner(3u, 3u) = SVIOConfig::marginalizer_initial_prior_weight
-                             * Eigen::MatrixXd::Identity(3u, 3u);
-  marginalization_prior_->J_(5, 5) = SVIOConfig::marginalizer_initial_prior_weight;
+  marginalization_prior_->J_.topLeftCorner(3u, 3u) =
+    SVIOConfig::marginalizer_initial_prior_weight
+    * Eigen::MatrixXd::Identity(3u, 3u);
+  marginalization_prior_->J_(5,
+                             5) = SVIOConfig::marginalizer_initial_prior_weight;
 
-  marginalization_prior_->J_
-    .block(kPoseSize,
-           kPoseSize,
-           kBiasSize,
-           kBiasSize) = SVIOConfig::marginalizer_initial_bias_weight
-                        * Eigen::MatrixXd::Identity(kBiasSize, kBiasSize);
+  marginalization_prior_->J_.block(kPoseSize, kPoseSize, kBiasSize, kBiasSize) =
+    SVIOConfig::marginalizer_initial_bias_weight
+    * Eigen::MatrixXd::Identity(kBiasSize, kBiasSize);
 
-  marginalization_prior_->J_
-    .block(kPoseSize + kBiasSize,
-           kPoseSize + kBiasSize,
-           kBiasSize,
-           kBiasSize) = SVIOConfig::marginalizer_initial_bias_weight
-                        * Eigen::MatrixXd::Identity(kBiasSize, kBiasSize);
+  marginalization_prior_->J_.block(kPoseSize + kBiasSize,
+                                   kPoseSize + kBiasSize,
+                                   kBiasSize,
+                                   kBiasSize) =
+    SVIOConfig::marginalizer_initial_bias_weight
+    * Eigen::MatrixXd::Identity(kBiasSize, kBiasSize);
   marginalization_prior_->block_sizes_ = {kPoseSize, kBiasSize, kBiasSize};
-  marginalization_prior_->r_ = Eigen::VectorXd::Zero(marginalization_prior_->x0_.size());
+  marginalization_prior_->r_ =
+    Eigen::VectorXd::Zero(marginalization_prior_->x0_.size());
 }
 
 VIOEstimator::~VIOEstimator() = default;
@@ -277,24 +471,12 @@ void VIOEstimator::OptimizeWindow(
   ceres::Problem problem;
   const auto     imu_residual_sqrt_scale = MakeImuResidualSqrtScale();
 
-  std::vector<Eigen::Vector6d>         pose_params;
-  std::unordered_map<uint64_t, size_t> frame_id_to_index;
-  pose_params.reserve(frames.size());
-
+  WindowBlocks blocks;
+  blocks.pose_params.reserve(frames.size());
   for (const auto& [frame_id, frame] : frames) {
-    frame_id_to_index[frame_id] = pose_params.size();
-    pose_params.push_back(SE3BoxplusManifold::ToParams(frame->GetTwb()));
+    blocks.AddPose(frame_id, frame->GetTwb());
   }
-
-  auto* se3_box_plus_manifold = new SE3BoxplusManifold();
-  for (auto& param : pose_params) {
-    problem.AddParameterBlock(param.data(), kPoseSize, se3_box_plus_manifold);
-  }
-
-  std::unordered_map<uint64_t, size_t> inertial_id_to_index;
-  std::vector<Eigen::Vector3d>         velocity_params;
-  std::vector<Eigen::Vector3d>         bias_acc_params;
-  std::vector<Eigen::Vector3d>         bias_gyr_params;
+  RegisterPoseBlocks(problem, blocks);
 
   for (const auto& [frame_id, _] : frames) {
     const auto state_it = inertial_states.find(frame_id);
@@ -302,53 +484,16 @@ void VIOEstimator::OptimizeWindow(
       OMNI_ASSERT_MESSAGE(true, "inertial state missing");
       continue;
     }
-    inertial_id_to_index[frame_id] = velocity_params.size();
-    velocity_params.push_back(state_it->second.v_w_b);
-    bias_acc_params.push_back(state_it->second.bias_acc);
-    bias_gyr_params.push_back(state_it->second.bias_gyr);
+    blocks.AddInertialState(frame_id, state_it->second);
   }
-
-  for (size_t i = 0; i < velocity_params.size(); ++i) {
-    problem.AddParameterBlock(velocity_params[i].data(), kInertialStateDim);
-    problem.AddParameterBlock(bias_acc_params[i].data(), kInertialStateDim);
-    problem.AddParameterBlock(bias_gyr_params[i].data(), kInertialStateDim);
-  }
+  RegisterInertialBlocks(problem, blocks);
 
   for (const auto& [_, preintegration] : imu_preintegrations) {
-    if (preintegration.GetDeltaTimeSec() <= 0.0) {
-      continue;
-    }
-    const uint64_t from_id = preintegration.GetFromFrameId();
-    const uint64_t to_id   = preintegration.GetToFrameId();
-
-    const auto from_frame_it    = frame_id_to_index.find(from_id);
-    const auto to_frame_it      = frame_id_to_index.find(to_id);
-    const auto from_inertial_it = inertial_id_to_index.find(from_id);
-    const auto to_inertial_it   = inertial_id_to_index.find(to_id);
-    if (from_frame_it == frame_id_to_index.end() || to_frame_it == frame_id_to_index.end()
-        || from_inertial_it == inertial_id_to_index.end()
-        || to_inertial_it == inertial_id_to_index.end()) {
-      continue;
-    }
-
-    const size_t from_pose_idx     = from_frame_it->second;
-    const size_t to_pose_idx       = to_frame_it->second;
-    const size_t from_inertial_idx = from_inertial_it->second;
-    const size_t to_inertial_idx   = to_inertial_it->second;
-
-    ceres::CostFunction* imu_cost = new ImuPreintegrationCost(preintegration,
-                                                              SVIOConfig::g_w,
-                                                              imu_residual_sqrt_scale);
-    problem.AddResidualBlock(imu_cost,
-                             nullptr,
-                             pose_params[from_pose_idx].data(),
-                             pose_params[to_pose_idx].data(),
-                             velocity_params[from_inertial_idx].data(),
-                             velocity_params[to_inertial_idx].data(),
-                             bias_acc_params[from_inertial_idx].data(),
-                             bias_gyr_params[from_inertial_idx].data(),
-                             bias_acc_params[to_inertial_idx].data(),
-                             bias_gyr_params[to_inertial_idx].data());
+    AddImuFactor(problem,
+                 blocks,
+                 preintegration,
+                 imu_residual_sqrt_scale,
+                 ImuCostType::kAnalytic);
   }
 
   std::unordered_map<uint64_t, size_t> mp_id_to_index;
@@ -360,22 +505,9 @@ void VIOEstimator::OptimizeWindow(
   for (const auto& [mp_id, mp] : map_points) {
     mp_id_to_index[mp_id] = bearing_params.size();
     bearing_params.push_back(mp->GetBearing());
-    double inv_dist = mp->GetInvDist();
-    if (!std::isfinite(inv_dist) || inv_dist <= SVOConfig::inv_dist_min_value) {
-      inv_dist = SVOConfig::inv_dist_initial_value;
-    }
-    inv_dist_params.push_back(inv_dist);
+    inv_dist_params.push_back(SanitizeInvDist(mp->GetInvDist()));
   }
-
-  auto* bearing_manifold = new BearingTangentManifold();
-  for (auto& bearing : bearing_params) {
-    problem.AddParameterBlock(bearing.data(), kBearingSize, bearing_manifold);
-  }
-
-  for (auto& inv_dist : inv_dist_params) {
-    problem.AddParameterBlock(&inv_dist, 1);
-    problem.SetParameterLowerBound(&inv_dist, 0, SVOConfig::inv_dist_min_value);
-  }
+  RegisterMapPointBlocks(problem, bearing_params, inv_dist_params);
   {
     std::string window_ids_str;
     for (const auto& fid : window->GetFrameIds()) {
@@ -386,14 +518,7 @@ void VIOEstimator::OptimizeWindow(
          JoinIds(marginalization_prior_->frame_ids_),
          JoinIds(marginalization_prior_->preintegration_ids_));
   }
-  AddMarginalizationPriorIfAvailable(problem,
-                                     *marginalization_prior_,
-                                     frame_id_to_index,
-                                     inertial_id_to_index,
-                                     pose_params,
-                                     velocity_params,
-                                     bias_acc_params,
-                                     bias_gyr_params);
+  AddMarginalizationPriorIfAvailable(problem, *marginalization_prior_, blocks);
 
   for (const auto& [mp_id, mp] : map_points) {
     if (mp->GetStatus() < MapPoint::Status::TRACKING) {
@@ -404,61 +529,14 @@ void VIOEstimator::OptimizeWindow(
       continue;
     }
 
-    const FrameCamId frame_cam_id0 = mp->GetHostFrameCamId();
-    auto             frame0        = window->GetFrame(frame_cam_id0.frame_id);
-    if (!frame0) {
-      continue;
-    }
-
-    const Sophus::SE3d& T_b_c0 = frame0->GetTbc(frame_cam_id0.cam_id);
-    double* pose_param0 = pose_params[frame_id_to_index[frame_cam_id0.frame_id]].data();
-
-    const auto& observations   = mp->GetObservation();
-    double*     bearing_param  = bearing_params[mp_id_to_index[mp->GetId()]].data();
-    double*     inv_dist_param = &inv_dist_params[mp_id_to_index[mp->GetId()]];
-
-    const auto host_obs_it = observations.find(frame_cam_id0);
-    if (host_obs_it != observations.end()) {
-      ceres::CostFunction*
-        host_bearing_prior_cost = new BearingPriorCost(host_obs_it->second,
-                                                       SVOConfig::bearing_cost_scale);
-      problem.AddResidualBlock(host_bearing_prior_cost, nullptr, bearing_param);
-    }
-
-    for (const auto& [frame_cam_id1, bearing] : observations) {
-      if (frame_cam_id0 == frame_cam_id1) {
-        continue;
-      }
-
-      auto frame1 = window->GetFrame(frame_cam_id1.frame_id);
-      if (!frame1) {
-        continue;
-      }
-
-      double* pose_param1 = pose_params[frame_id_to_index[frame_cam_id1.frame_id]].data();
-      const Sophus::SE3d& T_b_c1 = frame1->GetTbc(frame_cam_id1.cam_id);
-
-      ceres::LossFunction* loss = new ceres::HuberLoss(SVOConfig::bearing_huber_const);
-      if (frame_cam_id0.frame_id == frame_cam_id1.frame_id) {
-        ceres::CostFunction* cost = new BearingStereoCost(bearing,
-                                                          T_b_c1,
-                                                          T_b_c0,
-                                                          SVOConfig::bearing_cost_scale);
-        problem.AddResidualBlock(cost, loss, bearing_param, inv_dist_param);
-      }
-      else {
-        ceres::CostFunction* cost = new BearingCost(bearing,
-                                                    T_b_c1,
-                                                    T_b_c0,
-                                                    SVOConfig::bearing_cost_scale);
-        problem.AddResidualBlock(cost,
-                                 loss,
-                                 pose_param1,
-                                 pose_param0,
-                                 bearing_param,
-                                 inv_dist_param);
-      }
-    }
+    const size_t mp_idx = mp_id_to_index[mp_id];
+    AddBearingResidualsForMapPoint(problem,
+                                   window,
+                                   mp,
+                                   blocks,
+                                   bearing_params[mp_idx].data(),
+                                   &inv_dist_params[mp_idx],
+                                   /*robustify_host_prior=*/false);
   }
 
   ceres::Solver::Options options;
@@ -471,18 +549,17 @@ void VIOEstimator::OptimizeWindow(
   ceres::Solve(options, &problem, &summary);
 
   for (const auto& [frame_id, frame] : frames) {
-    auto it = frame_id_to_index.find(frame_id);
-    frame->SetTwb(SE3BoxplusManifold::FromParams(pose_params[it->second].data()));
+    frame->SetTwb(SE3BoxplusManifold::FromParams(blocks.PoseParam(frame_id)));
   }
 
-  for (const auto& [frame_id, idx] : inertial_id_to_index) {
+  for (const auto& [frame_id, idx] : blocks.inertial_id_to_index) {
     auto state_it = inertial_states.find(frame_id);
     if (state_it == inertial_states.end()) {
       continue;
     }
-    state_it->second.v_w_b    = velocity_params[idx];
-    state_it->second.bias_acc = bias_acc_params[idx];
-    state_it->second.bias_gyr = bias_gyr_params[idx];
+    state_it->second.v_w_b    = blocks.velocity_params[idx];
+    state_it->second.bias_acc = blocks.bias_acc_params[idx];
+    state_it->second.bias_gyr = blocks.bias_gyr_params[idx];
   }
 
   for (const auto& [mp_id, idx] : mp_id_to_index) {
@@ -495,7 +572,8 @@ void VIOEstimator::OptimizeWindow(
       b.normalize();
     }
     mp->GetBearing() = b;
-    mp->SetInvDist(std::max(inv_dist_params[idx], SVOConfig::inv_dist_min_value));
+    mp->SetInvDist(
+      std::max(inv_dist_params[idx], SVOConfig::inv_dist_min_value));
   }
 }
 
@@ -505,7 +583,8 @@ void VIOEstimator::Marginalize(
   std::set<uint64_t>                           marginal_inertial_state_ids,
   const std::map<uint64_t, InertialState>&     inertial_states,
   const std::map<uint64_t, ImuPreintegration>& imu_preintegrations) {
-  if (!window || (marginal_frame_ids.empty() && marginal_inertial_state_ids.empty())) {
+  if (!window
+      || (marginal_frame_ids.empty() && marginal_inertial_state_ids.empty())) {
     return;
   }
 
@@ -513,7 +592,8 @@ void VIOEstimator::Marginalize(
   LogI("  marginal_frame_ids: [{}]", JoinIds(marginal_frame_ids));
   LogI("  marginal_inertial_ids: [{}]", JoinIds(marginal_inertial_state_ids));
   LogI("  prior frame_ids: [{}]", JoinIds(marginalization_prior_->frame_ids_));
-  LogI("  prior preint_ids: [{}]", JoinIds(marginalization_prior_->preintegration_ids_));
+  LogI("  prior preint_ids: [{}]",
+       JoinIds(marginalization_prior_->preintegration_ids_));
   {
     std::string window_ids_str;
     for (const auto& fid : window->GetFrameIds()) {
@@ -571,14 +651,15 @@ void VIOEstimator::Marginalize(
     }
   }
 
-  auto imu_factor_touches_marginal = [&](const ImuPreintegration& preintegration) {
-    const uint64_t from_id = preintegration.GetFromFrameId();
-    const uint64_t to_id   = preintegration.GetToFrameId();
-    return marginal_inertial_ids.count(from_id) > 0
-           || marginal_inertial_ids.count(to_id) > 0
-           || marginal_frame_ids.count(from_id) > 0
-           || marginal_frame_ids.count(to_id) > 0;
-  };
+  auto imu_factor_touches_marginal =
+    [&](const ImuPreintegration& preintegration) {
+      const uint64_t from_id = preintegration.GetFromFrameId();
+      const uint64_t to_id   = preintegration.GetToFrameId();
+      return marginal_inertial_ids.count(from_id) > 0
+             || marginal_inertial_ids.count(to_id) > 0
+             || marginal_frame_ids.count(from_id) > 0
+             || marginal_frame_ids.count(to_id) > 0;
+    };
 
   auto add_remain_inertial_if_active = [&](uint64_t id) {
     if (marginal_inertial_ids.count(id) > 0 || inertial_states.count(id) == 0) {
@@ -618,42 +699,29 @@ void VIOEstimator::Marginalize(
   ceres::Problem problem;
   const auto     imu_residual_sqrt_scale = MakeImuResidualSqrtScale();
 
-  std::vector<Eigen::Vector6d>         pose_params;
-  std::unordered_map<uint64_t, size_t> frame_id_to_index;
-  auto*                                box_plus_manifold = new SE3BoxplusManifold();
-
-  pose_params.reserve(marginal_frame_ids.size() + remain_frame_ids.size());
+  // Parameter blocks in [marginal | remain] order. The Schur complement below
+  // relies on the explicit eval ordering, not on registration order.
+  WindowBlocks blocks;
+  blocks.pose_params.reserve(marginal_frame_ids.size()
+                             + remain_frame_ids.size());
   for (const auto& frame_id : marginal_frame_ids) {
-    auto frame = window->GetFrame(frame_id);
-    if (!frame) {
-      continue;
+    if (auto frame = window->GetFrame(frame_id)) {
+      blocks.AddPose(frame_id, frame->GetTwb());
     }
-    frame_id_to_index[frame_id] = pose_params.size();
-    pose_params.push_back(SE3BoxplusManifold::ToParams(frame->GetTwb()));
-    problem.AddParameterBlock(pose_params.back().data(), kPoseSize, box_plus_manifold);
   }
-
   for (const auto& frame_id : remain_frame_ids) {
-    auto frame = window->GetFrame(frame_id);
-    if (!frame) {
-      continue;
+    if (auto frame = window->GetFrame(frame_id)) {
+      blocks.AddPose(frame_id, frame->GetTwb());
     }
-    frame_id_to_index[frame_id] = pose_params.size();
-    pose_params.push_back(SE3BoxplusManifold::ToParams(frame->GetTwb()));
   }
+  RegisterPoseBlocks(problem, blocks);
 
   LogI("  remain_frame_ids: [{}]", JoinIds(remain_frame_ids));
   LogI("  marginal_inertial_ids: [{}]", JoinIds(marginal_inertial_ids));
   LogI("  remain_inertial_ids: [{}]", JoinIds(remain_inertial_ids));
 
-  // Inertial parameters (separate index from frame poses)
-  std::unordered_map<uint64_t, size_t> inertial_id_to_index;
-  std::vector<Eigen::Vector3d>         velocity_params;
-  std::vector<Eigen::Vector3d>         bias_acc_params;
-  std::vector<Eigen::Vector3d>         bias_gyr_params;
-
   auto add_inertial_entry = [&](uint64_t id) {
-    if (inertial_id_to_index.count(id) > 0) {
+    if (blocks.HasInertialState(id)) {
       return;
     }
     const auto it = inertial_states.find(id);
@@ -661,133 +729,42 @@ void VIOEstimator::Marginalize(
       LogW("Skip inertial state {} in marginalization: state missing", id);
       return;
     }
-    inertial_id_to_index[id] = velocity_params.size();
-    velocity_params.push_back(it->second.v_w_b);
-    bias_acc_params.push_back(it->second.bias_acc);
-    bias_gyr_params.push_back(it->second.bias_gyr);
+    blocks.AddInertialState(id, it->second);
   };
 
-  // Build in order: marginal first, then remain
   for (const uint64_t id : marginal_inertial_ids) {
     add_inertial_entry(id);
   }
   for (const uint64_t id : remain_inertial_ids) {
     add_inertial_entry(id);
   }
-
-  for (size_t i = 0; i < velocity_params.size(); ++i) {
-    problem.AddParameterBlock(velocity_params[i].data(), kInertialStateDim);
-    problem.AddParameterBlock(bias_acc_params[i].data(), kInertialStateDim);
-    problem.AddParameterBlock(bias_gyr_params[i].data(), kInertialStateDim);
-  }
+  RegisterInertialBlocks(problem, blocks);
 
   std::vector<Eigen::Vector3d> bearing_params;
   std::vector<double>          inv_dist_params;
-  bearing_params.reserve(window->GetMapPointCount());
-  inv_dist_params.reserve(window->GetMapPointCount());
+  bearing_params.reserve(marginal_map_points.size());
+  inv_dist_params.reserve(marginal_map_points.size());
 
   for (const auto& map_point : marginal_map_points) {
     bearing_params.push_back(map_point->GetBearing());
-    double inv_dist = map_point->GetInvDist();
-    if (!std::isfinite(inv_dist) || inv_dist <= SVOConfig::inv_dist_min_value) {
-      inv_dist = SVOConfig::inv_dist_initial_value;
-    }
-    inv_dist_params.push_back(inv_dist);
+    inv_dist_params.push_back(SanitizeInvDist(map_point->GetInvDist()));
   }
+  RegisterMapPointBlocks(problem, bearing_params, inv_dist_params);
 
-  auto* bearing_manifold = new BearingTangentManifold();
-  for (auto& bearing : bearing_params) {
-    problem.AddParameterBlock(bearing.data(), kBearingSize, bearing_manifold);
-  }
-
-  for (auto& inv_dist : inv_dist_params) {
-    problem.AddParameterBlock(&inv_dist, 1);
-    problem.SetParameterLowerBound(&inv_dist, 0, SVOConfig::inv_dist_min_value);
-  }
-
-  for (const auto& frame_id : remain_frame_ids) {
-    const auto it = frame_id_to_index.find(frame_id);
-    if (it == frame_id_to_index.end()) {
-      continue;
-    }
-    problem.AddParameterBlock(pose_params[it->second].data(),
-                              kPoseSize,
-                              box_plus_manifold);
-  }
-
-  AddMarginalizationPriorIfAvailable(problem,
-                                     *marginalization_prior_,
-                                     frame_id_to_index,
-                                     inertial_id_to_index,
-                                     pose_params,
-                                     velocity_params,
-                                     bias_acc_params,
-                                     bias_gyr_params);
+  AddMarginalizationPriorIfAvailable(problem, *marginalization_prior_, blocks);
 
   for (size_t i = 0; i < marginal_map_points.size(); ++i) {
-    std::shared_ptr<MapPoint> mp = marginal_map_points[i];
+    const std::shared_ptr<MapPoint>& mp = marginal_map_points[i];
     if (!mp || mp->GetStatus() < MapPoint::Status::TRACKING) {
       continue;
     }
-
-    const FrameCamId frame_cam_id0 = mp->GetHostFrameCamId();
-    auto             frame0        = window->GetFrame(frame_cam_id0.frame_id);
-    if (!frame0 || !frame_id_to_index.contains(frame_cam_id0.frame_id)) {
-      continue;
-    }
-
-    const Sophus::SE3d& T_b_c0 = frame0->GetTbc(frame_cam_id0.cam_id);
-    double* pose_param0 = pose_params[frame_id_to_index[frame_cam_id0.frame_id]].data();
-    const auto& observations   = mp->GetObservation();
-    double*     bearing_param  = bearing_params[i].data();
-    double*     inv_dist_param = &inv_dist_params[i];
-
-    const auto host_obs_it = observations.find(frame_cam_id0);
-    if (host_obs_it != observations.end()) {
-      ceres::CostFunction*
-        host_bearing_prior_cost = new BearingPriorCost(host_obs_it->second,
-                                                       SVOConfig::bearing_cost_scale);
-      ceres::LossFunction* loss = new ceres::HuberLoss(SVOConfig::bearing_huber_const);
-      problem.AddResidualBlock(host_bearing_prior_cost, loss, bearing_param);
-    }
-
-    for (const auto& [frame_cam_id1, bearing] : observations) {
-      if (frame_cam_id0 == frame_cam_id1) {
-        continue;
-      }
-      if (!frame_id_to_index.contains(frame_cam_id1.frame_id)) {
-        continue;
-      }
-
-      auto frame1 = window->GetFrame(frame_cam_id1.frame_id);
-      if (!frame1) {
-        continue;
-      }
-
-      double* pose_param1 = pose_params[frame_id_to_index[frame_cam_id1.frame_id]].data();
-      const Sophus::SE3d& T_b_c1 = frame1->GetTbc(frame_cam_id1.cam_id);
-
-      ceres::LossFunction* loss = new ceres::HuberLoss(SVOConfig::bearing_huber_const);
-      if (frame_cam_id0.frame_id == frame_cam_id1.frame_id) {
-        ceres::CostFunction* cost = new BearingStereoCost(bearing,
-                                                          T_b_c1,
-                                                          T_b_c0,
-                                                          SVOConfig::bearing_cost_scale);
-        problem.AddResidualBlock(cost, loss, bearing_param, inv_dist_param);
-      }
-      else {
-        ceres::CostFunction* cost = new BearingCost(bearing,
-                                                    T_b_c1,
-                                                    T_b_c0,
-                                                    SVOConfig::bearing_cost_scale);
-        problem.AddResidualBlock(cost,
-                                 loss,
-                                 pose_param1,
-                                 pose_param0,
-                                 bearing_param,
-                                 inv_dist_param);
-      }
-    }
+    AddBearingResidualsForMapPoint(problem,
+                                   window,
+                                   mp,
+                                   blocks,
+                                   bearing_params[i].data(),
+                                   &inv_dist_params[i],
+                                   /*robustify_host_prior=*/true);
   }
 
   size_t marginal_imu_total        = 0;
@@ -801,57 +778,48 @@ void VIOEstimator::Marginalize(
       ++marginal_imu_skip_dt;
       continue;
     }
-
-    const uint64_t from_id = preintegration.GetFromFrameId();
-    const uint64_t to_id   = preintegration.GetToFrameId();
     if (!imu_factor_touches_marginal(preintegration)) {
       ++marginal_imu_skip_keep;
       continue;
     }
 
-    const auto from_frame_it    = frame_id_to_index.find(from_id);
-    const auto to_frame_it      = frame_id_to_index.find(to_id);
-    const auto from_inertial_it = inertial_id_to_index.find(from_id);
-    const auto to_inertial_it   = inertial_id_to_index.find(to_id);
-    if (from_frame_it == frame_id_to_index.end() || to_frame_it == frame_id_to_index.end()
-        || from_inertial_it == inertial_id_to_index.end()
-        || to_inertial_it == inertial_id_to_index.end()) {
+    switch (AddImuFactor(problem,
+                         blocks,
+                         preintegration,
+                         imu_residual_sqrt_scale,
+                         ImuCostType::kAutoDiff)) {
+    case AddImuFactorResult::kAdded:
+      ++marginal_imu_added;
+      break;
+    case AddImuFactorResult::kSkippedMissingBlock:
       ++marginal_imu_skip_missing;
-      continue;
+      break;
+    case AddImuFactorResult::kSkippedDt:
+      ++marginal_imu_skip_dt;
+      break;
     }
-
-    const size_t from_pose_idx     = from_frame_it->second;
-    const size_t to_pose_idx       = to_frame_it->second;
-    const size_t from_inertial_idx = from_inertial_it->second;
-    const size_t to_inertial_idx   = to_inertial_it->second;
-
-    ceres::CostFunction* imu_cost = new ImuPreintegrationAutoDiffCost(
-      new ImuPreintegrationCostAuto(preintegration,
-                                    SVIOConfig::g_w,
-                                    imu_residual_sqrt_scale));
-    problem.AddResidualBlock(imu_cost,
-                             nullptr,
-                             pose_params[from_pose_idx].data(),
-                             pose_params[to_pose_idx].data(),
-                             velocity_params[from_inertial_idx].data(),
-                             velocity_params[to_inertial_idx].data(),
-                             bias_acc_params[from_inertial_idx].data(),
-                             bias_gyr_params[from_inertial_idx].data(),
-                             bias_acc_params[to_inertial_idx].data(),
-                             bias_gyr_params[to_inertial_idx].data());
-    ++marginal_imu_added;
   }
-  LogI("Marginalize IMU factors: total={}, added={}, skip_dt={}, skip_missing={}, "
-       "skip_keep={}, "
-       "marginal_inertial={}, remain_inertial={}, preints={}",
-       marginal_imu_total,
-       marginal_imu_added,
-       marginal_imu_skip_dt,
-       marginal_imu_skip_missing,
-       marginal_imu_skip_keep,
-       marginal_inertial_ids.size(),
-       remain_inertial_ids.size(),
-       imu_preintegrations.size());
+  LogI(
+    "Marginalize IMU factors: total={}, added={}, skip_dt={}, skip_missing={}, "
+    "skip_keep={}, "
+    "marginal_inertial={}, remain_inertial={}, preints={}",
+    marginal_imu_total,
+    marginal_imu_added,
+    marginal_imu_skip_dt,
+    marginal_imu_skip_missing,
+    marginal_imu_skip_keep,
+    marginal_inertial_ids.size(),
+    remain_inertial_ids.size(),
+    imu_preintegrations.size());
+
+  // The eval-ordering / Schur-complement code below predates WindowBlocks;
+  // alias its members to keep that section unchanged.
+  auto& pose_params          = blocks.pose_params;
+  auto& frame_id_to_index    = blocks.frame_id_to_index;
+  auto& velocity_params      = blocks.velocity_params;
+  auto& bias_acc_params      = blocks.bias_acc_params;
+  auto& bias_gyr_params      = blocks.bias_gyr_params;
+  auto& inertial_id_to_index = blocks.inertial_id_to_index;
 
   size_t remain_pose_count = 0;
   for (const auto& frame_id : remain_frame_ids) {
@@ -875,7 +843,8 @@ void VIOEstimator::Marginalize(
     if (!frame_id_to_index.contains(frame_id)) {
       continue;
     }
-    eval_opts.parameter_blocks.push_back(pose_params[frame_id_to_index[frame_id]].data());
+    eval_opts.parameter_blocks.push_back(
+      pose_params[frame_id_to_index[frame_id]].data());
   }
   // Marginalize partition - inertial states
   for (const auto& id : marginal_inertial_ids) {
@@ -899,7 +868,8 @@ void VIOEstimator::Marginalize(
     if (!frame_id_to_index.contains(frame_id)) {
       continue;
     }
-    eval_opts.parameter_blocks.push_back(pose_params[frame_id_to_index[frame_id]].data());
+    eval_opts.parameter_blocks.push_back(
+      pose_params[frame_id_to_index[frame_id]].data());
   }
   // Keep partition - inertial states
   for (const auto& id : remain_inertial_ids) {
@@ -946,7 +916,8 @@ void VIOEstimator::Marginalize(
     return;
   }
   if (m == 0) {
-    LogW("Skip marginalization update because marginal block is empty (frames: {}, "
+    LogW("Skip marginalization update because marginal block is empty (frames: "
+         "{}, "
          "inertial: {}, points: {})",
          marginal_frame_ids.size(),
          marginal_inertial_ids.size(),
@@ -973,7 +944,8 @@ void VIOEstimator::Marginalize(
 
   constexpr double eps         = 1e-8;
   Eigen::VectorXd  inv_eigvals = (saes.eigenvalues().array() > eps)
-                                  .select(saes.eigenvalues().array().inverse(), 0.0);
+                                  .select(saes.eigenvalues().array().inverse(),
+                                          0.0);
   const Eigen::MatrixXd Amm_inv = saes.eigenvectors() * inv_eigvals.asDiagonal()
                                   * saes.eigenvectors().transpose();
 
@@ -1063,14 +1035,16 @@ void VIOEstimator::Marginalize(
           }
         }
 
-        marginalization_prior_->J_ = sqrt_vals.asDiagonal() * eig_vecs.transpose();
-        marginalization_prior_->r_ = inv_sqrt_vals.asDiagonal() * eig_vecs.transpose()
-                                     * b;
+        marginalization_prior_->J_ = sqrt_vals.asDiagonal()
+                                     * eig_vecs.transpose();
+        marginalization_prior_->r_ = inv_sqrt_vals.asDiagonal()
+                                     * eig_vecs.transpose() * b;
       }
     }
   }
   LogI("=== Marginalize END ===");
-  LogI("  new prior frame_ids: [{}]", JoinIds(marginalization_prior_->frame_ids_));
+  LogI("  new prior frame_ids: [{}]",
+       JoinIds(marginalization_prior_->frame_ids_));
   LogI("  new prior preint_ids: [{}]",
        JoinIds(marginalization_prior_->preintegration_ids_));
   LogI("  new prior J: {}x{}, r: {}, x0: {}, blocks: {}",

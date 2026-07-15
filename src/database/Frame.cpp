@@ -1,9 +1,9 @@
 #include <atomic>
 #include <utility>
 
-#include "feature_tracking/tracking_result.hpp"
-#include "database/Frame.hpp"
 #include "config/svo_config.hpp"
+#include "database/Frame.hpp"
+#include "feature_tracking/tracking_result.hpp"
 
 namespace omni_slam {
 namespace {
@@ -43,7 +43,9 @@ Frame::~Frame() {
   tracking_result_.reset();
 }
 
-void Frame::AddObservation(size_t cam_idx, size_t mp_id, const Eigen::Vector3d& bearing) {
+void Frame::AddObservation(size_t                 cam_idx,
+                           size_t                 mp_id,
+                           const Eigen::Vector3d& bearing) {
   if (cam_idx >= mp_id_to_bearings_.size()) {
     return;
   }

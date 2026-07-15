@@ -6,12 +6,13 @@
 
 #include <Eigen/Dense>
 #include <opencv2/core/core.hpp>
+
 #include "utils/types.hpp"
 
 namespace omni_slam {
 
 class CameraModelBase {
-public:
+ public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 
   CameraModelBase()          = default;
@@ -29,7 +30,7 @@ public:
 
   virtual bool Unproject(const cv::Point2f& uv, Eigen::Vector3d& bearing_) = 0;
 
-protected:
+ protected:
   void SetIntrinsics(const std::array<double, 4>& intrinsics) {
     cv_K_ = (cv::Mat_<double>(3, 3) << intrinsics[0],
              0.0,
@@ -54,7 +55,7 @@ protected:
 };
 
 class CameraModelFactory {
-public:
+ public:
   static std::unique_ptr<CameraModelBase> Create(const CameraParameter& params);
 };
 

@@ -1,9 +1,8 @@
-#include <gtest/gtest.h>
-
 #include <array>
 #include <vector>
 
 #include <ceres/ceres.h>
+#include <gtest/gtest.h>
 
 #include "optimizer/marginalizer.hpp"
 
@@ -27,10 +26,8 @@ TEST(MarginalizationCostTest, ResidualAndJacobiansMatchExpectedLinearModel) {
   // residual = r + J * (x - x0)
   MarginalizationPrior prior = MakePrior({2, 3, 1}, 4, 6);
 
-  prior.J_ << 1.0, 0.0, 2.0, -1.0, 0.5, 3.0,
-    -2.0, 1.0, 0.0, 1.0, -0.5, 2.0,
-    0.2, 0.3, -1.0, 0.0, 2.0, -0.7,
-    1.5, -0.2, 0.4, 0.8, -1.2, 0.1;
+  prior.J_ << 1.0, 0.0, 2.0, -1.0, 0.5, 3.0, -2.0, 1.0, 0.0, 1.0, -0.5, 2.0,
+    0.2, 0.3, -1.0, 0.0, 2.0, -0.7, 1.5, -0.2, 0.4, 0.8, -1.2, 0.1;
   prior.r_ << 0.1, -0.2, 0.3, -0.4;
   prior.x0_ << 1.0, 2.0, -1.0, 0.5, 0.3, -2.0;
 
@@ -41,20 +38,21 @@ TEST(MarginalizationCostTest, ResidualAndJacobiansMatchExpectedLinearModel) {
   x1 << -1.5, 1.0, 0.1;
   x2 << -1.0;
 
-  MarginalizationCost         cost(prior);
+  MarginalizationCost          cost(prior);
   std::array<const double*, 3> params{x0.data(), x1.data(), x2.data()};
 
-  Eigen::Vector4d residual;
+  Eigen::Vector4d                              residual;
   Eigen::Matrix<double, 4, 2, Eigen::RowMajor> J0;
   Eigen::Matrix<double, 4, 3, Eigen::RowMajor> J1;
-  Eigen::Matrix<double, 4, 1> J2;
+  Eigen::Matrix<double, 4, 1>                  J2;
   std::array<double*, 3> jacobians{J0.data(), J1.data(), J2.data()};
 
   ASSERT_TRUE(cost.Evaluate(params.data(), residual.data(), jacobians.data()));
 
   Eigen::Matrix<double, 6, 1> x;
   x << x0, x1, x2;
-  const Eigen::Vector4d expected_residual = prior.r_ + prior.J_ * (x - prior.x0_);
+  const Eigen::Vector4d expected_residual = prior.r_
+                                            + prior.J_ * (x - prior.x0_);
   EXPECT_LT((residual - expected_residual).norm(), 1e-12);
 
   EXPECT_LT((J0 - prior.J_.block<4, 2>(0, 0)).norm(), 1e-12);
@@ -73,7 +71,7 @@ TEST(MarginalizationCostTest, EvaluateWithoutJacobians) {
   x0 << 0.2, -0.5;
   x1 << 0.8;
 
-  MarginalizationCost         cost(prior);
+  MarginalizationCost          cost(prior);
   std::array<const double*, 2> params{x0.data(), x1.data()};
 
   Eigen::Vector2d residual;
@@ -81,7 +79,8 @@ TEST(MarginalizationCostTest, EvaluateWithoutJacobians) {
 
   Eigen::Vector3d x;
   x << x0, x1;
-  const Eigen::Vector2d expected_residual = prior.r_ + prior.J_ * (x - prior.x0_);
+  const Eigen::Vector2d expected_residual = prior.r_
+                                            + prior.J_ * (x - prior.x0_);
   EXPECT_LT((residual - expected_residual).norm(), 1e-12);
 }
 
@@ -92,16 +91,17 @@ TEST(MarginalizationCostTest, InvalidPriorDimensionsReturnFalse) {
   prior.r_           = Eigen::VectorXd::Zero(3);
   prior.J_           = Eigen::MatrixXd::Zero(3, 4);
 
-  MarginalizationCost         cost(prior);
-  Eigen::Vector2d             x0 = Eigen::Vector2d::Zero();
-  Eigen::Vector2d             x1 = Eigen::Vector2d::Zero();
+  MarginalizationCost          cost(prior);
+  Eigen::Vector2d              x0 = Eigen::Vector2d::Zero();
+  Eigen::Vector2d              x1 = Eigen::Vector2d::Zero();
   std::array<const double*, 2> params{x0.data(), x1.data()};
-  Eigen::Vector3d residual = Eigen::Vector3d::Zero();
+  Eigen::Vector3d              residual = Eigen::Vector3d::Zero();
 
   EXPECT_FALSE(cost.Evaluate(params.data(), residual.data(), nullptr));
 }
 
-TEST(MarginalizationCostTest, CeresOptimizationFindsLinearLeastSquaresSolution) {
+TEST(MarginalizationCostTest,
+     CeresOptimizationFindsLinearLeastSquaresSolution) {
   // Use full-rank square system: J = I, residual = r + (x - x0)
   // optimum is x* = x0 - r
   MarginalizationPrior prior = MakePrior({2, 1}, 3, 3);
@@ -117,7 +117,9 @@ TEST(MarginalizationCostTest, CeresOptimizationFindsLinearLeastSquaresSolution) 
   problem.AddParameterBlock(&x_block1, 1);
 
   std::vector<double*> param_blocks{x_block0.data(), &x_block1};
-  problem.AddResidualBlock(new MarginalizationCost(prior), nullptr, param_blocks);
+  problem.AddResidualBlock(new MarginalizationCost(prior),
+                           nullptr,
+                           param_blocks);
 
   ceres::Solver::Options options;
   options.linear_solver_type           = ceres::DENSE_QR;

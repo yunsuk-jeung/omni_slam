@@ -10,14 +10,16 @@ namespace omni_slam {
 
 // Boxplus update: t += dt, R = R * Exp(dtheta)
 class SE3BoxplusManifold final : public ceres::Manifold {
-public:
+ public:
   static constexpr int kAmbientSize = 6;
   static constexpr int kTangentSize = 6;
 
   int AmbientSize() const override { return kAmbientSize; }
   int TangentSize() const override { return kTangentSize; }
 
-  bool Plus(const double* x, const double* delta, double* x_plus_delta) const override {
+  bool Plus(const double* x,
+            const double* delta,
+            double*       x_plus_delta) const override {
     Eigen::Map<const Eigen::Vector3d> t(x);
     Eigen::Map<const Eigen::Vector3d> so3(x + 3);
     Eigen::Map<const Eigen::Vector3d> dt(delta);
@@ -39,12 +41,14 @@ public:
 
     J.setZero();
     J.topLeftCorner<3, 3>().setIdentity();  // ∂t_new/∂dt = I
-    J.bottomRightCorner<3, 3>() = SophusUtils::SO3RightJacobianInverse(
-      so3);  // ∂so3_new/∂dtheta
+    J.bottomRightCorner<3, 3>() =
+      SophusUtils::SO3RightJacobianInverse(so3);  // ∂so3_new/∂dtheta
     return true;
   }
 
-  bool Minus(const double* y, const double* x, double* y_minus_x) const override {
+  bool Minus(const double* y,
+             const double* x,
+             double*       y_minus_x) const override {
     Eigen::Map<const Eigen::Vector3d> t_y(y);
     Eigen::Map<const Eigen::Vector3d> so3_y(y + 3);
     Eigen::Map<const Eigen::Vector3d> t_x(x);
@@ -65,9 +69,9 @@ public:
     Eigen::Map<Eigen::Matrix<double, 6, 6, Eigen::RowMajor>> J(jacobian);
 
     J.setZero();
-    J.topLeftCorner<3, 3>()     = Eigen::Matrix3d::Identity();  // ∂dt/∂t_y = I
-    J.bottomRightCorner<3, 3>() = SophusUtils::SO3RightJacobian(
-      so3_x);  // ∂dtheta/∂so3_y = Jr(so3_x)
+    J.topLeftCorner<3, 3>() = Eigen::Matrix3d::Identity();  // ∂dt/∂t_y = I
+    J.bottomRightCorner<3, 3>() =
+      SophusUtils::SO3RightJacobian(so3_x);  // ∂dtheta/∂so3_y = Jr(so3_x)
     return true;
   }
 
@@ -86,7 +90,7 @@ public:
 };
 
 class BearingTangentManifold : public ceres::Manifold {
-public:
+ public:
   // f ∈ R^3
   int AmbientSize() const override { return 3; }
   //
@@ -96,7 +100,9 @@ public:
   // ---------------------------------------------
   // Plus: f ⊞ δ = Exp(B(f)δ) f
   // ---------------------------------------------
-  bool Plus(const double* x, const double* delta, double* x_plus_delta) const override {
+  bool Plus(const double* x,
+            const double* delta,
+            double*       x_plus_delta) const override {
     Eigen::Vector3d f = Eigen::Map<const Eigen::Vector3d>(x).normalized();
 
     // tangent basis at f
@@ -134,7 +140,9 @@ public:
     return true;
   }
 
-  bool Minus(const double* y, const double* x, double* y_minus_x) const override {
+  bool Minus(const double* y,
+             const double* x,
+             double*       y_minus_x) const override {
     Eigen::Vector3d fx = Eigen::Map<const Eigen::Vector3d>(x).normalized();
     Eigen::Vector3d fy = Eigen::Map<const Eigen::Vector3d>(y).normalized();
 

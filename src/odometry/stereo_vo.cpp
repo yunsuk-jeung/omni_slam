@@ -4,19 +4,20 @@
 #include <set>
 #include <unordered_map>
 #include <unordered_set>
+
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
 
-#include "utils/logger.hpp"
-#include "utils/timer.hpp"
 #include "config/svo_config.hpp"
 #include "database/Frame.hpp"
 #include "database/MapPoint.hpp"
 #include "feature_tracking/optical_flow.hpp"
-#include "optimizer/geometry.hpp"
-#include "optimizer/vo_estimator.hpp"
 #include "odometry/sliding_window.hpp"
 #include "odometry/stereo_vo.hpp"
+#include "optimizer/geometry.hpp"
+#include "optimizer/vo_estimator.hpp"
+#include "utils/logger.hpp"
+#include "utils/timer.hpp"
 
 namespace omni_slam {
 StereoVO::StereoVO()
@@ -48,7 +49,8 @@ bool StereoVO::Setup(const std::string& config_path) {
   Logger::Info("Loaded VO config: {}", config_path.c_str());
 
   sliding_window_->SetMaxSize(SVOConfig::max_keyframe_size + 1u);
-  optical_flow_ = std::make_unique<OpticalFlow>(kCamNum, frame_queue_, result_queue_);
+  optical_flow_ =
+    std::make_unique<OpticalFlow>(kCamNum, frame_queue_, result_queue_);
 
   return true;
 }
@@ -73,9 +75,10 @@ void StereoVO::Shutdown() {
   }
 }
 
-void StereoVO::OnCameraFrame(int64_t                             timestamp_ns,
-                             const std::vector<cv::Mat>&         images,
-                             const std::vector<CameraParameter>& camera_parameters) {
+void StereoVO::OnCameraFrame(
+  int64_t                             timestamp_ns,
+  const std::vector<cv::Mat>&         images,
+  const std::vector<CameraParameter>& camera_parameters) {
   if (images.empty() || images[0].empty()) {
     Logger::Warn("Received camera frame with empty left image");
     return;
@@ -142,12 +145,12 @@ bool StereoVO::Initialize(std::shared_ptr<Frame>& frame) {
   int created_map_point_num = InitializeMapPoints(frame);
 
   if (created_map_point_num < SVOConfig::min_init_map_point_count) {
-    Logger::Warn(
-      "StereoVO initialization failed at frame {} (map points: {}, required: {}), "
-      "resetting sliding window",
-      frame->GetId(),
-      created_map_point_num,
-      SVOConfig::min_init_map_point_count);
+    Logger::Warn("StereoVO initialization failed at frame {} (map points: {}, "
+                 "required: {}), "
+                 "resetting sliding window",
+                 frame->GetId(),
+                 created_map_point_num,
+                 SVOConfig::min_init_map_point_count);
     sliding_window_->Clear();
     created_map_point_nums_.clear();
     new_keyframe_after_ = SVOConfig::new_keyframe_after + 1;
@@ -323,17 +326,20 @@ int StereoVO::InitializeMapPoints(std::shared_ptr<Frame>& frame) {
         continue;
       }
 
-      std::shared_ptr<Frame> frame1 = sliding_window_->GetFrame(frame_cam_id1.frame_id);
+      std::shared_ptr<Frame> frame1 =
+        sliding_window_->GetFrame(frame_cam_id1.frame_id);
 
       auto T_w_c0  = frame->GetTwc(frame_cam_id0.cam_id);
       auto T_w_c1  = frame1->GetTwc(frame_cam_id1.cam_id);
       auto T_c1_c0 = T_w_c1.inverse() * T_w_c0;
 
-      if (T_c1_c0.translation().squaredNorm() < SVOConfig::triangulation_dist_threshold) {
+      if (T_c1_c0.translation().squaredNorm()
+          < SVOConfig::triangulation_dist_threshold) {
         continue;
       }
 
-      Eigen::Vector4d t_c0_x = Geometry::triangulate(bearing0, bearing1, T_c1_c0);
+      Eigen::Vector4d t_c0_x =
+        Geometry::triangulate(bearing0, bearing1, T_c1_c0);
       if (t_c0_x.array().isFinite().all() && t_c0_x[3] > 0 && t_c0_x[3] < 3.0) {
         mp->GetBearing()        = t_c0_x.head<3>();
         mp->GetInvDist()        = t_c0_x[3];
@@ -360,8 +366,9 @@ int StereoVO::InitializeMapPoints(std::shared_ptr<Frame>& frame) {
   return init_count;
 }
 
-void StereoVO::SelectMarginalFrames(std::set<uint64_t>& marginal_none_keyframe_ids,
-                                    std::set<uint64_t>& marginal_keyframe_ids) {
+void StereoVO::SelectMarginalFrames(
+  std::set<uint64_t>& marginal_none_keyframe_ids,
+  std::set<uint64_t>& marginal_keyframe_ids) {
   marginal_none_keyframe_ids.clear();
   marginal_keyframe_ids.clear();
 
@@ -416,7 +423,8 @@ void StereoVO::SelectMarginalFrames(std::set<uint64_t>& marginal_none_keyframe_i
       const int      count   = connected_map_points[kf_id];
       int            created = created_map_point_nums_[kf_id];
 
-      const double ratio = static_cast<double>(count) / static_cast<double>(created);
+      const double ratio = static_cast<double>(count)
+                           / static_cast<double>(created);
       if (count == 0
           || float(count) / float(created)
                < float(SVOConfig::marg_feature_connection_ratio)) {
@@ -443,7 +451,8 @@ void StereoVO::SelectMarginalFrames(std::set<uint64_t>& marginal_none_keyframe_i
             continue;
           }
           denom += 1.0
-                   / ((frame_i->GetTwb().translation() - frame_j->GetTwb().translation())
+                   / ((frame_i->GetTwb().translation()
+                       - frame_j->GetTwb().translation())
                         .norm()
                       + 1e-5);
         }
@@ -474,7 +483,8 @@ void StereoVO::SelectMarginalFrames(std::set<uint64_t>& marginal_none_keyframe_i
   }
 }
 
-OdometryResult StereoVO::BuildOdometryResult(const std::shared_ptr<Frame>& frame) {
+OdometryResult StereoVO::BuildOdometryResult(
+  const std::shared_ptr<Frame>& frame) {
   TrackingResult* tracking_result = frame->GetTrackingResultPtr();
 
   OdometryResult result;
@@ -528,8 +538,8 @@ OdometryResult StereoVO::BuildOdometryResult(const std::shared_ptr<Frame>& frame
       continue;
     }
 
-    std::shared_ptr<Frame> host_frame = sliding_window_->GetFrame(
-      mp->GetHostFrameCamId().frame_id);
+    std::shared_ptr<Frame> host_frame =
+      sliding_window_->GetFrame(mp->GetHostFrameCamId().frame_id);
     if (!host_frame) {
       continue;
     }

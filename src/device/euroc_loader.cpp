@@ -52,7 +52,8 @@ bool EurocLoader::Setup(const std::string& dataset_path) {
   }
 
   // Parse ground truth data (optional)
-  std::string gt_csv = dataset_path_ + "/mav0/state_groundtruth_estimate0/data.csv";
+  std::string gt_csv = dataset_path_
+                       + "/mav0/state_groundtruth_estimate0/data.csv";
   if (std::filesystem::exists(gt_csv)) {
     if (!ParseGroundTruthCsv(gt_csv)) {
       Logger::Warn("Failed to parse ground truth data, continuing without GT");
@@ -138,7 +139,8 @@ bool EurocLoader::HasGroundTruthData() const {
 
 GroundTruthPose EurocLoader::GetNextGroundTruthPose() {
   if (!HasGroundTruthData()) {
-    LogE("getNextGroundTruthPose() called but no more ground truth data available");
+    LogE("getNextGroundTruthPose() called but no more ground truth data "
+         "available");
     return GroundTruthPose{};
   }
 
@@ -200,8 +202,8 @@ bool EurocLoader::ParseCameraCsv(const std::string& csv_path, int cam_id) {
       int64_t t_ns = std::stoll(timestamp_str);
 
       // Construct full path
-      std::string full_path = dataset_path_ + "/mav0/cam" + std::to_string(cam_id)
-                              + "/data/" + filename;
+      std::string full_path = dataset_path_ + "/mav0/cam"
+                              + std::to_string(cam_id) + "/data/" + filename;
 
       // Store in appropriate vector
       if (cam_id == 0) {
@@ -211,7 +213,9 @@ bool EurocLoader::ParseCameraCsv(const std::string& csv_path, int cam_id) {
         cam1_data_.emplace_back(t_ns, full_path);
       }
     } catch (const std::exception& e) {
-      Logger::Warn("Failed to parse camera CSV line {}: {}", line_number, e.what());
+      Logger::Warn("Failed to parse camera CSV line {}: {}",
+                   line_number,
+                   e.what());
       continue;
     }
   }
@@ -231,9 +235,10 @@ bool EurocLoader::ParseCameraCsv(const std::string& csv_path, int cam_id) {
   // Verify stereo timestamp alignment if both cameras loaded
   if (cam_id == 1 && !cam0_data_.empty() && !cam1_data_.empty()) {
     if (cam0_data_.size() != cam1_data_.size()) {
-      Logger::Warn("Stereo cameras have different frame counts: cam0={}, cam1={}",
-                   cam0_data_.size(),
-                   cam1_data_.size());
+      Logger::Warn(
+        "Stereo cameras have different frame counts: cam0={}, cam1={}",
+        cam0_data_.size(),
+        cam1_data_.size());
     }
   }
 
@@ -288,7 +293,9 @@ bool EurocLoader::ParseImuCsv(const std::string& csv_path) {
 
       imu_data_.push_back(imu);
     } catch (const std::exception& e) {
-      Logger::Warn("Failed to parse IMU CSV line {}: {}", line_number, e.what());
+      Logger::Warn("Failed to parse IMU CSV line {}: {}",
+                   line_number,
+                   e.what());
       continue;
     }
   }
@@ -335,7 +342,9 @@ bool EurocLoader::ParseGroundTruthCsv(const std::string& csv_path) {
     }
 
     if (tokens.size() < 8) {
-      Logger::Warn("Malformed ground truth CSV line {} in {}", line_number, csv_path);
+      Logger::Warn("Malformed ground truth CSV line {} in {}",
+                   line_number,
+                   csv_path);
       continue;
     }
 
@@ -352,7 +361,9 @@ bool EurocLoader::ParseGroundTruthCsv(const std::string& csv_path) {
 
       ground_truth_data_.push_back(gt);
     } catch (const std::exception& e) {
-      Logger::Warn("Failed to parse ground truth CSV line {}: {}", line_number, e.what());
+      Logger::Warn("Failed to parse ground truth CSV line {}: {}",
+                   line_number,
+                   e.what());
       continue;
     }
   }

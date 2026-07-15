@@ -7,7 +7,7 @@
 
 namespace omni_slam {
 class SVOConfig {
-public:
+ public:
   static void   ParseConfig(const std::string& file);
   static bool   debug;
   static bool   tbb;

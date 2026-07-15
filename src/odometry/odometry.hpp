@@ -5,7 +5,7 @@
 namespace omni_slam {
 
 class Odometry {
-public:
+ public:
   virtual ~Odometry() = default;
 
   virtual bool Setup(const std::string& config_path) = 0;

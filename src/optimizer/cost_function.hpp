@@ -2,13 +2,14 @@
 
 #include <cmath>
 #include <memory>
-#include <sophus/se3.hpp>
+
 #include <ceres/ceres.h>
+#include <sophus/se3.hpp>
 
 #include "odometry/imu_preintegration.hpp"
+#include "optimizer/parameterization.hpp"
 #include "utils/eigen_utils.hpp"
 #include "utils/sophus_utils.hpp"
-#include "optimizer/parameterization.hpp"
 
 namespace omni_slam {
 inline Eigen::Matrix2d MakeSqrtInformation2d(double cost_scale) {
@@ -20,7 +21,7 @@ inline Eigen::Matrix2d MakeSqrtInformation2d(double cost_scale) {
 }
 
 class PoseOnlyBearingCost final : public ceres::SizedCostFunction<2, 6> {
-public:
+ public:
   PoseOnlyBearingCost(const Eigen::Vector3d& p_w,
                       const Eigen::Vector3d& b_obs,
                       const Sophus::SE3d&    T_b_c,
@@ -52,7 +53,8 @@ public:
     if (p_c.z() <= 1e-6) {
       residuals[0] = residuals[1] = 0.0;
       if (jacobians && jacobians[0]) {
-        Eigen::Map<Eigen::Matrix<double, 2, 6, Eigen::RowMajor>> J(jacobians[0]);
+        Eigen::Map<Eigen::Matrix<double, 2, 6, Eigen::RowMajor>> J(
+          jacobians[0]);
         J.setZero();
       }
       return true;
@@ -97,12 +99,12 @@ public:
       // p_c = T_b_c^{-1} * (T_w_b^{-1} * p_w)
       // => dp_c/dθ = R_c_b * hat(p_b),  p_b = T_w_b^{-1} * p_w
       //
-      const Eigen::Vector3d                   p_b   = T_w_b.inverse() * p_w_;
-      const Eigen::Matrix3d                   R_c_b = T_b_c_.inverse().so3().matrix();
+      const Eigen::Vector3d p_b   = T_w_b.inverse() * p_w_;
+      const Eigen::Matrix3d R_c_b = T_b_c_.inverse().so3().matrix();
       const Eigen::Map<const Eigen::Vector3d> so3(params[0] + 3);
-      const Eigen::Matrix3d                   J_r = SophusUtils::SO3RightJacobian(so3);
-      const Eigen::Matrix3d dp_dtheta_local       = R_c_b * Sophus::SO3d::hat(p_b);
-      Eigen::Matrix3d       dp_dtheta             = dp_dtheta_local * J_r;
+      const Eigen::Matrix3d J_r = SophusUtils::SO3RightJacobian(so3);
+      const Eigen::Matrix3d dp_dtheta_local = R_c_b * Sophus::SO3d::hat(p_b);
+      Eigen::Matrix3d       dp_dtheta       = dp_dtheta_local * J_r;
 
       // assemble dp_c/dpose
       Eigen::Matrix<double, 3, 6> J_p;
@@ -117,7 +119,7 @@ public:
     return true;
   }
 
-private:
+ private:
   Eigen::Vector3d p_w_;
   Eigen::Vector3d b_obs_;
   Sophus::SE3d    T_b_c_;
@@ -189,7 +191,7 @@ struct PoseOnlyBearingCostAuto {
 };
 
 class BearingPriorCost final : public ceres::SizedCostFunction<2, 3> {
-public:
+ public:
   explicit BearingPriorCost(const Eigen::Vector3d& b_prior,
                             double                 bearing_cost_scale = 1.0)
     : b_prior_(b_prior.normalized())
@@ -206,7 +208,8 @@ public:
       residuals[0] = 0.0;
       residuals[1] = 0.0;
       if (jacobians && jacobians[0]) {
-        Eigen::Map<Eigen::Matrix<double, 2, 3, Eigen::RowMajor>> J(jacobians[0]);
+        Eigen::Map<Eigen::Matrix<double, 2, 3, Eigen::RowMajor>> J(
+          jacobians[0]);
         J.setZero();
       }
       return true;
@@ -220,22 +223,22 @@ public:
 
     if (jacobians && jacobians[0]) {
       Eigen::Map<Eigen::Matrix<double, 2, 3, Eigen::RowMajor>> J(jacobians[0]);
-      const Eigen::Matrix3d J_bearing = (Eigen::Matrix3d::Identity() - b * b.transpose())
-                                        / b_norm;
+      const Eigen::Matrix3d                                    J_bearing =
+        (Eigen::Matrix3d::Identity() - b * b.transpose()) / b_norm;
       J = B_.transpose() * J_bearing;
       J = sqrt_information_ * J;
     }
     return true;
   }
 
-private:
+ private:
   Eigen::Vector3d             b_prior_;
   Eigen::Matrix<double, 3, 2> B_;
   Eigen::Matrix2d             sqrt_information_;
 };
 
 class BearingCost final : public ceres::SizedCostFunction<2, 6, 6, 3, 1> {
-public:
+ public:
   BearingCost(const Eigen::Vector3d& b_obs,
               const Sophus::SE3d&    T_b_c_obs,
               const Sophus::SE3d&    T_b_c_host,
@@ -304,23 +307,24 @@ public:
         return true;
       }
 
-      const Eigen::Matrix3d J_norm = (Eigen::Matrix3d::Identity()
-                                      - b_pred * b_pred.transpose())
-                                     / p_norm;
+      const Eigen::Matrix3d J_norm =
+        (Eigen::Matrix3d::Identity() - b_pred * b_pred.transpose()) / p_norm;
       const Eigen::Matrix<double, 2, 3> J_r_pc = B_.transpose() * J_norm;
 
-      const Eigen::Matrix3d                   R_w_c_obs = T_w_c_obs.so3().matrix();
-      const Eigen::Matrix3d                   R_c_obs_w = R_w_c_obs.transpose();
+      const Eigen::Matrix3d R_w_c_obs = T_w_c_obs.so3().matrix();
+      const Eigen::Matrix3d R_c_obs_w = R_w_c_obs.transpose();
       const Eigen::Map<const Eigen::Vector3d> so3_obs(pose_obs + 3);
       const Eigen::Map<const Eigen::Vector3d> so3_host(pose_host + 3);
       const Eigen::Matrix3d J_r_obs  = SophusUtils::SO3RightJacobian(so3_obs);
       const Eigen::Matrix3d J_r_host = SophusUtils::SO3RightJacobian(so3_host);
 
       if (jacobians[0]) {
-        Eigen::Map<Eigen::Matrix<double, 2, 6, Eigen::RowMajor>> J(jacobians[0]);
-        const Eigen::Matrix3d                                    dp_dt = -R_c_obs_w;
-        const Eigen::Vector3d p_b_obs         = T_w_b_obs.inverse() * p_w;
-        const Eigen::Matrix3d R_c_obs_b_obs   = T_b_c_obs_.inverse().so3().matrix();
+        Eigen::Map<Eigen::Matrix<double, 2, 6, Eigen::RowMajor>> J(
+          jacobians[0]);
+        const Eigen::Matrix3d dp_dt   = -R_c_obs_w;
+        const Eigen::Vector3d p_b_obs = T_w_b_obs.inverse() * p_w;
+        const Eigen::Matrix3d R_c_obs_b_obs =
+          T_b_c_obs_.inverse().so3().matrix();
         const Eigen::Matrix3d dp_dtheta_local = R_c_obs_b_obs
                                                 * Sophus::SO3d::hat(p_b_obs);
         const Eigen::Matrix3d dp_dtheta = dp_dtheta_local * J_r_obs;
@@ -331,8 +335,9 @@ public:
       }
 
       if (jacobians[1]) {
-        Eigen::Map<Eigen::Matrix<double, 2, 6, Eigen::RowMajor>> J(jacobians[1]);
-        const Eigen::Matrix3d                                    dp_dt = R_c_obs_w;
+        Eigen::Map<Eigen::Matrix<double, 2, 6, Eigen::RowMajor>> J(
+          jacobians[1]);
+        const Eigen::Matrix3d dp_dt           = R_c_obs_w;
         const Eigen::Matrix3d R_w_b_host      = T_w_b_host.so3().matrix();
         const Eigen::Vector3d p_b_host        = T_b_c_host_ * p_c_host;
         const Eigen::Matrix3d dp_dtheta_local = -R_c_obs_w * R_w_b_host
@@ -345,19 +350,20 @@ public:
       }
 
       if (jacobians[2]) {
-        Eigen::Map<Eigen::Matrix<double, 2, 3, Eigen::RowMajor>> J(jacobians[2]);
+        Eigen::Map<Eigen::Matrix<double, 2, 3, Eigen::RowMajor>> J(
+          jacobians[2]);
         const Eigen::Matrix3d R_w_c_host = T_w_c_host.so3().matrix();
-        const Eigen::Matrix3d dp_dbh     = (1.0 / inv_dist) * (R_c_obs_w * R_w_c_host);
-        const Eigen::Matrix3d J_bearing  = (Eigen::Matrix3d::Identity()
-                                           - b_h * b_h.transpose())
-                                          / b_norm;
+        const Eigen::Matrix3d dp_dbh     = (1.0 / inv_dist)
+                                       * (R_c_obs_w * R_w_c_host);
+        const Eigen::Matrix3d J_bearing =
+          (Eigen::Matrix3d::Identity() - b_h * b_h.transpose()) / b_norm;
         J = J_r_pc * dp_dbh * J_bearing;
         J = sqrt_information_ * J;
       }
 
       if (jacobians[3]) {
         Eigen::Map<Eigen::Matrix<double, 2, 1>> J(jacobians[3]);
-        const Eigen::Matrix3d                   R_w_c_host = T_w_c_host.so3().matrix();
+        const Eigen::Matrix3d R_w_c_host   = T_w_c_host.so3().matrix();
         const Eigen::Vector3d dp_dinv_dist = -(R_c_obs_w * R_w_c_host * b_h)
                                              / (inv_dist * inv_dist);
         J = J_r_pc * dp_dinv_dist;
@@ -368,7 +374,7 @@ public:
     return true;
   }
 
-private:
+ private:
   static void zeroJacobians(double** jacobians) {
     if (!jacobians) {
       return;
@@ -399,7 +405,7 @@ private:
 };
 
 class BearingStereoCost final : public ceres::SizedCostFunction<2, 3, 1> {
-public:
+ public:
   BearingStereoCost(const Eigen::Vector3d& b_obs,
                     const Sophus::SE3d&    T_b_c_obs,
                     const Sophus::SE3d&    T_b_c_host,
@@ -461,18 +467,17 @@ public:
         return true;
       }
 
-      const Eigen::Matrix3d J_norm = (Eigen::Matrix3d::Identity()
-                                      - b_pred * b_pred.transpose())
-                                     / p_norm;
+      const Eigen::Matrix3d J_norm =
+        (Eigen::Matrix3d::Identity() - b_pred * b_pred.transpose()) / p_norm;
       const Eigen::Matrix<double, 2, 3> J_r_pc = B_.transpose() * J_norm;
 
       if (jacobians[0]) {
-        Eigen::Map<Eigen::Matrix<double, 2, 3, Eigen::RowMajor>> J(jacobians[0]);
+        Eigen::Map<Eigen::Matrix<double, 2, 3, Eigen::RowMajor>> J(
+          jacobians[0]);
         const Eigen::Matrix3d R_c_obs_c_host = T_c_obs_c_host.so3().matrix();
-        const Eigen::Matrix3d dp_dbh         = (1.0 / inv_dist) * R_c_obs_c_host;
-        const Eigen::Matrix3d J_bearing      = (Eigen::Matrix3d::Identity()
-                                           - b_h * b_h.transpose())
-                                          / b_norm;
+        const Eigen::Matrix3d dp_dbh = (1.0 / inv_dist) * R_c_obs_c_host;
+        const Eigen::Matrix3d J_bearing =
+          (Eigen::Matrix3d::Identity() - b_h * b_h.transpose()) / b_norm;
         J = J_r_pc * dp_dbh * J_bearing;
         J = sqrt_information_ * J;
       }
@@ -490,7 +495,7 @@ public:
     return true;
   }
 
-private:
+ private:
   static void zeroJacobians(double** jacobians) {
     if (!jacobians) {
       return;
@@ -533,7 +538,9 @@ struct BearingStereoCostAuto {
     const Sophus::SE3<T> T_c_obs_b      = T_b_c_obs.inverse();
     const Sophus::SE3<T> T_c_obs_c_host = T_c_obs_b * T_b_c_host;
 
-    Eigen::Matrix<T, 3, 1> b_h(bearing_param[0], bearing_param[1], bearing_param[2]);
+    Eigen::Matrix<T, 3, 1> b_h(bearing_param[0],
+                               bearing_param[1],
+                               bearing_param[2]);
     const T                b_norm = b_h.norm();
     if (b_norm > T(0)) {
       b_h /= b_norm;
@@ -559,7 +566,7 @@ struct BearingStereoCostAuto {
     const Eigen::Matrix<T, 3, 2> B      = B_.template cast<T>();
     const Eigen::Matrix<T, 3, 1> b_obs  = b_obs_.template cast<T>();
     Eigen::Matrix<T, 2, 1>       r      = B.transpose() * (b_pred - b_obs);
-    r                                   = sqrt_information_.template cast<T>() * r;
+    r = sqrt_information_.template cast<T>() * r;
 
     residuals[0] = r[0];
     residuals[1] = r[1];
@@ -601,7 +608,9 @@ struct BearingCostAuto {
     const Sophus::SE3<T> T_w_c_obs  = T_w_b * T_b_c_obs;
     const Sophus::SE3<T> T_w_c_host = T_w_b * T_b_c_host;
 
-    Eigen::Matrix<T, 3, 1> b_h(bearing_param[0], bearing_param[1], bearing_param[2]);
+    Eigen::Matrix<T, 3, 1> b_h(bearing_param[0],
+                               bearing_param[1],
+                               bearing_param[2]);
     const T                b_norm = b_h.norm();
     if (b_norm > T(0)) {
       b_h /= b_norm;
@@ -628,7 +637,7 @@ struct BearingCostAuto {
     const Eigen::Matrix<T, 3, 2> B      = B_.template cast<T>();
     const Eigen::Matrix<T, 3, 1> b_obs  = b_obs_.template cast<T>();
     Eigen::Matrix<T, 2, 1>       r      = B.transpose() * (b_pred - b_obs);
-    r                                   = sqrt_information_.template cast<T>() * r;
+    r = sqrt_information_.template cast<T>() * r;
 
     residuals[0] = r[0];
     residuals[1] = r[1];
@@ -646,7 +655,7 @@ struct ImuPreintegrationCostAuto {
   static constexpr int kResidualSize   = 15;
   static constexpr int kPoseSize       = 6;
   static constexpr int kStateBlockSize = 3;
-  using ResidualSqrtScale              = Eigen::Matrix<double, kResidualSize, 1>;
+  using ResidualSqrtScale = Eigen::Matrix<double, kResidualSize, 1>;
 
   ImuPreintegrationCostAuto(
     const ImuPreintegration& preintegration,
@@ -709,37 +718,35 @@ struct ImuPreintegrationCostAuto {
     const Eigen::Matrix<T, 3, 1> dba = ba_i - bias_acc_ref_.template cast<T>();
     const Eigen::Matrix<T, 3, 1> dbg = bg_i - bias_gyr_ref_.template cast<T>();
 
-    const Sophus::SO3<T> corrected_delta_r = delta_r_.template cast<T>()
-                                             * Sophus::SO3<T>::exp(
-                                               j_delta_r_dbg_.template cast<T>() * dbg);
-    const Eigen::Matrix<T, 3, 1> corrected_delta_v = delta_v_.template cast<T>()
-                                                     + j_delta_v_dba_.template cast<T>()
-                                                         * dba
-                                                     + j_delta_v_dbg_.template cast<T>()
-                                                         * dbg;
-    const Eigen::Matrix<T, 3, 1> corrected_delta_p = delta_p_.template cast<T>()
-                                                     + j_delta_p_dba_.template cast<T>()
-                                                         * dba
-                                                     + j_delta_p_dbg_.template cast<T>()
-                                                         * dbg;
+    const Sophus::SO3<T> corrected_delta_r =
+      delta_r_.template cast<T>()
+      * Sophus::SO3<T>::exp(j_delta_r_dbg_.template cast<T>() * dbg);
+    const Eigen::Matrix<T, 3, 1> corrected_delta_v =
+      delta_v_.template cast<T>() + j_delta_v_dba_.template cast<T>() * dba
+      + j_delta_v_dbg_.template cast<T>() * dbg;
+    const Eigen::Matrix<T, 3, 1> corrected_delta_p =
+      delta_p_.template cast<T>() + j_delta_p_dba_.template cast<T>() * dba
+      + j_delta_p_dbg_.template cast<T>() * dbg;
 
-    const Eigen::Matrix<T, 3, 1> gravity_w = gravity_vector_w_.template cast<T>();
-    const Sophus::SO3<T>         R_ij_pred = R_w_b_i.inverse() * R_w_b_j;
+    const Eigen::Matrix<T, 3, 1> gravity_w =
+      gravity_vector_w_.template cast<T>();
+    const Sophus::SO3<T> R_ij_pred = R_w_b_i.inverse() * R_w_b_j;
 
     Eigen::Matrix<T, kResidualSize, 1> residual_raw;
-    residual_raw.template segment<3>(0) = R_w_b_i.inverse()
-                                            * (t_w_b_j - t_w_b_i - v_w_i * dt
-                                               - T(0.5) * gravity_w * dt * dt)
-                                          - corrected_delta_p;
-    residual_raw.template segment<3>(3) = (corrected_delta_r.inverse() * R_ij_pred).log();
-    residual_raw.template segment<3>(
-      6) = R_w_b_i.inverse() * (v_w_j - v_w_i - gravity_w * dt) - corrected_delta_v;
+    residual_raw.template segment<3>(0) =
+      R_w_b_i.inverse()
+        * (t_w_b_j - t_w_b_i - v_w_i * dt - T(0.5) * gravity_w * dt * dt)
+      - corrected_delta_p;
+    residual_raw.template segment<3>(3) =
+      (corrected_delta_r.inverse() * R_ij_pred).log();
+    residual_raw.template segment<3>(6) =
+      R_w_b_i.inverse() * (v_w_j - v_w_i - gravity_w * dt) - corrected_delta_v;
     residual_raw.template segment<3>(9)  = ba_j - ba_i;
     residual_raw.template segment<3>(12) = bg_j - bg_i;
 
-    const Eigen::Matrix<T, kResidualSize, kResidualSize>
-      sqrt_information = sqrt_information_.template cast<T>();
-    residual_vec       = sqrt_information * residual_raw;
+    const Eigen::Matrix<T, kResidualSize, kResidualSize> sqrt_information =
+      sqrt_information_.template cast<T>();
+    residual_vec = sqrt_information * residual_raw;
     return true;
   }
 
@@ -758,29 +765,31 @@ struct ImuPreintegrationCostAuto {
   Eigen::Matrix15d sqrt_information_;
 };
 
-using ImuPreintegrationAutoDiffCost = ceres::AutoDiffCostFunction<
-  ImuPreintegrationCostAuto,
-  ImuPreintegrationCostAuto::kResidualSize,
-  ImuPreintegrationCostAuto::kPoseSize,
-  ImuPreintegrationCostAuto::kPoseSize,
-  ImuPreintegrationCostAuto::kStateBlockSize,
-  ImuPreintegrationCostAuto::kStateBlockSize,
-  ImuPreintegrationCostAuto::kStateBlockSize,
-  ImuPreintegrationCostAuto::kStateBlockSize,
-  ImuPreintegrationCostAuto::kStateBlockSize,
-  ImuPreintegrationCostAuto::kStateBlockSize>;
+using ImuPreintegrationAutoDiffCost =
+  ceres::AutoDiffCostFunction<ImuPreintegrationCostAuto,
+                              ImuPreintegrationCostAuto::kResidualSize,
+                              ImuPreintegrationCostAuto::kPoseSize,
+                              ImuPreintegrationCostAuto::kPoseSize,
+                              ImuPreintegrationCostAuto::kStateBlockSize,
+                              ImuPreintegrationCostAuto::kStateBlockSize,
+                              ImuPreintegrationCostAuto::kStateBlockSize,
+                              ImuPreintegrationCostAuto::kStateBlockSize,
+                              ImuPreintegrationCostAuto::kStateBlockSize,
+                              ImuPreintegrationCostAuto::kStateBlockSize>;
 
 class ImuPreintegrationCost final
   : public ceres::SizedCostFunction<15, 6, 6, 3, 3, 3, 3, 3, 3> {
-public:
-  static constexpr int        kResidualSize                = 15;
-  static constexpr int        kNumParamBlocks              = 8;
-  inline static constexpr int kBlockSizes[kNumParamBlocks] = {6, 6, 3, 3, 3, 3, 3, 3};
+ public:
+  static constexpr int        kResidualSize   = 15;
+  static constexpr int        kNumParamBlocks = 8;
+  inline static constexpr int kBlockSizes[kNumParamBlocks] =
+    {6, 6, 3, 3, 3, 3, 3, 3};
   using ResidualSqrtScale = Eigen::Matrix<double, kResidualSize, 1>;
 
-  ImuPreintegrationCost(const ImuPreintegration& preintegration,
-                        const Eigen::Vector3d&   gravity_vector_w,
-                        ResidualSqrtScale residual_sqrt_scale = ResidualSqrtScale::Ones())
+  ImuPreintegrationCost(
+    const ImuPreintegration& preintegration,
+    const Eigen::Vector3d&   gravity_vector_w,
+    ResidualSqrtScale        residual_sqrt_scale = ResidualSqrtScale::Ones())
     : delta_r_(preintegration.GetDeltaR())
     , delta_v_(preintegration.GetDeltaV())
     , delta_p_(preintegration.GetDeltaP())
@@ -818,7 +827,8 @@ public:
             continue;
           }
           Eigen::Map<
-            Eigen::Matrix<double, kResidualSize, Eigen::Dynamic, Eigen::RowMajor>>
+            Eigen::
+              Matrix<double, kResidualSize, Eigen::Dynamic, Eigen::RowMajor>>
             J(jacobians[i], kResidualSize, kBlockSizes[i]);
           J.setZero();
         }
@@ -846,14 +856,15 @@ public:
     const Eigen::Vector3d dbg  = bg_i - bias_gyr_ref_;
     const Eigen::Vector3d e_bg = j_delta_r_dbg_ * dbg;
 
-    const Sophus::SO3d    corrected_delta_r = delta_r_ * Sophus::SO3d::exp(e_bg);
+    const Sophus::SO3d corrected_delta_r = delta_r_ * Sophus::SO3d::exp(e_bg);
     const Eigen::Vector3d corrected_delta_v = delta_v_ + j_delta_v_dba_ * dba
                                               + j_delta_v_dbg_ * dbg;
     const Eigen::Vector3d corrected_delta_p = delta_p_ + j_delta_p_dba_ * dba
                                               + j_delta_p_dbg_ * dbg;
 
     const Sophus::SO3d    r_ij_pred = R_w_b_i.inverse() * R_w_b_j;
-    const Eigen::Vector3d r_rot     = (corrected_delta_r.inverse() * r_ij_pred).log();
+    const Eigen::Vector3d r_rot =
+      (corrected_delta_r.inverse() * r_ij_pred).log();
 
     Eigen::Matrix<double, kResidualSize, 1> residual_raw;
     residual_raw.segment<3>(0) = R_b_i_w
@@ -861,8 +872,8 @@ public:
                                       - 0.5 * gravity_vector_w_ * dt_ * dt_)
                                  - corrected_delta_p;
     residual_raw.segment<3>(3) = r_rot;
-    residual_raw.segment<3>(6) = R_b_i_w * (v_w_j - v_w_i - gravity_vector_w_ * dt_)
-                                 - corrected_delta_v;
+    residual_raw.segment<3>(6) =
+      R_b_i_w * (v_w_j - v_w_i - gravity_vector_w_ * dt_) - corrected_delta_v;
     residual_raw.segment<3>(9)  = ba_j - ba_i;
     residual_raw.segment<3>(12) = bg_j - bg_i;
     residual_vec                = sqrt_information_ * residual_raw;
@@ -880,32 +891,35 @@ public:
                                 - 0.5 * gravity_vector_w_ * dt * dt;
     const Eigen::Vector3d b_w = v_w_j - v_w_i - gravity_vector_w_ * dt;
 
-    Eigen::Matrix<double, kResidualSize, 6>
-      J_pose_i                 = Eigen::Matrix<double, kResidualSize, 6>::Zero();
+    Eigen::Matrix<double, kResidualSize, 6> J_pose_i =
+      Eigen::Matrix<double, kResidualSize, 6>::Zero();
     J_pose_i.block<3, 3>(0, 0) = -R_b_i_w;
     J_pose_i.block<3, 3>(0, 3) = Sophus::SO3d::hat(R_b_i_w * a_w);
-    J_pose_i.block<3, 3>(3, 3) = -J_l_inv_r * corrected_delta_r.inverse().matrix();
+    J_pose_i.block<3, 3>(3, 3) = -J_l_inv_r
+                                 * corrected_delta_r.inverse().matrix();
     J_pose_i.block<3, 3>(6, 3) = Sophus::SO3d::hat(R_b_i_w * b_w);
-    J_pose_i.block<kResidualSize, 3>(0, 3) *= SophusUtils::SO3RightJacobian(so3_w_b_i);
+    J_pose_i.block<kResidualSize, 3>(0, 3) *=
+      SophusUtils::SO3RightJacobian(so3_w_b_i);
 
-    Eigen::Matrix<double, kResidualSize, 6>
-      J_pose_j                 = Eigen::Matrix<double, kResidualSize, 6>::Zero();
+    Eigen::Matrix<double, kResidualSize, 6> J_pose_j =
+      Eigen::Matrix<double, kResidualSize, 6>::Zero();
     J_pose_j.block<3, 3>(0, 0) = R_b_i_w;
     J_pose_j.block<3, 3>(3, 3) = J_r_inv_r;
-    J_pose_j.block<kResidualSize, 3>(0, 3) *= SophusUtils::SO3RightJacobian(so3_w_b_j);
+    J_pose_j.block<kResidualSize, 3>(0, 3) *=
+      SophusUtils::SO3RightJacobian(so3_w_b_j);
 
-    Eigen::Matrix<double, kResidualSize, 3>
-      J_v_i = Eigen::Matrix<double, kResidualSize, 3>::Zero();
-    Eigen::Matrix<double, kResidualSize, 3>
-      J_v_j = Eigen::Matrix<double, kResidualSize, 3>::Zero();
-    Eigen::Matrix<double, kResidualSize, 3>
-      J_ba_i = Eigen::Matrix<double, kResidualSize, 3>::Zero();
-    Eigen::Matrix<double, kResidualSize, 3>
-      J_bg_i = Eigen::Matrix<double, kResidualSize, 3>::Zero();
-    Eigen::Matrix<double, kResidualSize, 3>
-      J_ba_j = Eigen::Matrix<double, kResidualSize, 3>::Zero();
-    Eigen::Matrix<double, kResidualSize, 3>
-      J_bg_j = Eigen::Matrix<double, kResidualSize, 3>::Zero();
+    Eigen::Matrix<double, kResidualSize, 3> J_v_i =
+      Eigen::Matrix<double, kResidualSize, 3>::Zero();
+    Eigen::Matrix<double, kResidualSize, 3> J_v_j =
+      Eigen::Matrix<double, kResidualSize, 3>::Zero();
+    Eigen::Matrix<double, kResidualSize, 3> J_ba_i =
+      Eigen::Matrix<double, kResidualSize, 3>::Zero();
+    Eigen::Matrix<double, kResidualSize, 3> J_bg_i =
+      Eigen::Matrix<double, kResidualSize, 3>::Zero();
+    Eigen::Matrix<double, kResidualSize, 3> J_ba_j =
+      Eigen::Matrix<double, kResidualSize, 3>::Zero();
+    Eigen::Matrix<double, kResidualSize, 3> J_bg_j =
+      Eigen::Matrix<double, kResidualSize, 3>::Zero();
 
     J_v_i.block<3, 3>(0, 0) = -R_b_i_w * dt;
     J_v_i.block<3, 3>(6, 0) = -R_b_i_w;
@@ -917,7 +931,8 @@ public:
 
     J_bg_i.block<3, 3>(0, 0) = -j_delta_p_dbg_;
     J_bg_i.block<3, 3>(3, 0) = -J_l_inv_r * Sophus::SO3d::exp(-e_bg).matrix()
-                               * Sophus::SO3d::leftJacobian(e_bg) * j_delta_r_dbg_;
+                               * Sophus::SO3d::leftJacobian(e_bg)
+                               * j_delta_r_dbg_;
     J_bg_i.block<3, 3>(6, 0)  = -j_delta_v_dbg_;
     J_bg_i.block<3, 3>(12, 0) = -Eigen::Matrix3d::Identity();
 
@@ -967,7 +982,7 @@ public:
     return true;
   }
 
-private:
+ private:
   Sophus::SO3d     delta_r_;
   Eigen::Vector3d  delta_v_;
   Eigen::Vector3d  delta_p_;

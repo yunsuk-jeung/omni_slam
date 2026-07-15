@@ -2,20 +2,20 @@
 
 #include <atomic>
 #include <cstdint>
+#include <map>
 #include <memory>
+#include <mutex>
+#include <set>
 #include <string>
 #include <thread>
 #include <vector>
-#include <map>
-#include <set>
-#include <mutex>
 
-#include <tbb/concurrent_queue.h>
 #include <opencv2/core.hpp>
+#include <tbb/concurrent_queue.h>
 
-#include "utils/types.hpp"
 #include "odometry/odometry.hpp"
 #include "odometry/odometry_result.hpp"
+#include "utils/types.hpp"
 
 namespace omni_slam {
 class TrackingResult;
@@ -25,7 +25,7 @@ class MapPoint;
 class SlidingWindow;
 class VOEstimator;
 class StereoVO : public Odometry {
-public:
+ public:
   enum class Status { Initializing, Tracking };
 
   StereoVO();
@@ -40,7 +40,7 @@ public:
 
   bool FetchResult(OdometryResult& out);
 
-private:
+ private:
   void  OpticalFlowLoop();
   void  EstimatorLoop();
   void  Process(std::shared_ptr<Frame>& frame);
@@ -54,7 +54,7 @@ private:
   void SelectMarginalFrames(std::set<uint64_t>& marginal_none_frame_ids,
                             std::set<uint64_t>& marginal_keyframe_ids);
 
-private:
+ private:
   static constexpr size_t kCamNum = 2;
   Status                  status_;
 

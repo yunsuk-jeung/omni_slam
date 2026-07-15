@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <set>
 #include <vector>
+
 #include <Eigen/Dense>
 #include <ceres/cost_function.h>
 
@@ -19,14 +20,15 @@ struct MarginalizationPrior {
 };
 
 class MarginalizationCost : public ceres::CostFunction {
-public:
+ public:
   explicit MarginalizationCost(const MarginalizationPrior& info)
     : J_(info.J_)
     , r_(info.r_)
     , x0_(info.x0_)
     , block_sizes_(info.block_sizes_) {
     set_num_residuals(static_cast<int>(r_.size()));
-    mutable_parameter_block_sizes()->assign(block_sizes_.begin(), block_sizes_.end());
+    mutable_parameter_block_sizes()->assign(block_sizes_.begin(),
+                                            block_sizes_.end());
   }
 
   bool Evaluate(double const* const* params,
@@ -39,7 +41,8 @@ public:
       state_dim += block_size;
     }
 
-    if (state_dim != x0_.size() || J_.rows() != residual_dim || J_.cols() != state_dim) {
+    if (state_dim != x0_.size() || J_.rows() != residual_dim
+        || J_.cols() != state_dim) {
       return false;
     }
 
@@ -48,7 +51,8 @@ public:
     for (int i = 0; i < num_blocks; ++i) {
       const int                         block_size = block_sizes_[i];
       Eigen::Map<const Eigen::VectorXd> x_i(params[i], block_size);
-      dx.segment(col_offset, block_size) = x_i - x0_.segment(col_offset, block_size);
+      dx.segment(col_offset,
+                 block_size) = x_i - x0_.segment(col_offset, block_size);
       col_offset += block_size;
     }
 
@@ -63,7 +67,9 @@ public:
           continue;
         }
         const int block_size = block_sizes_[i];
-        Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>
+        Eigen::Map<
+          Eigen::
+            Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>
           J_i(jacobians[i], residual_dim, block_size);
         J_i = J_.block(0, col_offset, residual_dim, block_size);
         col_offset += block_size;
@@ -72,7 +78,7 @@ public:
     return true;
   }
 
-private:
+ private:
   Eigen::MatrixXd  J_;
   Eigen::VectorXd  r_;
   Eigen::VectorXd  x0_;

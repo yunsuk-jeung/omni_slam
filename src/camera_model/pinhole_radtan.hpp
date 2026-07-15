@@ -1,10 +1,11 @@
 #pragma once
 #include <opencv2/opencv.hpp>
+
 #include "camera_model/camera_model.hpp"
 
 namespace omni_slam {
 class PinholeRadialTangential : public CameraModelBase {
-public:
+ public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
   PinholeRadialTangential() = default;
@@ -82,7 +83,8 @@ public:
     }
   }
 
-  virtual bool Unproject(const cv::Point2f& uv, Eigen::Vector3d& bearing) override {
+  virtual bool Unproject(const cv::Point2f& uv,
+                         Eigen::Vector3d&   bearing) override {
     double mx = (uv.x - cx_) / fx_;
     double my = (uv.y - cy_) / fy_;
     if (has_distortion_) {
@@ -109,7 +111,7 @@ public:
     return true;
   };
 
-protected:
+ protected:
   void SetDistortions(const std::vector<double>& distortions) override {
     if (distortions.size() >= 4) {
       cv_D_           = (cv::Mat_<double>(1, 4) << distortions[0],
@@ -127,7 +129,7 @@ protected:
     }
   }
 
-private:
+ private:
   double k1_{0.0};
   double k2_{0.0};
   double p1_{0.0};

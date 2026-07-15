@@ -1,38 +1,42 @@
 #pragma once
 #include <cstdint>
 #include <memory>
-#include <vector>
 #include <unordered_map>
-#include <sophus/se3.hpp>
+#include <vector>
+
 #include <opencv2/core.hpp>
-#include "utils/types.hpp"
+#include <sophus/se3.hpp>
+
 #include "camera_model/camera_model.hpp"
+#include "utils/types.hpp"
 
 namespace omni_slam {
 class TrackingResult;
 class CameraModelBase;
 class Frame {
-public:
+ public:
   Frame() = delete;
   Frame(int64_t                             timestamp_ns,
         const std::vector<cv::Mat>&         images,
         const std::vector<CameraParameter>& camera_parameters);
   ~Frame();
 
-public:
-  const size_t          GetCamNum() const { return kCamNum; }
-  uint64_t              GetId() const { return id_; }
-  int64_t               GetTimestampNs() const { return timestamp_ns_; }
-  cv::Mat&              GetImage(size_t cam_idx) { return images_[cam_idx]; }
-  const cv::Mat&        GetImage(size_t cam_idx) const { return images_[cam_idx]; }
+ public:
+  const size_t   GetCamNum() const { return kCamNum; }
+  uint64_t       GetId() const { return id_; }
+  int64_t        GetTimestampNs() const { return timestamp_ns_; }
+  cv::Mat&       GetImage(size_t cam_idx) { return images_[cam_idx]; }
+  const cv::Mat& GetImage(size_t cam_idx) const { return images_[cam_idx]; }
   std::vector<cv::Mat>& GetImagePyramid(size_t cam_idx) {
     return image_pyramids_[cam_idx];
   }
   const std::vector<cv::Mat>& GetImagePyramid(size_t cam_idx) const {
     return image_pyramids_[cam_idx];
   }
-  TrackingResult*       GetTrackingResultPtr() { return tracking_result_.get(); }
-  const TrackingResult* GetTrackingResultPtr() const { return tracking_result_.get(); }
+  TrackingResult* GetTrackingResultPtr() { return tracking_result_.get(); }
+  const TrackingResult* GetTrackingResultPtr() const {
+    return tracking_result_.get();
+  }
 
   CameraModelBase* GetCam(size_t cam_idx) { return cams_[cam_idx].get(); }
 
@@ -45,7 +49,9 @@ public:
   void       SetKeyframe() { is_keyframe_ = true; }
   const bool IsKeyframe() const { return is_keyframe_; }
 
-  void AddObservation(size_t cam_idx, size_t mp_id, const Eigen::Vector3d& bearing);
+  void AddObservation(size_t                 cam_idx,
+                      size_t                 mp_id,
+                      const Eigen::Vector3d& bearing);
   std::vector<std::unordered_map<size_t, Eigen::Vector3d>>& GetObservations() {
     return mp_id_to_bearings_;
   }
@@ -56,7 +62,7 @@ public:
 
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-private:
+ private:
   const size_t                      kCamNum;
   uint64_t                          id_;
   int64_t                           timestamp_ns_;

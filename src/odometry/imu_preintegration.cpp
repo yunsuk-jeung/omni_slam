@@ -14,7 +14,11 @@ ImuPreintegration::ImuPreintegration(uint64_t               from_frame_id,
                                      uint64_t               to_frame_id,
                                      const Eigen::Vector3d& bias_acc,
                                      const Eigen::Vector3d& bias_gyr)
-  : ImuPreintegration(from_frame_id, to_frame_id, bias_acc, bias_gyr, Parameters{}) {}
+  : ImuPreintegration(from_frame_id,
+                      to_frame_id,
+                      bias_acc,
+                      bias_gyr,
+                      Parameters{}) {}
 
 ImuPreintegration::ImuPreintegration(uint64_t               from_frame_id,
                                      uint64_t               to_frame_id,
@@ -60,7 +64,8 @@ void ImuPreintegration::SetParameters(const Parameters& parameters) {
   parameters_ = parameters;
 }
 
-bool ImuPreintegration::IntegrateMeasurement(const ImuData& imu0, const ImuData& imu1) {
+bool ImuPreintegration::IntegrateMeasurement(const ImuData& imu0,
+                                             const ImuData& imu1) {
   const int64_t dt_ns = imu1.t_ns - imu0.t_ns;
   if (dt_ns <= 0) {
     return false;
@@ -92,7 +97,7 @@ bool ImuPreintegration::IntegrateMeasurement(const ImuData& imu0, const ImuData&
 
   const Eigen::Vector3d acc_world_start = delta_r_start.matrix() * acc0;
   const Eigen::Vector3d acc_world_end   = delta_r_next.matrix() * acc1;
-  const Eigen::Vector3d acc_world_mid   = 0.5 * (acc_world_start + acc_world_end);
+  const Eigen::Vector3d acc_world_mid = 0.5 * (acc_world_start + acc_world_end);
 
   PropagateError(delta_r_start.matrix(),
                  delta_r_next.matrix(),
@@ -105,7 +110,8 @@ bool ImuPreintegration::IntegrateMeasurement(const ImuData& imu0, const ImuData&
   return true;
 }
 
-bool ImuPreintegration::IntegrateMeasurements(const std::vector<ImuData>& imu_data) {
+bool ImuPreintegration::IntegrateMeasurements(
+  const std::vector<ImuData>& imu_data) {
   if (imu_data.size() < 2) {
     return false;
   }
@@ -198,8 +204,10 @@ void ImuPreintegration::PropagateError(const Eigen::Matrix3d& R_start,
 
   Eigen::Matrix<double, 18, 18> Q      = Eigen::Matrix<double, 18, 18>::Zero();
   const double                  inv_dt = 1.0 / dt_sec;
-  const double sigma_acc2   = parameters_.acc_noise_sigma * parameters_.acc_noise_sigma;
-  const double sigma_gyr2   = parameters_.gyr_noise_sigma * parameters_.gyr_noise_sigma;
+  const double                  sigma_acc2 = parameters_.acc_noise_sigma
+                            * parameters_.acc_noise_sigma;
+  const double sigma_gyr2 = parameters_.gyr_noise_sigma
+                            * parameters_.gyr_noise_sigma;
   const double sigma_ba_rw2 = parameters_.acc_bias_rw_sigma
                               * parameters_.acc_bias_rw_sigma;
   const double sigma_bg_rw2 = parameters_.gyr_bias_rw_sigma

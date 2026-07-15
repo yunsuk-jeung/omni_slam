@@ -12,7 +12,7 @@
 namespace omni_slam {
 
 class Timer {
-public:
+ public:
   using Clock = std::chrono::steady_clock;
 
   Timer() { start(); }
@@ -21,11 +21,11 @@ public:
 
   double stopMs() const {
     const auto                                      end_time = Clock::now();
-    const std::chrono::duration<double, std::milli> ms       = end_time - start_time_;
+    const std::chrono::duration<double, std::milli> ms = end_time - start_time_;
     return ms.count();
   }
 
-private:
+ private:
   Clock::time_point start_time_;
 };
 
@@ -39,8 +39,10 @@ struct TimerElement {
 };
 
 class Statistics {
-public:
-  static void startTimer(const std::string& name) { getOrCreate(name).timer.start(); }
+ public:
+  static void startTimer(const std::string& name) {
+    getOrCreate(name).timer.start();
+  }
 
   static double stopTimer(const std::string& name) {
     auto&        elem = getOrCreate(name);
@@ -83,7 +85,7 @@ public:
     }
   }
 
-private:
+ private:
   static TimerElement& getOrCreate(const std::string& name) {
     auto& stats = statistics();
     auto  it    = stats.find(name);
@@ -128,7 +130,8 @@ private:
     }
 
     const auto&  e    = it->second;
-    const double mean = (e.call_count == 0) ? 0.0 : (e.total_time / e.call_count);
+    const double mean = (e.call_count == 0) ? 0.0
+                                            : (e.total_time / e.call_count);
     const double min  = (e.call_count == 0) ? 0.0 : e.min_time;
     const double max  = (e.call_count == 0) ? 0.0 : e.max_time;
 
@@ -144,7 +147,7 @@ private:
 };
 
 class ScopedTimer {
-public:
+ public:
   explicit ScopedTimer(std::string name)
     : name_(std::move(name)) {
     Statistics::startTimer(name_);
@@ -152,7 +155,7 @@ public:
 
   ~ScopedTimer() { Statistics::stopTimer(name_); }
 
-private:
+ private:
   std::string name_;
 };
 

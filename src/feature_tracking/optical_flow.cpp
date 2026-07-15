@@ -10,10 +10,10 @@
 #include <opencv2/imgproc.hpp>
 #include <opencv2/video/tracking.hpp>
 
-#include "utils/logger.hpp"
 #include "config/svo_config.hpp"
 #include "database/Frame.hpp"
 #include "feature_tracking/optical_flow.hpp"
+#include "utils/logger.hpp"
 
 namespace omni_slam {
 namespace {
@@ -69,9 +69,10 @@ void RunForwardBackwardOpticalFlow(const std::vector<cv::Mat>&     src_pyramid,
 
 }  // namespace
 
-OpticalFlow::OpticalFlow(const size_t                                   cam_num,
-                         tbb::concurrent_queue<std::shared_ptr<Frame>>& in_queue,
-                         tbb::concurrent_queue<std::shared_ptr<Frame>>& out_queue)
+OpticalFlow::OpticalFlow(
+  const size_t                                   cam_num,
+  tbb::concurrent_queue<std::shared_ptr<Frame>>& in_queue,
+  tbb::concurrent_queue<std::shared_ptr<Frame>>& out_queue)
   : kCamNum{cam_num}
   , in_queue_(in_queue)
   , out_queue_(out_queue)
@@ -180,8 +181,10 @@ void OpticalFlow::DetectFeatures(const std::shared_ptr<Frame>& curr_frame) {
 
   const int         grid_rows = std::max(1, SVOConfig::feature_grid_rows);
   const int         grid_cols = std::max(1, SVOConfig::feature_grid_cols);
-  const int         cell_w = std::max(1, curr_frame->GetImage(kLeftCam).cols / grid_cols);
-  const int         cell_h = std::max(1, curr_frame->GetImage(kLeftCam).rows / grid_rows);
+  const int         cell_w    = std::max(1,
+                              curr_frame->GetImage(kLeftCam).cols / grid_cols);
+  const int         cell_h    = std::max(1,
+                              curr_frame->GetImage(kLeftCam).rows / grid_rows);
   std::vector<bool> cell_has_feature(grid_rows * grid_cols, false);
 
   for (const auto& uv : curr_uvs) {
@@ -197,10 +200,12 @@ void OpticalFlow::DetectFeatures(const std::shared_ptr<Frame>& curr_frame) {
       }
       const int x0 = col * cell_w;
       const int y0 = row * cell_h;
-      const int x1 = (col == grid_cols - 1) ? curr_frame->GetImage(kLeftCam).cols
-                                            : (col + 1) * cell_w;
-      const int y1 = (row == grid_rows - 1) ? curr_frame->GetImage(kLeftCam).rows
-                                            : (row + 1) * cell_h;
+      const int x1 = (col == grid_cols - 1)
+                       ? curr_frame->GetImage(kLeftCam).cols
+                       : (col + 1) * cell_w;
+      const int y1 = (row == grid_rows - 1)
+                       ? curr_frame->GetImage(kLeftCam).rows
+                       : (row + 1) * cell_h;
       if (x1 <= x0 || y1 <= y0) {
         continue;
       }
@@ -234,12 +239,13 @@ void OpticalFlow::DetectFeatures(const std::shared_ptr<Frame>& curr_frame) {
 void OpticalFlow::Process(std::shared_ptr<Frame>& curr_frame) {
   auto* curr_result = curr_frame->GetTrackingResultPtr();
 
-  const size_t prev_left_size = (prev_frame_ && prev_frame_->GetTrackingResultPtr())
-                                  ? prev_frame_->GetTrackingResultPtr()->GetSize(0)
-                                  : 0;
-  const int    grid_rows      = std::max(1, SVOConfig::feature_grid_rows);
-  const int    grid_cols      = std::max(1, SVOConfig::feature_grid_cols);
-  const size_t expected_left  = (prev_left_size >> 1)
+  const size_t prev_left_size =
+    (prev_frame_ && prev_frame_->GetTrackingResultPtr())
+      ? prev_frame_->GetTrackingResultPtr()->GetSize(0)
+      : 0;
+  const int    grid_rows     = std::max(1, SVOConfig::feature_grid_rows);
+  const int    grid_cols     = std::max(1, SVOConfig::feature_grid_cols);
+  const size_t expected_left = (prev_left_size >> 1)
                                + static_cast<size_t>(grid_rows * grid_cols);
   curr_result->Reserve(0, expected_left);
   curr_result->Reserve(1, expected_left);

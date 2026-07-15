@@ -2,22 +2,22 @@
 
 #include <atomic>
 #include <cstdint>
+#include <map>
 #include <memory>
+#include <mutex>
+#include <set>
 #include <string>
 #include <thread>
 #include <vector>
-#include <map>
-#include <set>
-#include <mutex>
 
-#include <tbb/concurrent_queue.h>
 #include <opencv2/core.hpp>
+#include <tbb/concurrent_queue.h>
 
-#include "utils/eigen_utils.hpp"
-#include "utils/types.hpp"
+#include "odometry/imu_preintegration.hpp"
 #include "odometry/odometry.hpp"
 #include "odometry/odometry_result.hpp"
-#include "odometry/imu_preintegration.hpp"
+#include "utils/eigen_utils.hpp"
+#include "utils/types.hpp"
 
 namespace omni_slam {
 class TrackingResult;
@@ -27,7 +27,7 @@ class MapPoint;
 class SlidingWindow;
 class VIOEstimator;
 class StereoVIO : public Odometry {
-public:
+ public:
   enum class Status { Initializing, Tracking };
 
   StereoVIO();
@@ -43,12 +43,15 @@ public:
 
   bool FetchResult(OdometryResult& out);
 
-private:
+ private:
   void  OpticalFlowLoop();
   void  EstimatorLoop();
-  void  Process(std::shared_ptr<Frame>& frame, const std::vector<ImuData>& imu_data);
-  bool  Initialize(std::shared_ptr<Frame>& frame, const std::vector<ImuData>& imu_data);
-  void  Track(std::shared_ptr<Frame>& frame, const std::vector<ImuData>& imu_data);
+  void  Process(std::shared_ptr<Frame>&     frame,
+                const std::vector<ImuData>& imu_data);
+  bool  Initialize(std::shared_ptr<Frame>&     frame,
+                   const std::vector<ImuData>& imu_data);
+  void  Track(std::shared_ptr<Frame>&     frame,
+              const std::vector<ImuData>& imu_data);
   void  PopImuDataUntil(int64_t timestamp_ns, std::vector<ImuData>& imu_data);
   float UpdateFrameObservations(std::shared_ptr<Frame>& frame);
 
@@ -60,7 +63,7 @@ private:
 
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-private:
+ private:
   static constexpr size_t kCamNum = 2;
   Status                  status_;
 
@@ -72,8 +75,9 @@ private:
   tbb::concurrent_queue<std::shared_ptr<Frame>> result_queue_;
   std::unique_ptr<OpticalFlow>                  optical_flow_;
 
-  std::unique_ptr<SlidingWindow>        sliding_window_;
-  std::map<uint64_t, InertialState>     inertial_states_;  // v_wb, bias_acc, bias_gyr
+  std::unique_ptr<SlidingWindow> sliding_window_;
+  std::map<uint64_t, InertialState>
+    inertial_states_;  // v_wb, bias_acc, bias_gyr
   std::map<uint64_t, ImuPreintegration> imu_preintegrations_;
 
   std::unique_ptr<VIOEstimator> estimator_;

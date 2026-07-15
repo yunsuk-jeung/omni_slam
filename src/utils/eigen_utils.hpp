@@ -3,6 +3,7 @@
 
 #include <bitset>
 #include <cstdint>
+
 #include <Eigen/Dense>
 
 namespace Eigen {
@@ -21,7 +22,8 @@ using Matrix15x12d = Eigen::Matrix<double, 15, 12>;
 
 namespace omni_slam::EigenUtil {
 
-inline void TangentBasis(const Eigen::Vector3d& f, Eigen::Matrix<double, 3, 2>& B) {
+inline void TangentBasis(const Eigen::Vector3d&       f,
+                         Eigen::Matrix<double, 3, 2>& B) {
   Eigen::Vector3d fn = f.normalized();
 
   Eigen::Vector3d a = Eigen::Vector3d::UnitZ();

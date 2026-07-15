@@ -1,23 +1,23 @@
-#include <ceres/ceres.h>
-
 #include <algorithm>
-#include <cstdint>
 #include <cmath>
+#include <cstdint>
 #include <unordered_map>
 #include <vector>
 
-#include "database/MapPoint.hpp"
-#include "database/Frame.hpp"
+#include <ceres/ceres.h>
+
 #include "config/svo_config.hpp"
+#include "database/Frame.hpp"
+#include "database/MapPoint.hpp"
 #include "odometry/sliding_window.hpp"
+#include "optimizer/cost_function.hpp"
+#include "optimizer/marginalizer.hpp"
+#include "optimizer/parameterization.hpp"
+#include "optimizer/vo_estimator.hpp"
+#include "utils/ceres_utils.hpp"
 #include "utils/eigen_utils.hpp"
 #include "utils/logger.hpp"
 #include "utils/timer.hpp"
-#include "utils/ceres_utils.hpp"
-#include "optimizer/parameterization.hpp"
-#include "optimizer/cost_function.hpp"
-#include "optimizer/marginalizer.hpp"
-#include "optimizer/vo_estimator.hpp"
 
 namespace omni_slam {
 
@@ -30,8 +30,9 @@ static void AddMarginalizationPriorIfAvailable(
   const MarginalizationPrior&                 prior,
   const std::unordered_map<uint64_t, size_t>& frame_id_to_index,
   std::vector<Eigen::Vector6d>&               pose_params) {
-  if (prior.frame_ids_.empty() || prior.block_sizes_.empty() || prior.J_.rows() == 0
-      || prior.r_.size() == 0 || prior.x0_.size() == 0) {
+  if (prior.frame_ids_.empty() || prior.block_sizes_.empty()
+      || prior.J_.rows() == 0 || prior.r_.size() == 0
+      || prior.x0_.size() == 0) {
     return;
   }
 
@@ -72,8 +73,9 @@ void VOEstimator::OptimizeSingleFrame(std::shared_ptr<Frame> frame,
       continue;
     }
 
-    std::shared_ptr<Frame> f0  = window->GetFrame(mp->GetHostFrameCamId().frame_id);
-    Sophus::SE3d           Twc = f0->GetTwc(kCamIdx);
+    std::shared_ptr<Frame> f0 =
+      window->GetFrame(mp->GetHostFrameCamId().frame_id);
+    Sophus::SE3d Twc = f0->GetTwc(kCamIdx);
 
     // world point reconstruction from host frame
     const Sophus::SE3d Twc0 = f0->GetTwc(kCamIdx);
@@ -85,10 +87,11 @@ void VOEstimator::OptimizeSingleFrame(std::shared_ptr<Frame> frame,
     const Eigen::Vector3d p_w = Twc0 * p_c0;
 
     // bearing residual (pose-only)
-    ceres::CostFunction* cost = new PoseOnlyBearingCost(p_w,
-                                                        bearing,
-                                                        T_b_c,
-                                                        SVOConfig::bearing_cost_scale);
+    ceres::CostFunction* cost =
+      new PoseOnlyBearingCost(p_w,
+                              bearing,
+                              T_b_c,
+                              SVOConfig::bearing_cost_scale);
 
     // auto* cost = new ceres::AutoDiffCostFunction<PoseOnlyBearingCostAuto,
     //                                              2,  // residual dim
@@ -96,7 +99,8 @@ void VOEstimator::OptimizeSingleFrame(std::shared_ptr<Frame> frame,
     //                                              >(
     //   new PoseOnlyBearingCostAuto(p_w, bearing, T_b_c));
 
-    ceres::LossFunction* loss = new ceres::HuberLoss(SVOConfig::bearing_huber_const);
+    ceres::LossFunction* loss =
+      new ceres::HuberLoss(SVOConfig::bearing_huber_const);
     problem.AddResidualBlock(cost,
                              loss,  // no robust loss for now
                              box_w_b.data());
@@ -121,7 +125,8 @@ VOEstimator::VOEstimator()
   : marginalization_prior_(std::make_unique<MarginalizationPrior>()) {
   marginalization_prior_->frame_ids_.insert(kMarginalizerInitialFrameId);
   marginalization_prior_->J_ = SVOConfig::marginalizer_initial_prior_weight
-                               * Eigen::MatrixXd::Identity(kPoseSize, kPoseSize);
+                               * Eigen::MatrixXd::Identity(kPoseSize,
+                                                           kPoseSize);
   marginalization_prior_->r_           = Eigen::VectorXd::Zero(kPoseSize);
   marginalization_prior_->x0_          = Eigen::VectorXd::Zero(kPoseSize);
   marginalization_prior_->block_sizes_ = {kPoseSize};
@@ -211,19 +216,20 @@ void VOEstimator::OptimizeWindow(SlidingWindow* window) {
     }
 
     const FrameCamId       frame_cam_id0 = mp->GetHostFrameCamId();
-    std::shared_ptr<Frame> frame0        = window->GetFrame(frame_cam_id0.frame_id);
-    const Sophus::SE3d&    T_b_c0        = frame0->GetTbc(frame_cam_id0.cam_id);
-    double* pose_param0 = pose_params[frame_id_to_index[frame_cam_id0.frame_id]].data();
+    std::shared_ptr<Frame> frame0 = window->GetFrame(frame_cam_id0.frame_id);
+    const Sophus::SE3d&    T_b_c0 = frame0->GetTbc(frame_cam_id0.cam_id);
+    double*                pose_param0 =
+      pose_params[frame_id_to_index[frame_cam_id0.frame_id]].data();
 
-    const auto& observations   = mp->GetObservation();
-    double*     bearing_param  = bearing_params[mp_id_to_index[mp->GetId()]].data();
-    double*     inv_dist_param = &inv_dist_params[mp_id_to_index[mp->GetId()]];
+    const auto& observations = mp->GetObservation();
+    double* bearing_param  = bearing_params[mp_id_to_index[mp->GetId()]].data();
+    double* inv_dist_param = &inv_dist_params[mp_id_to_index[mp->GetId()]];
 
     const auto host_obs_it = observations.find(frame_cam_id0);
     if (host_obs_it != observations.end()) {
-      ceres::CostFunction*
-        host_bearing_prior_cost = new BearingPriorCost(host_obs_it->second,
-                                                       SVOConfig::bearing_cost_scale);
+      ceres::CostFunction* host_bearing_prior_cost =
+        new BearingPriorCost(host_obs_it->second,
+                             SVOConfig::bearing_cost_scale);
       problem.AddResidualBlock(host_bearing_prior_cost, nullptr, bearing_param);
     }
 
@@ -233,23 +239,27 @@ void VOEstimator::OptimizeWindow(SlidingWindow* window) {
       }
 
       std::shared_ptr<Frame> frame1 = window->GetFrame(frame_cam_id1.frame_id);
-      double* pose_param1 = pose_params[frame_id_to_index[frame_cam_id1.frame_id]].data();
+      double*                pose_param1 =
+        pose_params[frame_id_to_index[frame_cam_id1.frame_id]].data();
       const Sophus::SE3d& T_b_c1 = frame1->GetTbc(frame_cam_id1.cam_id);
 
-      ceres::LossFunction* loss = new ceres::HuberLoss(SVOConfig::bearing_huber_const);
+      ceres::LossFunction* loss =
+        new ceres::HuberLoss(SVOConfig::bearing_huber_const);
       if (frame_cam_id0.frame_id == frame_cam_id1.frame_id) {
         // Stereo within the same frame: use a single pose parameter block.
-        ceres::CostFunction* cost = new BearingStereoCost(bearing,
-                                                          T_b_c1,
-                                                          T_b_c0,
-                                                          SVOConfig::bearing_cost_scale);
+        ceres::CostFunction* cost =
+          new BearingStereoCost(bearing,
+                                T_b_c1,
+                                T_b_c0,
+                                SVOConfig::bearing_cost_scale);
         problem.AddResidualBlock(cost, loss, bearing_param, inv_dist_param);
       }
       else {
-        ceres::CostFunction* cost = new BearingCost(bearing,
-                                                    T_b_c1,
-                                                    T_b_c0,
-                                                    SVOConfig::bearing_cost_scale);
+        ceres::CostFunction* cost =
+          new BearingCost(bearing,
+                          T_b_c1,
+                          T_b_c0,
+                          SVOConfig::bearing_cost_scale);
         problem.AddResidualBlock(cost,
                                  loss,
                                  pose_param1,
@@ -271,7 +281,8 @@ void VOEstimator::OptimizeWindow(SlidingWindow* window) {
 
   for (const auto& [frame_id, frame] : frames) {
     const auto it = frame_id_to_index.find(frame_id);
-    frame->SetTwb(SE3BoxplusManifold::FromParams(pose_params[it->second].data()));
+    frame->SetTwb(
+      SE3BoxplusManifold::FromParams(pose_params[it->second].data()));
   }
 
   for (const auto& [mp_id, idx] : mp_id_to_index) {
@@ -281,11 +292,13 @@ void VOEstimator::OptimizeWindow(SlidingWindow* window) {
       b.normalize();
     }
     mp->GetBearing() = b;
-    mp->SetInvDist(std::max(inv_dist_params[idx], SVOConfig::inv_dist_min_value));
+    mp->SetInvDist(
+      std::max(inv_dist_params[idx], SVOConfig::inv_dist_min_value));
   }
 }
 
-void VOEstimator::Marginalize(SlidingWindow* window, std::set<uint64_t> marginal_kf_ids) {
+void VOEstimator::Marginalize(SlidingWindow*     window,
+                              std::set<uint64_t> marginal_kf_ids) {
   if (!window || marginal_kf_ids.empty()) {
     return;
   }
@@ -327,14 +340,16 @@ void VOEstimator::Marginalize(SlidingWindow* window, std::set<uint64_t> marginal
 
   std::vector<Eigen::Vector6d>         pose_params;
   std::unordered_map<uint64_t, size_t> frame_id_to_index;
-  SE3BoxplusManifold*                  box_plus_manifold = new SE3BoxplusManifold();
+  SE3BoxplusManifold* box_plus_manifold = new SE3BoxplusManifold();
 
   pose_params.reserve(marginal_kf_ids.size() + remain_frame_ids.size());
   for (const auto& frame_id : marginal_kf_ids) {
     std::shared_ptr<Frame> frame = window->GetFrame(frame_id);
     frame_id_to_index[frame_id]  = pose_params.size();
     pose_params.push_back(SE3BoxplusManifold::ToParams(frame->GetTwb()));
-    problem.AddParameterBlock(pose_params.back().data(), kPoseSize, box_plus_manifold);
+    problem.AddParameterBlock(pose_params.back().data(),
+                              kPoseSize,
+                              box_plus_manifold);
   }
 
   std::vector<Eigen::Vector3d> bearing_params;
@@ -365,7 +380,9 @@ void VOEstimator::Marginalize(SlidingWindow* window, std::set<uint64_t> marginal
     std::shared_ptr<Frame> frame = window->GetFrame(frame_id);
     frame_id_to_index[frame_id]  = pose_params.size();
     pose_params.push_back(SE3BoxplusManifold::ToParams(frame->GetTwb()));
-    problem.AddParameterBlock(pose_params.back().data(), kPoseSize, box_plus_manifold);
+    problem.AddParameterBlock(pose_params.back().data(),
+                              kPoseSize,
+                              box_plus_manifold);
   }
 
   AddMarginalizationPriorIfAvailable(problem,
@@ -379,10 +396,11 @@ void VOEstimator::Marginalize(SlidingWindow* window, std::set<uint64_t> marginal
       continue;
     }
     const FrameCamId       frame_cam_id0 = mp->GetHostFrameCamId();
-    std::shared_ptr<Frame> frame0        = window->GetFrame(frame_cam_id0.frame_id);
+    std::shared_ptr<Frame> frame0 = window->GetFrame(frame_cam_id0.frame_id);
 
     const Sophus::SE3d& T_b_c0 = frame0->GetTbc(frame_cam_id0.cam_id);
-    double* pose_param0 = pose_params[frame_id_to_index[frame_cam_id0.frame_id]].data();
+    double*             pose_param0 =
+      pose_params[frame_id_to_index[frame_cam_id0.frame_id]].data();
 
     const auto& observations   = mp->GetObservation();
     double*     bearing_param  = bearing_params[i].data();
@@ -392,10 +410,12 @@ void VOEstimator::Marginalize(SlidingWindow* window, std::set<uint64_t> marginal
 
     const auto host_obs_it = observations.find(frame_cam_id0);
     if (host_obs_it != observations.end()) {
-      ceres::CostFunction*
-        host_bearing_prior_cost = new BearingPriorCost(host_obs_it->second,
-                                                       SVOConfig::bearing_cost_scale);
-      problem.AddResidualBlock(host_bearing_prior_cost, bearing_loss, bearing_param);
+      ceres::CostFunction* host_bearing_prior_cost =
+        new BearingPriorCost(host_obs_it->second,
+                             SVOConfig::bearing_cost_scale);
+      problem.AddResidualBlock(host_bearing_prior_cost,
+                               bearing_loss,
+                               bearing_param);
     }
 
     for (const auto& [frame_cam_id1, bearing] : observations) {
@@ -404,22 +424,28 @@ void VOEstimator::Marginalize(SlidingWindow* window, std::set<uint64_t> marginal
       }
 
       std::shared_ptr<Frame> frame1 = window->GetFrame(frame_cam_id1.frame_id);
-      double* pose_param1 = pose_params[frame_id_to_index[frame_cam_id1.frame_id]].data();
+      double*                pose_param1 =
+        pose_params[frame_id_to_index[frame_cam_id1.frame_id]].data();
       const Sophus::SE3d& T_b_c1 = frame1->GetTbc(frame_cam_id1.cam_id);
 
       if (frame_cam_id0.frame_id == frame_cam_id1.frame_id) {
         // Stereo within the same frame: use a single pose parameter block.
-        ceres::CostFunction* cost = new BearingStereoCost(bearing,
-                                                          T_b_c1,
-                                                          T_b_c0,
-                                                          SVOConfig::bearing_cost_scale);
-        problem.AddResidualBlock(cost, bearing_loss, bearing_param, inv_dist_param);
+        ceres::CostFunction* cost =
+          new BearingStereoCost(bearing,
+                                T_b_c1,
+                                T_b_c0,
+                                SVOConfig::bearing_cost_scale);
+        problem.AddResidualBlock(cost,
+                                 bearing_loss,
+                                 bearing_param,
+                                 inv_dist_param);
       }
       else {
-        ceres::CostFunction* cost = new BearingCost(bearing,
-                                                    T_b_c1,
-                                                    T_b_c0,
-                                                    SVOConfig::bearing_cost_scale);
+        ceres::CostFunction* cost =
+          new BearingCost(bearing,
+                          T_b_c1,
+                          T_b_c0,
+                          SVOConfig::bearing_cost_scale);
         problem.AddResidualBlock(cost,
                                  bearing_loss,
                                  pose_param1,
@@ -445,7 +471,8 @@ void VOEstimator::Marginalize(SlidingWindow* window, std::set<uint64_t> marginal
 
   H = 0.5 * (H + H.transpose());
 
-  const Eigen::Index r = static_cast<Eigen::Index>(remain_frame_ids.size() * kPoseSize);
+  const Eigen::Index r =
+    static_cast<Eigen::Index>(remain_frame_ids.size() * kPoseSize);
   const Eigen::Index total_dim = H.cols();
   const Eigen::Index m         = total_dim - r;
 
@@ -470,7 +497,8 @@ void VOEstimator::Marginalize(SlidingWindow* window, std::set<uint64_t> marginal
 
   constexpr double eps         = 1e-8;
   Eigen::VectorXd  inv_eigvals = (saes.eigenvalues().array() > eps)
-                                  .select(saes.eigenvalues().array().inverse(), 0.0);
+                                  .select(saes.eigenvalues().array().inverse(),
+                                          0.0);
   const Eigen::MatrixXd Amm_inv = saes.eigenvectors() * inv_eigvals.asDiagonal()
                                   * saes.eigenvectors().transpose();
 
@@ -490,9 +518,9 @@ void VOEstimator::Marginalize(SlidingWindow* window, std::set<uint64_t> marginal
 
   marginalization_prior_->frame_ids_          = remain_frame_ids;
   marginalization_prior_->preintegration_ids_ = {};
-  marginalization_prior_->block_sizes_        = std::vector<int>(remain_frame_ids.size(),
-                                                          kPoseSize);
-  marginalization_prior_->x0_                 = x0;
+  marginalization_prior_->block_sizes_ =
+    std::vector<int>(remain_frame_ids.size(), kPoseSize);
+  marginalization_prior_->x0_ = x0;
 
   Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> saes_prior(A);
   if (saes_prior.info() != Eigen::Success) {
@@ -518,7 +546,8 @@ void VOEstimator::Marginalize(SlidingWindow* window, std::set<uint64_t> marginal
     }
 
     marginalization_prior_->J_ = sqrt_vals.asDiagonal() * eig_vecs.transpose();
-    marginalization_prior_->r_ = inv_sqrt_vals.asDiagonal() * eig_vecs.transpose() * b;
+    marginalization_prior_->r_ = inv_sqrt_vals.asDiagonal()
+                                 * eig_vecs.transpose() * b;
   }
   Statistics::stopTimer("marginalize saes2");
 

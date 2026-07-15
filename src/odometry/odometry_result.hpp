@@ -1,11 +1,11 @@
 #pragma once
 
-#include <cstdint>
 #include <cstddef>
+#include <cstdint>
 #include <vector>
 
-#include <opencv2/core.hpp>
 #include <Eigen/Dense>
+#include <opencv2/core.hpp>
 #include <sophus/se3.hpp>
 
 namespace omni_slam {

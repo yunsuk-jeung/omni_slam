@@ -1,11 +1,11 @@
 ---
 Language:        Cpp
 # BasedOnStyle:  Google
-AccessModifierOffset: -2
+AccessModifierOffset: -1
 AlignArrayOfStructures: Right
-AlignAfterOpenBracket: true
+AlignAfterOpenBracket: Align
 
-AlignConsecutiveDeclarations: 
+AlignConsecutiveDeclarations:
   Enabled: true
   AcrossEmptyLines: false
   AcrossComments: false
@@ -24,18 +24,18 @@ AllowShortCaseLabelsOnASingleLine: false
 AllowShortFunctionsOnASingleLine: Inline
 AllowShortIfStatementsOnASingleLine: Never
 AllowShortLoopsOnASingleLine: true
-AlwaysBreakAfterDefinitionReturnType: None
+BreakAfterReturnType: None
 AlwaysBreakBeforeMultilineStrings: false
-AlwaysBreakTemplateDeclarations: true
+BreakTemplateDeclarations: Yes
 BinPackArguments: false
 BinPackParameters: false
 BreakBeforeBinaryOperators: NonAssignment
 BreakBeforeBraces: Custom
 BraceWrapping:
-	BeforeElse: true
+  BeforeElse: true
 BreakBeforeTernaryOperators: true
 BreakConstructorInitializersBeforeComma: true
-ColumnLimit:     90
+ColumnLimit:     80
 CommentPragmas:  '^ IWYU pragma:'
 PackConstructorInitializers: Never
 ConstructorInitializerIndentWidth: 2
@@ -58,24 +58,38 @@ NamespaceIndentation: None
 ObjCBlockIndentWidth: 2
 ObjCSpaceAfterProperty: false
 ObjCSpaceBeforeProtocolList: false
-PenaltyBreakAssignment: 400
+PenaltyBreakAssignment: 30
 PenaltyBreakBeforeFirstCallParameter: 400
 PenaltyReturnTypeOnItsOwnLine: 400
 PointerAlignment: Left
-SpacesInLineCommentPrefix: 
+SpacesInLineCommentPrefix:
   Minimum: 1
   Maximum: 1
 SpaceAfterCStyleCast: false
 SpaceBeforeAssignmentOperators: true
 SpaceBeforeParens: ControlStatements
-SpaceInEmptyParentheses: false
 SpacesBeforeTrailingComments: 2
 SpacesInAngles:  false
 SpacesInContainerLiterals: true
-SpacesInCStyleCastParentheses: false
-SpacesInParentheses: false
+SpacesInParens: Never
 SpacesInSquareBrackets: false
 Standard:        Auto
-SortIncludes:  false
-TabWidth:        8
+# Include ordering:
+#   1. Standard / system headers   <vector>        (angle, no slash)
+#   2. External libraries          <vulkan/...>    (angle, has slash: vulkan, opencv, eigen, ...)
+#   3. Our framework (mpvk)        "mpvk/..."      (quotes)
+# "$^" disables main-header-first so the file's own header sorts into tier 3.
+SortIncludes:  CaseSensitive
+IncludeBlocks:  Regroup
+IncludeIsMainRegex: '$^'
+IncludeCategories:
+  - Regex:    '^"mpvk/'
+    Priority: 3
+  - Regex:    '^<[^/]*>'
+    Priority: 1
+  - Regex:    '^<.*>'
+    Priority: 2
+  - Regex:    '^".*"'
+    Priority: 3
+TabWidth:        2
 UseTab:          Never

@@ -18,7 +18,7 @@ struct InertialState {
 };
 
 class ImuPreintegration {
-public:
+ public:
   ImuPreintegration() = delete;
 
   struct Parameters {
@@ -36,10 +36,11 @@ public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   };
 
-  explicit ImuPreintegration(uint64_t               from_frame_id,
-                             uint64_t               to_frame_id,
-                             const Eigen::Vector3d& bias_acc = Eigen::Vector3d::Zero(),
-                             const Eigen::Vector3d& bias_gyr = Eigen::Vector3d::Zero());
+  explicit ImuPreintegration(
+    uint64_t               from_frame_id,
+    uint64_t               to_frame_id,
+    const Eigen::Vector3d& bias_acc = Eigen::Vector3d::Zero(),
+    const Eigen::Vector3d& bias_gyr = Eigen::Vector3d::Zero());
   ImuPreintegration(uint64_t               from_frame_id,
                     uint64_t               to_frame_id,
                     const Eigen::Vector3d& bias_acc,
@@ -47,7 +48,8 @@ public:
                     const Parameters&      parameters);
 
   void Reset(const Eigen::Vector3d& bias_acc, const Eigen::Vector3d& bias_gyr);
-  void SetBias(const Eigen::Vector3d& bias_acc, const Eigen::Vector3d& bias_gyr);
+  void SetBias(const Eigen::Vector3d& bias_acc,
+               const Eigen::Vector3d& bias_gyr);
   void SetParameters(const Parameters& parameters);
 
   bool IntegrateMeasurement(const ImuData& imu0, const ImuData& imu1);
@@ -58,9 +60,12 @@ public:
   // applies first-order corrections; calling this after the optimizer updates
   // the bias keeps the deltas/Jacobians consistent with the new operating
   // point and prevents drift from stale linearization.
-  bool Repropagate(const Eigen::Vector3d& bias_acc, const Eigen::Vector3d& bias_gyr);
+  bool Repropagate(const Eigen::Vector3d& bias_acc,
+                   const Eigen::Vector3d& bias_gyr);
 
-  const std::vector<ImuData>& GetImuMeasurements() const { return imu_measurements_; }
+  const std::vector<ImuData>& GetImuMeasurements() const {
+    return imu_measurements_;
+  }
 
   CorrectedDelta GetBiasCorrectedDelta(const Eigen::Vector3d& bias_acc,
                                        const Eigen::Vector3d& bias_gyr) const;
@@ -90,7 +95,7 @@ public:
 
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-private:
+ private:
   void PropagateState(const Sophus::SO3d&    delta_r_next,
                       const Eigen::Vector3d& acc_world_mid,
                       double                 dt_sec);
@@ -101,7 +106,7 @@ private:
                       const Eigen::Vector3d& gyr_mid,
                       double                 dt_sec);
 
-private:
+ private:
   Parameters parameters_;
 
   Eigen::Vector3d delta_p_;
