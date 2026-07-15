@@ -1,4 +1,3 @@
-#include <chrono>
 #include <cmath>
 #include <limits>
 #include <set>
@@ -65,6 +64,8 @@ void StereoVO::run() {
 void StereoVO::shutdown() {
   Logger::info("Shutting down VO Pipeline");
   running_.store(false, std::memory_order_release);
+  raw_frame_queue_.close();
+  tracked_frame_queue_.close();
 
   if (optical_flow_thread_.joinable()) {
     optical_flow_thread_.join();
@@ -90,11 +91,10 @@ void StereoVO::on_camera_frame(
 void StereoVO::optical_flow_loop() {
   std::shared_ptr<Frame> frame;
   while (running_.load(std::memory_order_acquire)) {
-    if (!raw_frame_queue_.try_pop(frame)) {
-      std::this_thread::sleep_for(std::chrono::milliseconds(1));
-      continue;
+    if (!raw_frame_queue_.wait()) {
+      break;
     }
-    if (!frame) {
+    if (!raw_frame_queue_.try_pop(frame)) {
       continue;
     }
     optical_flow_->process(frame);
@@ -105,11 +105,12 @@ void StereoVO::optical_flow_loop() {
 void StereoVO::estimator_loop() {
   std::shared_ptr<Frame> frame;
   while (running_.load(std::memory_order_acquire)) {
+    if (!tracked_frame_queue_.wait()) {
+      break;
+    }
     if (!tracked_frame_queue_.try_pop(frame)) {
-      std::this_thread::sleep_for(std::chrono::milliseconds(1));
       continue;
     }
-
     process(frame);
   }
 }

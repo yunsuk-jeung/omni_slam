@@ -1,5 +1,4 @@
 #include <algorithm>
-#include <chrono>
 #include <cmath>
 #include <limits>
 #include <set>
@@ -103,6 +102,8 @@ void StereoVIO::run() {
 void StereoVIO::shutdown() {
   Logger::info("Shutting down VIO Pipeline");
   running_.store(false, std::memory_order_release);
+  raw_frame_queue_.close();
+  tracked_frame_queue_.close();
 
   if (optical_flow_thread_.joinable()) {
     optical_flow_thread_.join();
@@ -132,11 +133,10 @@ void StereoVIO::on_imu_data(const ImuData& imu_data) {
 void StereoVIO::optical_flow_loop() {
   std::shared_ptr<Frame> frame;
   while (running_.load(std::memory_order_acquire)) {
-    if (!raw_frame_queue_.try_pop(frame)) {
-      std::this_thread::sleep_for(std::chrono::milliseconds(1));
-      continue;
+    if (!raw_frame_queue_.wait()) {
+      break;
     }
-    if (!frame) {
+    if (!raw_frame_queue_.try_pop(frame)) {
       continue;
     }
     optical_flow_->process(frame);
@@ -147,11 +147,12 @@ void StereoVIO::optical_flow_loop() {
 void StereoVIO::estimator_loop() {
   std::shared_ptr<Frame> frame;
   while (running_.load(std::memory_order_acquire)) {
+    if (!tracked_frame_queue_.wait()) {
+      break;
+    }
     if (!tracked_frame_queue_.try_pop(frame)) {
-      std::this_thread::sleep_for(std::chrono::milliseconds(1));
       continue;
     }
-
     const int64_t frame_ts_ns = frame->timestamp_ns();
     pop_imu_data_until(frame_ts_ns, imu_data_buffer_);
     process(frame, imu_data_buffer_);
@@ -470,7 +471,7 @@ float StereoVIO::update_frame_observations(std::shared_ptr<Frame>& frame) {
 
   size_t kpt_num            = frame->tracking_result_ptr()->size(0);
   float  connected_mp_ratio = kpt_num > 0 ? static_cast<float>(connected)
-                                              / static_cast<float>(kpt_num)
+                                             / static_cast<float>(kpt_num)
                                           : 1.0f;
   LogD("frame {}, connected map point ratio : {} = {} /{}",
        frame->id(),

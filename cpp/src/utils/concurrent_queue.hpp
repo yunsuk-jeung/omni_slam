@@ -1,5 +1,6 @@
 #pragma once
 
+#include <condition_variable>
 #include <cstddef>
 #include <deque>
 #include <mutex>
@@ -14,11 +15,28 @@ class ConcurrentQueue {
     : max_size_{max_size} {}
 
   void push(T value) {
-    std::scoped_lock lock(mutex_);
-    queue_.push_back(std::move(value));
-    if (max_size_ > 0 && queue_.size() > max_size_) {
-      queue_.pop_front();
+    {
+      std::scoped_lock lock(mutex_);
+      queue_.push_back(std::move(value));
+      if (max_size_ > 0 && queue_.size() > max_size_) {
+        queue_.pop_front();
+      }
     }
+    cv_.notify_one();
+  }
+
+  bool wait() const {
+    std::unique_lock lock(mutex_);
+    cv_.wait(lock, [&] { return closed_ || !queue_.empty(); });
+    return !queue_.empty();
+  }
+
+  void close() {
+    {
+      std::scoped_lock lock(mutex_);
+      closed_ = true;
+    }
+    cv_.notify_all();
   }
 
   bool try_pop(T& out) {
@@ -31,9 +49,6 @@ class ConcurrentQueue {
     return true;
   }
 
-  // Pops only when the front element satisfies pred. Atomic check-and-pop:
-  // the popped element is always the one the predicate examined, even if a
-  // producer's bounded push evicts the front between the consumer's calls.
   template <typename Pred>
   bool try_pop_if(T& out, Pred pred) {
     std::scoped_lock lock(mutex_);
@@ -60,9 +75,11 @@ class ConcurrentQueue {
   }
 
  private:
-  mutable std::mutex mutex_;
-  std::deque<T>      queue_;
-  size_t             max_size_;
+  mutable std::mutex              mutex_;
+  mutable std::condition_variable cv_;
+  std::deque<T>                   queue_;
+  size_t                          max_size_;
+  bool                            closed_ = false;
 };
 
 }  // namespace omni_slam
