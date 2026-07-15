@@ -20,20 +20,20 @@ class MapPoint {
   MapPoint(const size_t& id);
   ~MapPoint();
 
-  void AddObservation(const FrameCamId&      frame_cam_id,
-                      const Eigen::Vector3d& uv);
-  void RemoveObservation(const FrameCamId& frame_cam_id);
+  void add_observation(const FrameCamId&      frame_cam_id,
+                       const Eigen::Vector3d& uv);
+  void remove_observation(const FrameCamId& frame_cam_id);
 
  public:
-  const uint64_t   GetId() const { return id_; }
-  const Status&    GetStatus() const { return status_; }
-  void             SetStatus(const Status& status) { status_ = status; }
-  Eigen::Vector3d& GetBearing() { return bearing_; }
-  double&          GetInvDist() { return inv_dist_; }
-  void             SetInvDist(const double& inv_dist) { inv_dist_ = inv_dist; };
-  auto&            GetObservation() { return frame_cam_id_to_bearing_; }
-  FrameCamId&      GetHostFrameCamId() { return host_frame_cam_id_; }
-  const FrameCamId& GetHostFrameCamId() const { return host_frame_cam_id_; }
+  const uint64_t   get_id() const { return id_; }
+  const Status&    get_status() const { return status_; }
+  void             set_status(const Status& status) { status_ = status; }
+  Eigen::Vector3d& get_bearing() { return bearing_; }
+  double&          get_inv_dist() { return inv_dist_; }
+  void        set_inv_dist(const double& inv_dist) { inv_dist_ = inv_dist; };
+  auto&       get_observation() { return frame_cam_id_to_bearing_; }
+  FrameCamId& get_host_frame_cam_id() { return host_frame_cam_id_; }
+  const FrameCamId& get_host_frame_cam_id() const { return host_frame_cam_id_; }
 
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 

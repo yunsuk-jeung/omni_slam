@@ -5,8 +5,8 @@
 
 namespace omni_slam::CeresUtil {
 
-inline bool TransposeCRSMatrix(const ceres::CRSMatrix& J,
-                               ceres::CRSMatrix&       Jt) {
+inline bool transpose_crs_matrix(const ceres::CRSMatrix& J,
+                                 ceres::CRSMatrix&       Jt) {
   const int num_rows = J.num_rows;
   const int num_cols = J.num_cols;
   const int nnz      = static_cast<int>(J.values.size());
@@ -68,10 +68,10 @@ inline bool TransposeCRSMatrix(const ceres::CRSMatrix& J,
   return true;
 }
 
-inline bool CreateHessianFromCRSMatrix(const ceres::CRSMatrix&    crsJ,
-                                       const std::vector<double>& res,
-                                       Eigen::MatrixXd&           H,
-                                       Eigen::VectorXd&           JtR) {
+inline bool create_hessian_from_crs_matrix(const ceres::CRSMatrix&    crsJ,
+                                           const std::vector<double>& res,
+                                           Eigen::MatrixXd&           H,
+                                           Eigen::VectorXd&           JtR) {
   H.resize(0, 0);
   JtR.resize(0);
 
@@ -84,7 +84,7 @@ inline bool CreateHessianFromCRSMatrix(const ceres::CRSMatrix&    crsJ,
 
   ceres::CRSMatrix crsJt;
 
-  if (!TransposeCRSMatrix(crsJ, crsJt)) {
+  if (!transpose_crs_matrix(crsJ, crsJt)) {
     return false;
   }
 

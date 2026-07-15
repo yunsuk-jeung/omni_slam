@@ -18,17 +18,17 @@ struct MarginalizationPrior;
 
 class VIOEstimator {
  public:
-  static void OptimizeSingleFrame(std::shared_ptr<Frame> frame,
-                                  SlidingWindow*         window);
+  static void optimize_single_frame(std::shared_ptr<Frame> frame,
+                                    SlidingWindow*         window);
 
   VIOEstimator();
   ~VIOEstimator();
 
-  void OptimizeWindow(
+  void optimize_window(
     SlidingWindow*                               window,
     std::map<uint64_t, InertialState>&           inertial_states,
     const std::map<uint64_t, ImuPreintegration>& imu_preintegrations);
-  void Marginalize(
+  void marginalize(
     SlidingWindow*                               window,
     std::set<uint64_t>                           marginal_frame_ids,
     std::set<uint64_t>                           marginal_inertial_state_ids,
@@ -38,7 +38,7 @@ class VIOEstimator {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
  private:
-  void ClearPrior();
+  void clear_prior();
 
  private:
   std::unique_ptr<MarginalizationPrior> marginalization_prior_;

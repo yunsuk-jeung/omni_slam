@@ -47,64 +47,65 @@ class ImuPreintegration {
                     const Eigen::Vector3d& bias_gyr,
                     const Parameters&      parameters);
 
-  void Reset(const Eigen::Vector3d& bias_acc, const Eigen::Vector3d& bias_gyr);
-  void SetBias(const Eigen::Vector3d& bias_acc,
-               const Eigen::Vector3d& bias_gyr);
-  void SetParameters(const Parameters& parameters);
+  void reset(const Eigen::Vector3d& bias_acc, const Eigen::Vector3d& bias_gyr);
+  void set_bias(const Eigen::Vector3d& bias_acc,
+                const Eigen::Vector3d& bias_gyr);
+  void set_parameters(const Parameters& parameters);
 
-  bool IntegrateMeasurement(const ImuData& imu0, const ImuData& imu1);
-  bool IntegrateMeasurements(const std::vector<ImuData>& imu_data);
+  bool integrate_measurement(const ImuData& imu0, const ImuData& imu1);
+  bool integrate_measurements(const std::vector<ImuData>& imu_data);
 
   // Re-integrate the buffered IMU samples with a new bias linearization point.
   // The cost function captures bias_acc_/bias_gyr_ at construction and only
   // applies first-order corrections; calling this after the optimizer updates
   // the bias keeps the deltas/Jacobians consistent with the new operating
   // point and prevents drift from stale linearization.
-  bool Repropagate(const Eigen::Vector3d& bias_acc,
+  bool repropagate(const Eigen::Vector3d& bias_acc,
                    const Eigen::Vector3d& bias_gyr);
 
-  const std::vector<ImuData>& GetImuMeasurements() const {
+  const std::vector<ImuData>& get_imu_measurements() const {
     return imu_measurements_;
   }
 
-  CorrectedDelta GetBiasCorrectedDelta(const Eigen::Vector3d& bias_acc,
-                                       const Eigen::Vector3d& bias_gyr) const;
+  CorrectedDelta get_bias_corrected_delta(
+    const Eigen::Vector3d& bias_acc,
+    const Eigen::Vector3d& bias_gyr) const;
 
-  Eigen::Matrix15d GetInformation(double damping = 1e-12) const;
+  Eigen::Matrix15d get_information(double damping = 1e-12) const;
 
-  const Sophus::SO3d&   GetDeltaR() const { return delta_r_; }
-  const Eigen::Vector3d GetDeltaV() const { return delta_v_; }
-  const Eigen::Vector3d GetDeltaP() const { return delta_p_; }
-  double                GetDeltaTimeSec() const { return delta_t_sec_; }
+  const Sophus::SO3d&   get_delta_r() const { return delta_r_; }
+  const Eigen::Vector3d get_delta_v() const { return delta_v_; }
+  const Eigen::Vector3d get_delta_p() const { return delta_p_; }
+  double                get_delta_time_sec() const { return delta_t_sec_; }
 
-  const Eigen::Vector3d& GetBiasAcc() const { return bias_acc_; }
-  const Eigen::Vector3d& GetBiasGyr() const { return bias_gyr_; }
-  uint64_t               GetFromFrameId() const { return from_frame_id_; }
-  uint64_t               GetToFrameId() const { return to_frame_id_; }
+  const Eigen::Vector3d& get_bias_acc() const { return bias_acc_; }
+  const Eigen::Vector3d& get_bias_gyr() const { return bias_gyr_; }
+  uint64_t               get_from_frame_id() const { return from_frame_id_; }
+  uint64_t               get_to_frame_id() const { return to_frame_id_; }
 
-  const Eigen::Matrix15d& GetJacobian() const { return jacobian_; }
-  const Eigen::Matrix15d& GetCovariance() const { return covariance_; }
+  const Eigen::Matrix15d& get_jacobian() const { return jacobian_; }
+  const Eigen::Matrix15d& get_covariance() const { return covariance_; }
 
-  Eigen::Matrix3d GetJDeltaRDbg() const;
-  Eigen::Matrix3d GetJDeltaVDBa() const;
-  Eigen::Matrix3d GetJDeltaVDbg() const;
-  Eigen::Matrix3d GetJDeltaPDBa() const;
-  Eigen::Matrix3d GetJDeltaPDbg() const;
+  Eigen::Matrix3d get_j_delta_r_dbg() const;
+  Eigen::Matrix3d get_j_delta_vd_ba() const;
+  Eigen::Matrix3d get_j_delta_v_dbg() const;
+  Eigen::Matrix3d get_j_delta_pd_ba() const;
+  Eigen::Matrix3d get_j_delta_p_dbg() const;
 
-  size_t GetIntegrationStepCount() const { return integration_steps_; }
+  size_t get_integration_step_count() const { return integration_steps_; }
 
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
  private:
-  void PropagateState(const Sophus::SO3d&    delta_r_next,
-                      const Eigen::Vector3d& acc_world_mid,
-                      double                 dt_sec);
-  void PropagateError(const Eigen::Matrix3d& R_start,
-                      const Eigen::Matrix3d& R_next,
-                      const Eigen::Vector3d& acc0_body,
-                      const Eigen::Vector3d& acc1_body,
-                      const Eigen::Vector3d& gyr_mid,
-                      double                 dt_sec);
+  void propagate_state(const Sophus::SO3d&    delta_r_next,
+                       const Eigen::Vector3d& acc_world_mid,
+                       double                 dt_sec);
+  void propagate_error(const Eigen::Matrix3d& R_start,
+                       const Eigen::Matrix3d& R_next,
+                       const Eigen::Vector3d& acc0_body,
+                       const Eigen::Vector3d& acc1_body,
+                       const Eigen::Vector3d& gyr_mid,
+                       double                 dt_sec);
 
  private:
   Parameters parameters_;

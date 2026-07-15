@@ -9,9 +9,9 @@
 namespace omni_slam {
 namespace {
 
-MarginalizationPrior MakePrior(const std::vector<int>& block_sizes,
-                               int                     residual_dim,
-                               int                     state_dim) {
+MarginalizationPrior make_prior(const std::vector<int>& block_sizes,
+                                int                     residual_dim,
+                                int                     state_dim) {
   MarginalizationPrior prior;
   prior.block_sizes_ = block_sizes;
   prior.J_.resize(residual_dim, state_dim);
@@ -24,7 +24,7 @@ MarginalizationPrior MakePrior(const std::vector<int>& block_sizes,
 
 TEST(MarginalizationCostTest, ResidualAndJacobiansMatchExpectedLinearModel) {
   // residual = r + J * (x - x0)
-  MarginalizationPrior prior = MakePrior({2, 3, 1}, 4, 6);
+  MarginalizationPrior prior = make_prior({2, 3, 1}, 4, 6);
 
   prior.J_ << 1.0, 0.0, 2.0, -1.0, 0.5, 3.0, -2.0, 1.0, 0.0, 1.0, -0.5, 2.0,
     0.2, 0.3, -1.0, 0.0, 2.0, -0.7, 1.5, -0.2, 0.4, 0.8, -1.2, 0.1;
@@ -61,7 +61,7 @@ TEST(MarginalizationCostTest, ResidualAndJacobiansMatchExpectedLinearModel) {
 }
 
 TEST(MarginalizationCostTest, EvaluateWithoutJacobians) {
-  MarginalizationPrior prior = MakePrior({2, 1}, 2, 3);
+  MarginalizationPrior prior = make_prior({2, 1}, 2, 3);
   prior.J_ << 2.0, -1.0, 0.5, 0.3, 1.2, -2.0;
   prior.r_ << 0.4, -0.7;
   prior.x0_ << 0.1, -0.2, 0.3;
@@ -104,7 +104,7 @@ TEST(MarginalizationCostTest,
      CeresOptimizationFindsLinearLeastSquaresSolution) {
   // Use full-rank square system: J = I, residual = r + (x - x0)
   // optimum is x* = x0 - r
-  MarginalizationPrior prior = MakePrior({2, 1}, 3, 3);
+  MarginalizationPrior prior = make_prior({2, 1}, 3, 3);
   prior.J_.setIdentity();
   prior.r_ << 0.3, -0.5, 1.2;
   prior.x0_ << -1.0, 2.0, 0.4;

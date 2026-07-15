@@ -21,11 +21,11 @@ template <size_t N>
 using MatrixArray = std::array<Eigen::MatrixXd, N>;
 
 template <size_t N>
-void EvaluateCostFunction(ceres::CostFunction*          cost,
-                          const ConstDoublePtrArray<N>& params,
-                          const std::array<int, N>&     block_sizes,
-                          Eigen::VectorXd*              residual,
-                          MatrixArray<N>*               jacobians) {
+void evaluate_cost_function(ceres::CostFunction*          cost,
+                            const ConstDoublePtrArray<N>& params,
+                            const std::array<int, N>&     block_sizes,
+                            Eigen::VectorXd*              residual,
+                            MatrixArray<N>*               jacobians) {
   ASSERT_NE(cost, nullptr);
   ASSERT_NE(residual, nullptr);
   ASSERT_NE(jacobians, nullptr);
@@ -43,12 +43,12 @@ void EvaluateCostFunction(ceres::CostFunction*          cost,
   ASSERT_TRUE(ok);
 }
 
-void ExpectResidualAndJacobiansClose(const Eigen::VectorXd& residual_manual,
-                                     const Eigen::VectorXd& residual_auto,
-                                     const MatrixArray<1>&  jacobian_manual,
-                                     const MatrixArray<1>&  jacobian_auto,
-                                     double                 residual_tol,
-                                     double                 jacobian_tol) {
+void expect_residual_and_jacobians_close(const Eigen::VectorXd& residual_manual,
+                                         const Eigen::VectorXd& residual_auto,
+                                         const MatrixArray<1>&  jacobian_manual,
+                                         const MatrixArray<1>&  jacobian_auto,
+                                         double                 residual_tol,
+                                         double                 jacobian_tol) {
   ASSERT_EQ(residual_manual.size(), residual_auto.size());
   EXPECT_LT((residual_manual - residual_auto).norm(), residual_tol);
 
@@ -59,10 +59,10 @@ void ExpectResidualAndJacobiansClose(const Eigen::VectorXd& residual_manual,
             jacobian_tol);
 }
 
-ImuPreintegration MakePreintegration(const Eigen::Vector3d& acc,
-                                     const Eigen::Vector3d& gyr,
-                                     double                 dt_total,
-                                     int                    num_steps) {
+ImuPreintegration make_preintegration(const Eigen::Vector3d& acc,
+                                      const Eigen::Vector3d& gyr,
+                                      double                 dt_total,
+                                      int                    num_steps) {
   ImuPreintegration preint(/*from_frame_id=*/0,
                            /*to_frame_id=*/1,
                            Eigen::Vector3d::Zero(),
@@ -79,7 +79,7 @@ ImuPreintegration MakePreintegration(const Eigen::Vector3d& acc,
     imu1.t_ns = static_cast<int64_t>((i + 1) * dt_step * 1e9);
     imu1.acc  = acc;
     imu1.gyr  = gyr;
-    preint.IntegrateMeasurement(imu0, imu1);
+    preint.integrate_measurement(imu0, imu1);
   }
   return preint;
 }
@@ -111,23 +111,23 @@ TEST(CostFunctionAutoDiffCompare, PoseOnlyBearingCost) {
   MatrixArray<1>  jacobian_manual;
   MatrixArray<1>  jacobian_auto;
 
-  EvaluateCostFunction<1>(&manual_cost,
-                          params,
-                          block_sizes,
-                          &residual_manual,
-                          &jacobian_manual);
-  EvaluateCostFunction<1>(auto_cost.get(),
-                          params,
-                          block_sizes,
-                          &residual_auto,
-                          &jacobian_auto);
+  evaluate_cost_function<1>(&manual_cost,
+                            params,
+                            block_sizes,
+                            &residual_manual,
+                            &jacobian_manual);
+  evaluate_cost_function<1>(auto_cost.get(),
+                            params,
+                            block_sizes,
+                            &residual_auto,
+                            &jacobian_auto);
 
-  ExpectResidualAndJacobiansClose(residual_manual,
-                                  residual_auto,
-                                  jacobian_manual,
-                                  jacobian_auto,
-                                  1e-9,
-                                  1e-6);
+  expect_residual_and_jacobians_close(residual_manual,
+                                      residual_auto,
+                                      jacobian_manual,
+                                      jacobian_auto,
+                                      1e-9,
+                                      1e-6);
 }
 
 TEST(CostFunctionAutoDiffCompare, BearingStereoCost) {
@@ -158,16 +158,16 @@ TEST(CostFunctionAutoDiffCompare, BearingStereoCost) {
   MatrixArray<2>  jacobian_manual;
   MatrixArray<2>  jacobian_auto;
 
-  EvaluateCostFunction<2>(&manual_cost,
-                          params,
-                          block_sizes,
-                          &residual_manual,
-                          &jacobian_manual);
-  EvaluateCostFunction<2>(auto_cost.get(),
-                          params,
-                          block_sizes,
-                          &residual_auto,
-                          &jacobian_auto);
+  evaluate_cost_function<2>(&manual_cost,
+                            params,
+                            block_sizes,
+                            &residual_manual,
+                            &jacobian_manual);
+  evaluate_cost_function<2>(auto_cost.get(),
+                            params,
+                            block_sizes,
+                            &residual_auto,
+                            &jacobian_auto);
 
   EXPECT_LT((residual_manual - residual_auto).norm(), 1e-9);
 
@@ -181,7 +181,7 @@ TEST(CostFunctionAutoDiffCompare, ImuPreintegrationCost) {
   const Eigen::Vector3d gravity(0.0, 0.0, -9.81);
   const Eigen::Vector3d acc_meas(0.2, -0.1, 9.75);
   const Eigen::Vector3d gyr_meas(0.02, -0.01, 0.03);
-  ImuPreintegration preint = MakePreintegration(acc_meas, gyr_meas, 0.2, 20);
+  ImuPreintegration preint = make_preintegration(acc_meas, gyr_meas, 0.2, 20);
 
   Eigen::Vector6d pose_i;
   Eigen::Vector6d pose_j;
@@ -215,16 +215,16 @@ TEST(CostFunctionAutoDiffCompare, ImuPreintegrationCost) {
   MatrixArray<8>  jacobian_manual;
   MatrixArray<8>  jacobian_auto;
 
-  EvaluateCostFunction<8>(&manual_cost,
-                          params,
-                          block_sizes,
-                          &residual_manual,
-                          &jacobian_manual);
-  EvaluateCostFunction<8>(auto_cost.get(),
-                          params,
-                          block_sizes,
-                          &residual_auto,
-                          &jacobian_auto);
+  evaluate_cost_function<8>(&manual_cost,
+                            params,
+                            block_sizes,
+                            &residual_manual,
+                            &jacobian_manual);
+  evaluate_cost_function<8>(auto_cost.get(),
+                            params,
+                            block_sizes,
+                            &residual_auto,
+                            &jacobian_auto);
 
   EXPECT_LT((residual_manual - residual_auto).norm(), 1e-9);
   for (size_t i = 0; i < 8; ++i) {

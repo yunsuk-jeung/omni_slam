@@ -14,7 +14,7 @@ struct EigenFormat {
 };
 
 template <typename Derived>
-inline EigenFormat FmtEigen(const Eigen::MatrixBase<Derived>& mat) {
+inline EigenFormat fmt_eigen(const Eigen::MatrixBase<Derived>& mat) {
   static constexpr int eigenPrecision = 5;
   const bool           is_col_vec     = (mat.cols() == 1);
   const bool           is_row_vec     = (mat.rows() == 1);

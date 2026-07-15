@@ -22,7 +22,7 @@ namespace omni_slam {
 
 class Logger {
  public:
-  static void Init(bool enable_file_logging = true) {
+  static void init(bool enable_file_logging = true) {
     if (!logger_) {
       if (enable_file_logging) {
         // Keep logs in project-root/logs regardless of process working
@@ -65,26 +65,26 @@ class Logger {
   }
 
   template <typename... Args>
-  static void Debug(const char* fmt, Args&&... args) {
-    Init();
+  static void debug(const char* fmt, Args&&... args) {
+    init();
     logger_->debug(fmt, args...);
   }
 
   template <typename... Args>
-  static void Info(const char* fmt, Args&&... args) {
-    Init();
+  static void info(const char* fmt, Args&&... args) {
+    init();
     logger_->info(fmt, args...);
   }
 
   template <typename... Args>
-  static void Warn(const char* fmt, Args&&... args) {
-    Init();
+  static void warn(const char* fmt, Args&&... args) {
+    init();
     logger_->warn(fmt, args...);
   }
 
   template <typename T, typename... Args>
-  static void Error(const char* file, int line, const T& fmt, Args&&... args) {
-    Init();
+  static void error(const char* file, int line, const T& fmt, Args&&... args) {
+    init();
     const std::string_view fmt_view(fmt);
     if constexpr (sizeof...(args) == 0) {
       logger_->error("[{}:{}] {}", file, line, fmt_view);
@@ -102,7 +102,7 @@ class Logger {
     }
   }
 
-  static inline const char* extractFileName(const char* path) {
+  static inline const char* extract_file_name(const char* path) {
     if (!path) {
       return "";
     }
@@ -121,11 +121,11 @@ class Logger {
 
 }  // namespace omni_slam
 
-#define LogD(fmt, ...) omni_slam::Logger::Debug(fmt, ##__VA_ARGS__);
-#define LogI(fmt, ...) omni_slam::Logger::Info(fmt, ##__VA_ARGS__);
-#define LogW(fmt, ...) omni_slam::Logger::Warn(fmt, ##__VA_ARGS__);
+#define LogD(fmt, ...) omni_slam::Logger::debug(fmt, ##__VA_ARGS__);
+#define LogI(fmt, ...) omni_slam::Logger::info(fmt, ##__VA_ARGS__);
+#define LogW(fmt, ...) omni_slam::Logger::warn(fmt, ##__VA_ARGS__);
 #define LogE(fmt, ...)                                                         \
-  omni_slam::Logger::Error(omni_slam::Logger::extractFileName(__FILE__),       \
+  omni_slam::Logger::error(omni_slam::Logger::extract_file_name(__FILE__),     \
                            __LINE__,                                           \
                            fmt,                                                \
                            ##__VA_ARGS__);

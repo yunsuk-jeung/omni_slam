@@ -17,35 +17,35 @@ class EurocLoader : public VioLoader {
   ~EurocLoader() override = default;
 
   // VioLoader interface implementation
-  bool Setup(const std::string& dataset_path) override;
-  void Reset() override;
+  bool setup(const std::string& dataset_path) override;
+  void reset() override;
 
-  bool        HasCameraData() const override;
-  CameraFrame GetNextCameraFrame() override;
-  size_t      GetCameraFrameCount() const override;
+  bool        has_camera_data() const override;
+  CameraFrame get_next_camera_frame() override;
+  size_t      get_camera_frame_count() const override;
 
-  bool    HasImuData() const override;
-  ImuData GetNextImuMeasurement() override;
-  size_t  GetImuMeasurementCount() const override;
+  bool    has_imu_data() const override;
+  ImuData get_next_imu_measurement() override;
+  size_t  get_imu_measurement_count() const override;
 
-  bool            HasGroundTruthData() const override;
-  GroundTruthPose GetNextGroundTruthPose() override;
-  size_t          GetGroundTruthPoseCount() const override;
+  bool            has_ground_truth_data() const override;
+  GroundTruthPose get_next_ground_truth_pose() override;
+  size_t          get_ground_truth_pose_count() const override;
 
-  int64_t GetStartTimestampNs() const override;
-  int64_t GetEndTimestampNs() const override;
+  int64_t get_start_timestamp_ns() const override;
+  int64_t get_end_timestamp_ns() const override;
 
-  std::string GetDatasetName() const override;
-  bool        IsStereo() const override;
+  std::string get_dataset_name() const override;
+  bool        is_stereo() const override;
 
  private:
   // Helper methods
-  bool ParseCameraCsv(const std::string& csv_path, int cam_id);
-  bool ParseImuCsv(const std::string& csv_path);
-  bool ParseGroundTruthCsv(const std::string& csv_path);
+  bool parse_camera_csv(const std::string& csv_path, int cam_id);
+  bool parse_imu_csv(const std::string& csv_path);
+  bool parse_ground_truth_csv(const std::string& csv_path);
 
-  void ComputeTimestampRange();
-  bool ValidateDatasetStructure();
+  void compute_timestamp_range();
+  bool validate_dataset_structure();
 
   // Internal data storage (metadata only, no actual images)
   std::string dataset_path_;

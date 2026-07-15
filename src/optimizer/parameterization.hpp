@@ -42,7 +42,7 @@ class SE3BoxplusManifold final : public ceres::Manifold {
     J.setZero();
     J.topLeftCorner<3, 3>().setIdentity();  // ∂t_new/∂dt = I
     J.bottomRightCorner<3, 3>() =
-      SophusUtils::SO3RightJacobianInverse(so3);  // ∂so3_new/∂dtheta
+      SophusUtils::so3_right_jacobian_inverse(so3);  // ∂so3_new/∂dtheta
     return true;
   }
 
@@ -71,17 +71,17 @@ class SE3BoxplusManifold final : public ceres::Manifold {
     J.setZero();
     J.topLeftCorner<3, 3>() = Eigen::Matrix3d::Identity();  // ∂dt/∂t_y = I
     J.bottomRightCorner<3, 3>() =
-      SophusUtils::SO3RightJacobian(so3_x);  // ∂dtheta/∂so3_y = Jr(so3_x)
+      SophusUtils::so3_right_jacobian(so3_x);  // ∂dtheta/∂so3_y = Jr(so3_x)
     return true;
   }
 
-  static Sophus::SE3d FromParams(const double* x) {
+  static Sophus::SE3d from_params(const double* x) {
     Eigen::Map<const Eigen::Vector3d> t(x);
     Eigen::Map<const Eigen::Vector3d> so3(x + 3);
     return Sophus::SE3d(Sophus::SO3d::exp(so3), t);
   }
 
-  static Eigen::Vector6d ToParams(const Sophus::SE3d& T) {
+  static Eigen::Vector6d to_params(const Sophus::SE3d& T) {
     Eigen::Vector6d out;
     out.template head<3>() = T.translation();
     out.template tail<3>() = T.so3().log();
@@ -107,7 +107,7 @@ class BearingTangentManifold : public ceres::Manifold {
 
     // tangent basis at f
     Eigen::Matrix<double, 3, 2> B;
-    EigenUtil::TangentBasis(f, B);
+    EigenUtil::tangent_basis(f, B);
 
     // lift 2D delta → 3D tangent vector
     Eigen::Vector3d w = B * Eigen::Vector2d(delta[0], delta[1]);
@@ -132,7 +132,7 @@ class BearingTangentManifold : public ceres::Manifold {
     Eigen::Vector3d f = Eigen::Map<const Eigen::Vector3d>(x).normalized();
 
     Eigen::Matrix<double, 3, 2> B;
-    EigenUtil::TangentBasis(f, B);
+    EigenUtil::tangent_basis(f, B);
 
     // ∂(Exp(B·δ)·f)/∂δ|_{δ=0} = -[f]× B
     Eigen::Map<Eigen::Matrix<double, 3, 2, Eigen::RowMajor>> J(jacobian);
@@ -162,7 +162,7 @@ class BearingTangentManifold : public ceres::Manifold {
 
     // Project onto 2D tangent coordinates
     Eigen::Matrix<double, 3, 2> B;
-    EigenUtil::TangentBasis(fx, B);
+    EigenUtil::tangent_basis(fx, B);
 
     Eigen::Map<Eigen::Vector2d> delta(y_minus_x);
     delta = B.transpose() * w;
@@ -173,7 +173,7 @@ class BearingTangentManifold : public ceres::Manifold {
     Eigen::Vector3d f = Eigen::Map<const Eigen::Vector3d>(x).normalized();
 
     Eigen::Matrix<double, 3, 2> B;
-    EigenUtil::TangentBasis(f, B);
+    EigenUtil::tangent_basis(f, B);
 
     // ∂(y ⊟ x)/∂y|_{y=x} = Bᵀ [f]×
     Eigen::Map<Eigen::Matrix<double, 2, 3, Eigen::RowMajor>> J(jacobian);

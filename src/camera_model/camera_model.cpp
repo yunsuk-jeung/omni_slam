@@ -3,7 +3,7 @@
 
 namespace omni_slam {
 
-std::unique_ptr<CameraModelBase> CameraModelFactory::Create(
+std::unique_ptr<CameraModelBase> CameraModelFactory::create(
   const CameraParameter& params) {
   std::unique_ptr<CameraModelBase> camera;
 

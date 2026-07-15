@@ -23,7 +23,7 @@ Frame::Frame(int64_t                             timestamp_ns,
   cams_.reserve(images.size());
 
   for (const auto& params : camera_parameters) {
-    auto camera = CameraModelFactory::Create(params);
+    auto camera = CameraModelFactory::create(params);
     if (camera) {
       cams_.push_back(std::move(camera));
     }
@@ -43,16 +43,16 @@ Frame::~Frame() {
   tracking_result_.reset();
 }
 
-void Frame::AddObservation(size_t                 cam_idx,
-                           size_t                 mp_id,
-                           const Eigen::Vector3d& bearing) {
+void Frame::add_observation(size_t                 cam_idx,
+                            size_t                 mp_id,
+                            const Eigen::Vector3d& bearing) {
   if (cam_idx >= mp_id_to_bearings_.size()) {
     return;
   }
   mp_id_to_bearings_[cam_idx][mp_id] = bearing;
 }
 
-void Frame::RemoveObservation(const uint64_t& mp_id) {
+void Frame::remove_observation(const uint64_t& mp_id) {
   for (auto& mp_id_to_bearing : mp_id_to_bearings_) {
     mp_id_to_bearing.erase(mp_id);
   }

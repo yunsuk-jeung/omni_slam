@@ -8,7 +8,7 @@
 namespace omni_slam {
 class SVOConfig {
  public:
-  static void   ParseConfig(const std::string& file);
+  static void   parse_config(const std::string& file);
   static bool   debug;
   static bool   tbb;
   static bool   equalize_histogram;

@@ -33,33 +33,33 @@ class StereoVIO : public Odometry {
   StereoVIO();
   ~StereoVIO() override;
 
-  bool Setup(const std::string& config_path) override;
-  void Run() override;
-  void Shutdown() override;
-  void OnCameraFrame(int64_t                             timestamp_ns,
-                     const std::vector<cv::Mat>&         images,
-                     const std::vector<CameraParameter>& camera_parameters);
-  void OnImuData(const ImuData& imu_data);
+  bool setup(const std::string& config_path) override;
+  void run() override;
+  void shutdown() override;
+  void on_camera_frame(int64_t                             timestamp_ns,
+                       const std::vector<cv::Mat>&         images,
+                       const std::vector<CameraParameter>& camera_parameters);
+  void on_imu_data(const ImuData& imu_data);
 
-  bool FetchResult(OdometryResult& out);
+  bool fetch_result(OdometryResult& out);
 
  private:
-  void  OpticalFlowLoop();
-  void  EstimatorLoop();
-  void  Process(std::shared_ptr<Frame>&     frame,
-                const std::vector<ImuData>& imu_data);
-  bool  Initialize(std::shared_ptr<Frame>&     frame,
-                   const std::vector<ImuData>& imu_data);
-  void  Track(std::shared_ptr<Frame>&     frame,
-              const std::vector<ImuData>& imu_data);
-  void  PopImuDataUntil(int64_t timestamp_ns, std::vector<ImuData>& imu_data);
-  float UpdateFrameObservations(std::shared_ptr<Frame>& frame);
+  void optical_flow_loop();
+  void estimator_loop();
+  void process(std::shared_ptr<Frame>&     frame,
+               const std::vector<ImuData>& imu_data);
+  bool initialize(std::shared_ptr<Frame>&     frame,
+                  const std::vector<ImuData>& imu_data);
+  void track(std::shared_ptr<Frame>&     frame,
+             const std::vector<ImuData>& imu_data);
+  void pop_imu_data_until(int64_t timestamp_ns, std::vector<ImuData>& imu_data);
+  float update_frame_observations(std::shared_ptr<Frame>& frame);
 
-  OdometryResult BuildOdometryResult(const std::shared_ptr<Frame>& frame);
-  int            InitializeMapPoints(std::shared_ptr<Frame>& frame);
+  OdometryResult build_odometry_result(const std::shared_ptr<Frame>& frame);
+  int            initialize_map_points(std::shared_ptr<Frame>& frame);
 
-  void SelectMarginalFrames(std::set<uint64_t>& marginal_frame_ids,
-                            std::set<uint64_t>& marginal_inertial_state_ids);
+  void select_marginal_frames(std::set<uint64_t>& marginal_frame_ids,
+                              std::set<uint64_t>& marginal_inertial_state_ids);
 
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 

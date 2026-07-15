@@ -18,21 +18,21 @@ class VOEstimator {
    * @param frame
    * @param window
    */
-  static void OptimizeSingleFrame(std::shared_ptr<Frame> frames,
-                                  SlidingWindow*         window);
+  static void optimize_single_frame(std::shared_ptr<Frame> frames,
+                                    SlidingWindow*         window);
 
   VOEstimator();
   ~VOEstimator();
 
-  void OptimizeWindow(SlidingWindow* window);
+  void optimize_window(SlidingWindow* window);
 
-  void Marginalize(SlidingWindow*     window,
+  void marginalize(SlidingWindow*     window,
                    std::set<uint64_t> marignal_keyframes);
 
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
  private:
-  void ClearPrior();
+  void clear_prior();
 
  private:
   std::unique_ptr<MarginalizationPrior> marginalization_prior_;

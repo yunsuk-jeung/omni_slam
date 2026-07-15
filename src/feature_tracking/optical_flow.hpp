@@ -26,15 +26,15 @@ class OpticalFlow {
 
   ~OpticalFlow() = default;
 
-  void Run(std::atomic<bool>& running);
+  void run(std::atomic<bool>& running);
 
  private:
-  void PrepareImagesAndPyramids(std::shared_ptr<Frame>& curr_frame);
-  void Process(std::shared_ptr<Frame>& curr_frame);
+  void prepare_images_and_pyramids(std::shared_ptr<Frame>& curr_frame);
+  void process(std::shared_ptr<Frame>& curr_frame);
 
-  void TrackMono(const std::shared_ptr<Frame>& curr_frame);
-  void TrackStereo(const std::shared_ptr<Frame>& curr_frame);
-  void DetectFeatures(const std::shared_ptr<Frame>& curr_frame);
+  void track_mono(const std::shared_ptr<Frame>& curr_frame);
+  void track_stereo(const std::shared_ptr<Frame>& curr_frame);
+  void detect_features(const std::shared_ptr<Frame>& curr_frame);
 
  private:
   const size_t                                   kCamNum;

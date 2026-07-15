@@ -18,33 +18,33 @@ class TrackingResult {
 
   ~TrackingResult() = default;
 
-  size_t GetSize(size_t cam_idx) const { return ids_[cam_idx].size(); }
+  size_t get_size(size_t cam_idx) const { return ids_[cam_idx].size(); }
 
-  void Clear() {
+  void clear() {
     for (size_t i = 0; i < kCamNum; ++i) {
       ids_[i].clear();
       uvs_[i].clear();
     }
   }
 
-  void Reserve(size_t cam_idx, size_t size) {
+  void reserve(size_t cam_idx, size_t size) {
     const auto idx = cam_idx;
     ids_[idx].reserve(size);
     uvs_[idx].reserve(size);
   }
 
-  void AddFeature(size_t cam_idx, const cv::Point2f& uv, int64_t id) {
+  void add_feature(size_t cam_idx, const cv::Point2f& uv, int64_t id) {
     ids_[cam_idx].push_back(id);
     uvs_[cam_idx].push_back(uv);
   }
 
-  std::vector<size_t>&       GetIds(size_t cam_idx) { return ids_[cam_idx]; }
-  const std::vector<size_t>& GetIds(size_t cam_idx) const {
+  std::vector<size_t>&       get_ids(size_t cam_idx) { return ids_[cam_idx]; }
+  const std::vector<size_t>& get_ids(size_t cam_idx) const {
     return ids_[cam_idx];
   }
 
-  std::vector<cv::Point2f>& GetUvs(size_t cam_idx) { return uvs_[cam_idx]; }
-  const std::vector<cv::Point2f>& GetUvs(size_t cam_idx) const {
+  std::vector<cv::Point2f>& get_uvs(size_t cam_idx) { return uvs_[cam_idx]; }
+  const std::vector<cv::Point2f>& get_uvs(size_t cam_idx) const {
     return uvs_[cam_idx];
   }
 

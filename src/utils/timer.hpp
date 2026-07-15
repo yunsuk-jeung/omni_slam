@@ -19,7 +19,7 @@ class Timer {
 
   void start() { start_time_ = Clock::now(); }
 
-  double stopMs() const {
+  double stop_ms() const {
     const auto                                      end_time = Clock::now();
     const std::chrono::duration<double, std::milli> ms = end_time - start_time_;
     return ms.count();
@@ -40,13 +40,13 @@ struct TimerElement {
 
 class Statistics {
  public:
-  static void startTimer(const std::string& name) {
-    getOrCreate(name).timer.start();
+  static void start_timer(const std::string& name) {
+    get_or_create(name).timer.start();
   }
 
-  static double stopTimer(const std::string& name) {
-    auto&        elem = getOrCreate(name);
-    const double ms   = elem.timer.stopMs();
+  static double stop_timer(const std::string& name) {
+    auto&        elem = get_or_create(name);
+    const double ms   = elem.timer.stop_ms();
     elem.last_time    = ms;
     elem.call_count++;
     elem.total_time += ms;
@@ -59,7 +59,7 @@ class Statistics {
     return ms;
   }
 
-  static double meanTime(const std::string& name) {
+  static double mean_time(const std::string& name) {
     const auto it = statistics().find(name);
     if (it == statistics().end() || it->second.call_count == 0) {
       return 0.0;
@@ -68,25 +68,25 @@ class Statistics {
   }
 
   static void report(const std::vector<std::string>& ids) {
-    reportHeader();
+    report_header();
     for (const auto& id : ids) {
-      reportOne(id);
+      report_one(id);
     }
   }
 
-  static void reportAll() {
-    reportHeader();
+  static void report_all() {
+    report_header();
     if (order().empty()) {
       LogW("No timers recorded.");
       return;
     }
     for (const auto& name : order()) {
-      reportOne(name);
+      report_one(name);
     }
   }
 
  private:
-  static TimerElement& getOrCreate(const std::string& name) {
+  static TimerElement& get_or_create(const std::string& name) {
     auto& stats = statistics();
     auto  it    = stats.find(name);
     if (it != stats.end()) {
@@ -110,7 +110,7 @@ class Statistics {
     return names;
   }
 
-  static void reportHeader() {
+  static void report_header() {
     LogI("Timer statistics (ms):");
     LogI("{:<24} {:>8} {:>10} {:>10} {:>10} {:>10} {:>10}",
          "Name",
@@ -122,7 +122,7 @@ class Statistics {
          "Total");
   }
 
-  static void reportOne(const std::string& name) {
+  static void report_one(const std::string& name) {
     const auto it = statistics().find(name);
     if (it == statistics().end()) {
       LogW("Timer '{}' not found.", name);
@@ -150,10 +150,10 @@ class ScopedTimer {
  public:
   explicit ScopedTimer(std::string name)
     : name_(std::move(name)) {
-    Statistics::startTimer(name_);
+    Statistics::start_timer(name_);
   }
 
-  ~ScopedTimer() { Statistics::stopTimer(name_); }
+  ~ScopedTimer() { Statistics::stop_timer(name_); }
 
  private:
   std::string name_;

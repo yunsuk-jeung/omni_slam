@@ -38,7 +38,7 @@ ImuPreintegration::ImuPreintegration(uint64_t               from_frame_id,
   , covariance_(Eigen::Matrix15d::Zero())
   , integration_steps_(0) {}
 
-void ImuPreintegration::Reset(const Eigen::Vector3d& bias_acc,
+void ImuPreintegration::reset(const Eigen::Vector3d& bias_acc,
                               const Eigen::Vector3d& bias_gyr) {
   delta_r_ = Sophus::SO3d();
   delta_v_.setZero();
@@ -54,18 +54,18 @@ void ImuPreintegration::Reset(const Eigen::Vector3d& bias_acc,
   imu_measurements_.clear();
 }
 
-void ImuPreintegration::SetBias(const Eigen::Vector3d& bias_acc,
-                                const Eigen::Vector3d& bias_gyr) {
+void ImuPreintegration::set_bias(const Eigen::Vector3d& bias_acc,
+                                 const Eigen::Vector3d& bias_gyr) {
   bias_acc_ = bias_acc;
   bias_gyr_ = bias_gyr;
 }
 
-void ImuPreintegration::SetParameters(const Parameters& parameters) {
+void ImuPreintegration::set_parameters(const Parameters& parameters) {
   parameters_ = parameters;
 }
 
-bool ImuPreintegration::IntegrateMeasurement(const ImuData& imu0,
-                                             const ImuData& imu1) {
+bool ImuPreintegration::integrate_measurement(const ImuData& imu0,
+                                              const ImuData& imu1) {
   const int64_t dt_ns = imu1.t_ns - imu0.t_ns;
   if (dt_ns <= 0) {
     return false;
@@ -99,18 +99,18 @@ bool ImuPreintegration::IntegrateMeasurement(const ImuData& imu0,
   const Eigen::Vector3d acc_world_end   = delta_r_next.matrix() * acc1;
   const Eigen::Vector3d acc_world_mid = 0.5 * (acc_world_start + acc_world_end);
 
-  PropagateError(delta_r_start.matrix(),
-                 delta_r_next.matrix(),
-                 acc0,
-                 acc1,
-                 gyr_mid,
-                 dt_sec);
-  PropagateState(delta_r_next, acc_world_mid, dt_sec);
+  propagate_error(delta_r_start.matrix(),
+                  delta_r_next.matrix(),
+                  acc0,
+                  acc1,
+                  gyr_mid,
+                  dt_sec);
+  propagate_state(delta_r_next, acc_world_mid, dt_sec);
   ++integration_steps_;
   return true;
 }
 
-bool ImuPreintegration::IntegrateMeasurements(
+bool ImuPreintegration::integrate_measurements(
   const std::vector<ImuData>& imu_data) {
   if (imu_data.size() < 2) {
     return false;
@@ -118,30 +118,30 @@ bool ImuPreintegration::IntegrateMeasurements(
 
   bool integrated = false;
   for (size_t i = 0; i + 1 < imu_data.size(); ++i) {
-    if (IntegrateMeasurement(imu_data[i], imu_data[i + 1])) {
+    if (integrate_measurement(imu_data[i], imu_data[i + 1])) {
       integrated = true;
     }
   }
   return integrated;
 }
 
-bool ImuPreintegration::Repropagate(const Eigen::Vector3d& bias_acc,
+bool ImuPreintegration::repropagate(const Eigen::Vector3d& bias_acc,
                                     const Eigen::Vector3d& bias_gyr) {
   if (imu_measurements_.size() < 2) {
-    SetBias(bias_acc, bias_gyr);
+    set_bias(bias_acc, bias_gyr);
     return false;
   }
 
   // Move the buffer aside; Reset() will clear it. Re-integration repopulates
   // it via IntegrateMeasurement.
   std::vector<ImuData> saved = std::move(imu_measurements_);
-  Reset(bias_acc, bias_gyr);
-  return IntegrateMeasurements(saved);
+  reset(bias_acc, bias_gyr);
+  return integrate_measurements(saved);
 }
 
-void ImuPreintegration::PropagateState(const Sophus::SO3d&    delta_r_next,
-                                       const Eigen::Vector3d& acc_world_mid,
-                                       double                 dt_sec) {
+void ImuPreintegration::propagate_state(const Sophus::SO3d&    delta_r_next,
+                                        const Eigen::Vector3d& acc_world_mid,
+                                        double                 dt_sec) {
   delta_p_ += delta_v_ * dt_sec + 0.5 * acc_world_mid * dt_sec * dt_sec;
   delta_v_ += acc_world_mid * dt_sec;
   delta_r_ = delta_r_next;
@@ -149,12 +149,12 @@ void ImuPreintegration::PropagateState(const Sophus::SO3d&    delta_r_next,
   delta_t_sec_ += dt_sec;
 }
 
-void ImuPreintegration::PropagateError(const Eigen::Matrix3d& R_start,
-                                       const Eigen::Matrix3d& R_next,
-                                       const Eigen::Vector3d& acc0_body,
-                                       const Eigen::Vector3d& acc1_body,
-                                       const Eigen::Vector3d& gyr_mid,
-                                       double                 dt_sec) {
+void ImuPreintegration::propagate_error(const Eigen::Matrix3d& R_start,
+                                        const Eigen::Matrix3d& R_next,
+                                        const Eigen::Vector3d& acc0_body,
+                                        const Eigen::Vector3d& acc1_body,
+                                        const Eigen::Vector3d& gyr_mid,
+                                        double                 dt_sec) {
   const Eigen::Matrix3d I3     = Eigen::Matrix3d::Identity();
   const Eigen::Matrix3d w_hat  = Sophus::SO3d::hat(gyr_mid);
   const Eigen::Matrix3d a0_hat = Sophus::SO3d::hat(acc0_body);
@@ -223,20 +223,22 @@ void ImuPreintegration::PropagateError(const Eigen::Matrix3d& R_start,
   covariance_ = 0.5 * (covariance_ + covariance_.transpose());
 }
 
-ImuPreintegration::CorrectedDelta ImuPreintegration::GetBiasCorrectedDelta(
+ImuPreintegration::CorrectedDelta ImuPreintegration::get_bias_corrected_delta(
   const Eigen::Vector3d& bias_acc,
   const Eigen::Vector3d& bias_gyr) const {
   const Eigen::Vector3d dba = bias_acc - bias_acc_;
   const Eigen::Vector3d dbg = bias_gyr - bias_gyr_;
 
   CorrectedDelta corrected;
-  corrected.delta_r = delta_r_ * Sophus::SO3d::exp(GetJDeltaRDbg() * dbg);
-  corrected.delta_v = delta_v_ + GetJDeltaVDBa() * dba + GetJDeltaVDbg() * dbg;
-  corrected.delta_p = delta_p_ + GetJDeltaPDBa() * dba + GetJDeltaPDbg() * dbg;
+  corrected.delta_r = delta_r_ * Sophus::SO3d::exp(get_j_delta_r_dbg() * dbg);
+  corrected.delta_v = delta_v_ + get_j_delta_vd_ba() * dba
+                      + get_j_delta_v_dbg() * dbg;
+  corrected.delta_p = delta_p_ + get_j_delta_pd_ba() * dba
+                      + get_j_delta_p_dbg() * dbg;
   return corrected;
 }
 
-Eigen::Matrix15d ImuPreintegration::GetInformation(double damping) const {
+Eigen::Matrix15d ImuPreintegration::get_information(double damping) const {
   Eigen::Matrix15d covariance_regularized = covariance_;
   covariance_regularized.diagonal().array() += std::max(damping, 0.0);
 
@@ -248,23 +250,23 @@ Eigen::Matrix15d ImuPreintegration::GetInformation(double damping) const {
   return ldlt.solve(Eigen::Matrix15d::Identity());
 }
 
-Eigen::Matrix3d ImuPreintegration::GetJDeltaRDbg() const {
+Eigen::Matrix3d ImuPreintegration::get_j_delta_r_dbg() const {
   return jacobian_.block<3, 3>(3, 12);
 }
 
-Eigen::Matrix3d ImuPreintegration::GetJDeltaVDBa() const {
+Eigen::Matrix3d ImuPreintegration::get_j_delta_vd_ba() const {
   return jacobian_.block<3, 3>(6, 9);
 }
 
-Eigen::Matrix3d ImuPreintegration::GetJDeltaVDbg() const {
+Eigen::Matrix3d ImuPreintegration::get_j_delta_v_dbg() const {
   return jacobian_.block<3, 3>(6, 12);
 }
 
-Eigen::Matrix3d ImuPreintegration::GetJDeltaPDBa() const {
+Eigen::Matrix3d ImuPreintegration::get_j_delta_pd_ba() const {
   return jacobian_.block<3, 3>(0, 9);
 }
 
-Eigen::Matrix3d ImuPreintegration::GetJDeltaPDbg() const {
+Eigen::Matrix3d ImuPreintegration::get_j_delta_p_dbg() const {
   return jacobian_.block<3, 3>(0, 12);
 }
 

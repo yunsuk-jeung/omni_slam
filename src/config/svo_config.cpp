@@ -40,12 +40,12 @@ std::vector<std::vector<double>> SVOConfig::camera_distortions;
 std::vector<std::vector<int>>    SVOConfig::camera_resolutions;
 std::vector<Sophus::SE3d>        SVOConfig::camera_T_b_c;
 
-void ParseCameraParams(const nlohmann::json&             node,
-                       std::vector<int>*                 models,
-                       std::vector<std::vector<double>>* intrinsics,
-                       std::vector<std::vector<double>>* distortions,
-                       std::vector<std::vector<int>>*    resolutions,
-                       std::vector<Sophus::SE3d>*        T_bc) {
+void parse_camera_params(const nlohmann::json&             node,
+                         std::vector<int>*                 models,
+                         std::vector<std::vector<double>>* intrinsics,
+                         std::vector<std::vector<double>>* distortions,
+                         std::vector<std::vector<int>>*    resolutions,
+                         std::vector<Sophus::SE3d>*        T_bc) {
   if (!node.is_object()) {
     return;
   }
@@ -101,7 +101,7 @@ void ParseCameraParams(const nlohmann::json&             node,
   }
 }
 
-void SVOConfig::ParseConfig(const std::string& file) {
+void SVOConfig::parse_config(const std::string& file) {
   std::ifstream input(file);
   if (!input.is_open()) {
     return;
@@ -117,7 +117,7 @@ void SVOConfig::ParseConfig(const std::string& file) {
 
   debug = config.value("debug", debug);
   if (debug) {
-    Logger::Init();
+    Logger::init();
     spdlog::set_level(spdlog::level::debug);
   }
   tbb                = config.value("tbb", tbb);
@@ -199,57 +199,57 @@ void SVOConfig::ParseConfig(const std::string& file) {
   camera_resolutions.clear();
   camera_T_b_c.clear();
   if (config.contains("cam0")) {
-    ParseCameraParams(config["cam0"],
-                      &camera_models,
-                      &camera_intrinsics,
-                      &camera_distortions,
-                      &camera_resolutions,
-                      &camera_T_b_c);
+    parse_camera_params(config["cam0"],
+                        &camera_models,
+                        &camera_intrinsics,
+                        &camera_distortions,
+                        &camera_resolutions,
+                        &camera_T_b_c);
   }
   if (config.contains("cam1")) {
-    ParseCameraParams(config["cam1"],
-                      &camera_models,
-                      &camera_intrinsics,
-                      &camera_distortions,
-                      &camera_resolutions,
-                      &camera_T_b_c);
+    parse_camera_params(config["cam1"],
+                        &camera_models,
+                        &camera_intrinsics,
+                        &camera_distortions,
+                        &camera_resolutions,
+                        &camera_T_b_c);
   }
 
   if (debug) {
-    Logger::Info("SVOConfig.debug: {}", debug);
-    Logger::Info("SVOConfig.tbb: {}", tbb);
-    Logger::Info("SVOConfig.equalize_histogram: {}", equalize_histogram);
-    Logger::Info("SVOConfig.clahe_clip_limit: {}", clahe_clip_limit);
-    Logger::Info("SVOConfig.clahe_tile_size: {}", clahe_tile_size);
-    Logger::Info("SVOConfig.optical_flow_patch_size: {}",
+    Logger::info("SVOConfig.debug: {}", debug);
+    Logger::info("SVOConfig.tbb: {}", tbb);
+    Logger::info("SVOConfig.equalize_histogram: {}", equalize_histogram);
+    Logger::info("SVOConfig.clahe_clip_limit: {}", clahe_clip_limit);
+    Logger::info("SVOConfig.clahe_tile_size: {}", clahe_tile_size);
+    Logger::info("SVOConfig.optical_flow_patch_size: {}",
                  optical_flow_patch_size);
-    Logger::Info("SVOConfig.optical_flow_dist_threshold: {}",
+    Logger::info("SVOConfig.optical_flow_dist_threshold: {}",
                  optical_flow_dist_threshold);
-    Logger::Info("SVOConfig.fast_threshold: {}", fast_threshold);
-    Logger::Info("SVOConfig.feature_grid_rows: {}", feature_grid_rows);
-    Logger::Info("SVOConfig.feature_grid_cols: {}", feature_grid_cols);
-    Logger::Info("SVOConfig.max_pyramid_level: {}", max_pyramid_level);
-    Logger::Info("SVOConfig.max_keyframe_size: {}", max_keyframe_size);
-    Logger::Info("SVOConfig.triangulation_dist_threshold: {}",
+    Logger::info("SVOConfig.fast_threshold: {}", fast_threshold);
+    Logger::info("SVOConfig.feature_grid_rows: {}", feature_grid_rows);
+    Logger::info("SVOConfig.feature_grid_cols: {}", feature_grid_cols);
+    Logger::info("SVOConfig.max_pyramid_level: {}", max_pyramid_level);
+    Logger::info("SVOConfig.max_keyframe_size: {}", max_keyframe_size);
+    Logger::info("SVOConfig.triangulation_dist_threshold: {}",
                  triangulation_dist_threshold);
-    Logger::Info("SVOConfig.keyframe_min_mp_ratio: {}", keyframe_min_mp_ratio);
-    Logger::Info("SVOConfig.min_init_map_point_count: {}",
+    Logger::info("SVOConfig.keyframe_min_mp_ratio: {}", keyframe_min_mp_ratio);
+    Logger::info("SVOConfig.min_init_map_point_count: {}",
                  min_init_map_point_count);
-    Logger::Info("SVOConfig.marg_feature_connection_ratio: {}",
+    Logger::info("SVOConfig.marg_feature_connection_ratio: {}",
                  marg_feature_connection_ratio);
-    Logger::Info("SVOConfig.new_keyframe_after: {}", new_keyframe_after);
-    Logger::Info("SVOConfig.bearing_huber_const: {}", bearing_huber_const);
-    Logger::Info("SVOConfig.bearing_cost_scale: {}", bearing_cost_scale);
-    Logger::Info("SVOConfig.single_frame_max_iterations: {}",
+    Logger::info("SVOConfig.new_keyframe_after: {}", new_keyframe_after);
+    Logger::info("SVOConfig.bearing_huber_const: {}", bearing_huber_const);
+    Logger::info("SVOConfig.bearing_cost_scale: {}", bearing_cost_scale);
+    Logger::info("SVOConfig.single_frame_max_iterations: {}",
                  single_frame_max_iterations);
-    Logger::Info("SVOConfig.window_max_iterations: {}", window_max_iterations);
-    Logger::Info("SVOConfig.window_num_threads: {}", window_num_threads);
-    Logger::Info("SVOConfig.inv_dist_initial_value: {}",
+    Logger::info("SVOConfig.window_max_iterations: {}", window_max_iterations);
+    Logger::info("SVOConfig.window_num_threads: {}", window_num_threads);
+    Logger::info("SVOConfig.inv_dist_initial_value: {}",
                  inv_dist_initial_value);
-    Logger::Info("SVOConfig.inv_dist_min_value: {}", inv_dist_min_value);
-    Logger::Info("SVOConfig.marginalizer_initial_prior_weight: {}",
+    Logger::info("SVOConfig.inv_dist_min_value: {}", inv_dist_min_value);
+    Logger::info("SVOConfig.marginalizer_initial_prior_weight: {}",
                  marginalizer_initial_prior_weight);
-    Logger::Info("SVOConfig.camera_models: {}", camera_models.size());
+    Logger::info("SVOConfig.camera_models: {}", camera_models.size());
   }
 }
 }  // namespace omni_slam

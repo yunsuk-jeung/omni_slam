@@ -6,13 +6,13 @@
 
 namespace omni_slam {
 
-std::unique_ptr<VioLoader> VIOLoaderFactory::CreateLoader(
+std::unique_ptr<VioLoader> VIOLoaderFactory::create_loader(
   const std::string& dataset_path,
   DatasetType        type) {
   // Auto-detect if requested
   if (type == DatasetType::AUTO) {
     LogD("Auto-detecting dataset type for: {}", dataset_path);
-    type = DetectDatasetType(dataset_path);
+    type = detect_dataset_type(dataset_path);
 
     if (type == DatasetType::AUTO) {
       LogE("Could not auto-detect dataset type for: {}", dataset_path);
@@ -25,7 +25,7 @@ std::unique_ptr<VioLoader> VIOLoaderFactory::CreateLoader(
 
   switch (type) {
   case DatasetType::EUROC:
-    Logger::Info("Creating EuRoC dataset loader");
+    Logger::info("Creating EuRoC dataset loader");
     loader = std::make_unique<EurocLoader>();
     break;
 
@@ -35,7 +35,7 @@ std::unique_ptr<VioLoader> VIOLoaderFactory::CreateLoader(
   }
 
   // Initialize the loader
-  if (loader && !loader->Setup(dataset_path)) {
+  if (loader && !loader->setup(dataset_path)) {
     LogE("Failed to initialize dataset loader");
     return nullptr;
   }
@@ -43,7 +43,7 @@ std::unique_ptr<VioLoader> VIOLoaderFactory::CreateLoader(
   return loader;
 }
 
-DatasetType VIOLoaderFactory::DetectDatasetType(
+DatasetType VIOLoaderFactory::detect_dataset_type(
   const std::string& dataset_path) {
   namespace fs = std::filesystem;
 
@@ -53,22 +53,22 @@ DatasetType VIOLoaderFactory::DetectDatasetType(
   }
 
   // Check for EuRoC dataset structure
-  if (IsEurocDataset(dataset_path)) {
-    Logger::Info("Detected EuRoC dataset format");
+  if (is_euroc_dataset(dataset_path)) {
+    Logger::info("Detected EuRoC dataset format");
     return DatasetType::EUROC;
   }
 
   // Future dataset type detection can be added here:
   // if (IsKittiDataset(dataset_path)) {
-  //   Logger::Info("Detected KITTI dataset format");
+  //   Logger::info("Detected KITTI dataset format");
   //   return DatasetType::KITTI;
   // }
 
-  Logger::Warn("Unknown dataset type at: {}", dataset_path);
+  Logger::warn("Unknown dataset type at: {}", dataset_path);
   return DatasetType::AUTO;
 }
 
-bool VIOLoaderFactory::IsEurocDataset(const std::string& dataset_path) {
+bool VIOLoaderFactory::is_euroc_dataset(const std::string& dataset_path) {
   namespace fs = std::filesystem;
 
   // Check for mav0 directory (characteristic of EuRoC datasets)

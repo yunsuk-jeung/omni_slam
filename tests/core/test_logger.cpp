@@ -9,7 +9,7 @@ TEST(LoggerTest, BasicLogging) {
   Logger::info("Test info message");
   Logger::debug("Test debug message");
   Logger::warn("Test warning message");
-  Logger::error("Test error message");
+  Logger::error(__FILE__, __LINE__, "Test error message");
 
   SUCCEED();
 }

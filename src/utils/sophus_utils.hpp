@@ -6,7 +6,7 @@
 namespace omni_slam::SophusUtils {
 
 template <typename Derived>
-inline Sophus::Matrix<typename Derived::Scalar, 3, 3> SO3RightJacobian(
+inline Sophus::Matrix<typename Derived::Scalar, 3, 3> so3_right_jacobian(
   const Eigen::MatrixBase<Derived>& omega) {
   static_assert(Derived::RowsAtCompileTime == 3
                   && Derived::ColsAtCompileTime == 1,
@@ -17,8 +17,8 @@ inline Sophus::Matrix<typename Derived::Scalar, 3, 3> SO3RightJacobian(
 }
 
 template <typename Derived>
-inline Sophus::Matrix<typename Derived::Scalar, 3, 3> SO3RightJacobianInverse(
-  const Eigen::MatrixBase<Derived>& omega) {
+inline Sophus::Matrix<typename Derived::Scalar, 3, 3>
+so3_right_jacobian_inverse(const Eigen::MatrixBase<Derived>& omega) {
   static_assert(Derived::RowsAtCompileTime == 3
                   && Derived::ColsAtCompileTime == 1,
                 "SO3RightJacobianInverse expects a 3x1 vector");

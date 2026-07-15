@@ -15,39 +15,40 @@ class SlidingWindow {
  public:
   explicit SlidingWindow(size_t max_size = 0);
 
-  void   SetMaxSize(size_t max_size);
-  size_t GetMaxSize() const;
+  void   set_max_size(size_t max_size);
+  size_t get_max_size() const;
 
-  size_t GetFrameCount() const;
-  size_t GetMapPointCount() const;
+  size_t get_frame_count() const;
+  size_t get_map_point_count() const;
 
-  void                   AddFrame(std::shared_ptr<Frame>& frame);
-  std::shared_ptr<Frame> GetFrame(const uint64_t& id);
-  void                   MarkKeyframe(uint64_t id);
-  void                   RemoveFrames(const std::set<uint64_t>& ids);
+  void                   add_frame(std::shared_ptr<Frame>& frame);
+  std::shared_ptr<Frame> get_frame(const uint64_t& id);
+  void                   mark_keyframe(uint64_t id);
+  void                   remove_frames(const std::set<uint64_t>& ids);
 
-  void                      AddMapPoint(std::shared_ptr<MapPoint>& map_point);
-  std::shared_ptr<MapPoint> GetMapPoint(const uint64_t& id) const;
-  std::shared_ptr<MapPoint> GetOrCreateMapPointCandidate(const uint64_t& id);
-  bool                      GetHasMapPoint(const uint64_t& id) const;
+  void                      add_map_point(std::shared_ptr<MapPoint>& map_point);
+  std::shared_ptr<MapPoint> get_map_point(const uint64_t& id) const;
+  std::shared_ptr<MapPoint> get_or_create_map_point_candidate(
+    const uint64_t& id);
+  bool get_has_map_point(const uint64_t& id) const;
 
-  const std::unordered_map<uint64_t, std::shared_ptr<Frame>>& GetFrames()
+  const std::unordered_map<uint64_t, std::shared_ptr<Frame>>& get_frames()
     const {
     return frames_;
   }
-  const std::set<uint64_t>& GetFrameIds() const { return frame_ids_; };
-  const std::set<uint64_t>& GetKeyframeIds() const { return keyframe_ids_; }
-  const std::unordered_map<uint64_t, std::shared_ptr<MapPoint>>& GetMapPoints()
-    const {
+  const std::set<uint64_t>& get_frame_ids() const { return frame_ids_; };
+  const std::set<uint64_t>& get_keyframe_ids() const { return keyframe_ids_; }
+  const std::unordered_map<uint64_t, std::shared_ptr<MapPoint>>&
+  get_map_points() const {
     return map_points_;
   };
 
   std::unordered_map<uint64_t, std::shared_ptr<MapPoint>>&
-  GetMapPointCandidates() {
+  get_map_point_candidates() {
     return map_point_candidates_;
   };
 
-  void Clear();
+  void clear();
 
  private:
   size_t                                                  max_size_;

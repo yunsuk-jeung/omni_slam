@@ -24,17 +24,17 @@ class DatasetSimulator final : public DeviceInterface {
     , speed_(speed)
     , realtime_(realtime) {}
 
-  ~DatasetSimulator() override { Stop(); }
+  ~DatasetSimulator() override { stop(); }
 
-  void Start() override {
-    Stop();
+  void start() override {
+    stop();
     terminate_ = false;
-    loader_.Reset();
-    image_thread_ = std::thread(&DatasetSimulator::FeedImages, this);
-    imu_thread_   = std::thread(&DatasetSimulator::FeedImu, this);
+    loader_.reset();
+    image_thread_ = std::thread(&DatasetSimulator::feed_images, this);
+    imu_thread_   = std::thread(&DatasetSimulator::feed_imu, this);
   }
 
-  void Stop() override {
+  void stop() override {
     terminate_ = true;
     if (image_thread_.joinable()) {
       image_thread_.join();
@@ -44,19 +44,19 @@ class DatasetSimulator final : public DeviceInterface {
     }
   }
 
-  void SetCameraCallback(CameraCallback callback) override {
+  void set_camera_callback(CameraCallback callback) override {
     camera_callback_ = std::move(callback);
   }
 
-  void SetImuCallback(ImuCallback callback) override {
+  void set_imu_callback(ImuCallback callback) override {
     imu_callback_ = std::move(callback);
   }
 
-  void SetRealtime(bool realtime) { realtime_ = realtime; }
-  void SetSpeed(double speed) { speed_ = speed; }
+  void set_realtime(bool realtime) { realtime_ = realtime; }
+  void set_speed(double speed) { speed_ = speed; }
 
  private:
-  void FeedImages() {
+  void feed_images() {
     if (!camera_callback_) {
       return;
     }
@@ -65,8 +65,8 @@ class DatasetSimulator final : public DeviceInterface {
     int64_t start_ts    = 0;
     auto    start_time  = std::chrono::steady_clock::now();
 
-    while (!terminate_ && loader_.HasCameraData()) {
-      CameraFrame frame = loader_.GetNextCameraFrame();
+    while (!terminate_ && loader_.has_camera_data()) {
+      CameraFrame frame = loader_.get_next_camera_frame();
       if (!initialized) {
         start_ts    = frame.t_ns;
         start_time  = std::chrono::steady_clock::now();
@@ -132,7 +132,7 @@ class DatasetSimulator final : public DeviceInterface {
     }
   }
 
-  void FeedImu() {
+  void feed_imu() {
     if (!imu_callback_) {
       return;
     }
@@ -141,8 +141,8 @@ class DatasetSimulator final : public DeviceInterface {
     int64_t start_ts    = 0;
     auto    start_time  = std::chrono::steady_clock::now();
 
-    while (!terminate_ && loader_.HasImuData()) {
-      ImuData imu = loader_.GetNextImuMeasurement();
+    while (!terminate_ && loader_.has_imu_data()) {
+      ImuData imu = loader_.get_next_imu_measurement();
       if (!initialized) {
         start_ts    = imu.t_ns;
         start_time  = std::chrono::steady_clock::now();

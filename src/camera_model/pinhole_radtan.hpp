@@ -10,29 +10,29 @@ class PinholeRadialTangential : public CameraModelBase {
 
   PinholeRadialTangential() = default;
   explicit PinholeRadialTangential(const CameraParameter& params) {
-    SetIntrinsics(params.intrinsics);
-    SetDistortions(params.distortions);
+    set_intrinsics(params.intrinsics);
+    set_distortions(params.distortions);
   }
   ~PinholeRadialTangential() = default;
 
-  void Project(const Eigen::Vector3d& xyz, Eigen::Vector2d& uv) override {
+  void project(const Eigen::Vector3d& xyz, Eigen::Vector2d& uv) override {
     Eigen::Vector2d n_uv(xyz.x() / xyz.z(), xyz.y() / xyz.z());
     if (has_distortion_) {
-      n_uv += Distort(n_uv);
+      n_uv += distort(n_uv);
     }
     uv.x() = fx_ * n_uv.x() + cx_;
     uv.y() = fy_ * n_uv.y() + cy_;
   }
 
-  cv::Point2d Project(const Eigen::Vector3d& xyz) override {
+  cv::Point2d project(const Eigen::Vector3d& xyz) override {
     Eigen::Vector2d n_uv(xyz.x() / xyz.z(), xyz.y() / xyz.z());
     if (has_distortion_) {
-      n_uv += Distort(n_uv);
+      n_uv += distort(n_uv);
     }
     return cv::Point2d(fx_ * n_uv.x() + cx_, fy_ * n_uv.y() + cy_);
   }
 
-  Eigen::Vector2d Distort(const Eigen::Vector2d& nuv) override {
+  Eigen::Vector2d distort(const Eigen::Vector2d& nuv) override {
     if (!has_distortion_) {
       return Eigen::Vector2d::Zero();
     }
@@ -50,7 +50,7 @@ class PinholeRadialTangential : public CameraModelBase {
     return Eigen::Vector2d(x_dist - x, y_dist - y);
   }
 
-  virtual void Unproject(const std::vector<cv::Point2f> uvs,
+  virtual void unproject(const std::vector<cv::Point2f> uvs,
                          std::vector<Eigen::Vector3d>&  bearings,
                          std::vector<bool>&             status) override {
     const size_t count = uvs.size();
@@ -83,7 +83,7 @@ class PinholeRadialTangential : public CameraModelBase {
     }
   }
 
-  virtual bool Unproject(const cv::Point2f& uv,
+  virtual bool unproject(const cv::Point2f& uv,
                          Eigen::Vector3d&   bearing) override {
     double mx = (uv.x - cx_) / fx_;
     double my = (uv.y - cy_) / fy_;
@@ -112,7 +112,7 @@ class PinholeRadialTangential : public CameraModelBase {
   };
 
  protected:
-  void SetDistortions(const std::vector<double>& distortions) override {
+  void set_distortions(const std::vector<double>& distortions) override {
     if (distortions.size() >= 4) {
       cv_D_           = (cv::Mat_<double>(1, 4) << distortions[0],
                distortions[1],

@@ -13,7 +13,7 @@ class ImuPreintegrationCostTest : public ::testing::Test {
   static constexpr double kEps = 1e-6;
 
   // Build a preintegration from constant IMU measurements
-  ImuPreintegration MakePreintegration(
+  ImuPreintegration make_preintegration(
     const Eigen::Vector3d& acc,
     const Eigen::Vector3d& gyr,
     double                 dt_total,
@@ -36,27 +36,28 @@ class ImuPreintegrationCostTest : public ::testing::Test {
         imu_prev.t_ns = static_cast<int64_t>((i - 1) * dt_step * 1e9);
         imu_prev.acc  = acc;
         imu_prev.gyr  = gyr;
-        preint.IntegrateMeasurement(imu_prev, imu);
+        preint.integrate_measurement(imu_prev, imu);
       }
     }
     return preint;
   }
 
   // Evaluate residual for given state
-  Eigen::Matrix<double, 15, 1> EvaluateResidual(const ImuPreintegration& preint,
-                                                const Eigen::Vector3d& gravity,
-                                                const Sophus::SE3d&    T_w_b_i,
-                                                const Sophus::SE3d&    T_w_b_j,
-                                                const Eigen::Vector3d& v_i,
-                                                const Eigen::Vector3d& v_j,
-                                                const Eigen::Vector3d& ba_i,
-                                                const Eigen::Vector3d& bg_i,
-                                                const Eigen::Vector3d& ba_j,
-                                                const Eigen::Vector3d& bg_j) {
+  Eigen::Matrix<double, 15, 1> evaluate_residual(
+    const ImuPreintegration& preint,
+    const Eigen::Vector3d&   gravity,
+    const Sophus::SE3d&      T_w_b_i,
+    const Sophus::SE3d&      T_w_b_j,
+    const Eigen::Vector3d&   v_i,
+    const Eigen::Vector3d&   v_j,
+    const Eigen::Vector3d&   ba_i,
+    const Eigen::Vector3d&   bg_i,
+    const Eigen::Vector3d&   ba_j,
+    const Eigen::Vector3d&   bg_j) {
     ImuPreintegrationCost cost(preint, gravity);
 
-    Eigen::Vector6d pose_i = SE3BoxplusManifold::ToParams(T_w_b_i);
-    Eigen::Vector6d pose_j = SE3BoxplusManifold::ToParams(T_w_b_j);
+    Eigen::Vector6d pose_i = SE3BoxplusManifold::to_params(T_w_b_i);
+    Eigen::Vector6d pose_j = SE3BoxplusManifold::to_params(T_w_b_j);
 
     Eigen::Vector3d vi  = v_i;
     Eigen::Vector3d vj  = v_j;
@@ -90,23 +91,23 @@ TEST_F(ImuPreintegrationCostTest, ZeroMotionResidual) {
 
   const double dt     = 0.1;
   const int    steps  = 10;
-  auto         preint = MakePreintegration(acc_meas, gyr_meas, dt, steps);
+  auto         preint = make_preintegration(acc_meas, gyr_meas, dt, steps);
 
   const Sophus::SE3d    T_w_b = Sophus::SE3d();  // identity
   const Eigen::Vector3d v     = Eigen::Vector3d::Zero();
   const Eigen::Vector3d ba    = Eigen::Vector3d::Zero();
   const Eigen::Vector3d bg    = Eigen::Vector3d::Zero();
 
-  auto residual = EvaluateResidual(preint,
-                                   gravity,
-                                   T_w_b,
-                                   T_w_b,  // same pose
-                                   v,
-                                   v,  // same velocity
-                                   ba,
-                                   bg,
-                                   ba,
-                                   bg);
+  auto residual = evaluate_residual(preint,
+                                    gravity,
+                                    T_w_b,
+                                    T_w_b,  // same pose
+                                    v,
+                                    v,  // same velocity
+                                    ba,
+                                    bg,
+                                    ba,
+                                    bg);
 
   EXPECT_NEAR(residual.norm(), 0.0, 1e-6)
     << "Residual should be zero for stationary body\n"
@@ -123,7 +124,7 @@ TEST_F(ImuPreintegrationCostTest, FreeFallResidual) {
 
   const double dt     = 0.5;
   const int    steps  = 50;
-  auto         preint = MakePreintegration(acc_meas, gyr_meas, dt, steps);
+  auto         preint = make_preintegration(acc_meas, gyr_meas, dt, steps);
 
   const Eigen::Vector3d p_i(0, 0, 0);
   const Eigen::Vector3d v_i(1, 0, 0);
@@ -136,7 +137,7 @@ TEST_F(ImuPreintegrationCostTest, FreeFallResidual) {
   const Eigen::Vector3d bg = Eigen::Vector3d::Zero();
 
   auto residual =
-    EvaluateResidual(preint, gravity, T_i, T_j, v_i, v_j, ba, bg, ba, bg);
+    evaluate_residual(preint, gravity, T_i, T_j, v_i, v_j, ba, bg, ba, bg);
 
   EXPECT_NEAR(residual.norm(), 0.0, 1e-6)
     << "Residual should be zero for consistent free-fall state\n"
@@ -152,10 +153,10 @@ TEST_F(ImuPreintegrationCostTest, PureRotationResidual) {
 
   const double dt     = 0.5;
   const int    steps  = 50;
-  auto         preint = MakePreintegration(acc_meas, gyr_meas, dt, steps);
+  auto         preint = make_preintegration(acc_meas, gyr_meas, dt, steps);
 
   const Sophus::SO3d R_i;
-  const Sophus::SO3d R_j = R_i * preint.GetDeltaR();
+  const Sophus::SO3d R_j = R_i * preint.get_delta_r();
 
   const Sophus::SE3d    T_i(R_i, Eigen::Vector3d::Zero());
   const Sophus::SE3d    T_j(R_j, Eigen::Vector3d::Zero());
@@ -164,7 +165,7 @@ TEST_F(ImuPreintegrationCostTest, PureRotationResidual) {
   const Eigen::Vector3d bg = Eigen::Vector3d::Zero();
 
   auto residual =
-    EvaluateResidual(preint, gravity, T_i, T_j, v, v, ba, bg, ba, bg);
+    evaluate_residual(preint, gravity, T_i, T_j, v, v, ba, bg, ba, bg);
 
   EXPECT_NEAR(residual.norm(), 0.0, 1e-6)
     << "Residual should be zero for consistent pure rotation\n"
@@ -177,7 +178,7 @@ TEST_F(ImuPreintegrationCostTest, JacobianCheck) {
   const Eigen::Vector3d acc_meas(0.5, -0.3, 9.81);
   const Eigen::Vector3d gyr_meas(0.1, -0.05, 0.02);
 
-  auto preint = MakePreintegration(acc_meas, gyr_meas, 0.2, 20);
+  auto preint = make_preintegration(acc_meas, gyr_meas, 0.2, 20);
 
   ceres::CostFunction* cost = new ImuPreintegrationCost(preint, gravity);
 
@@ -227,7 +228,7 @@ TEST_F(ImuPreintegrationCostTest, BiasChangeResidual) {
   const Eigen::Vector3d acc_meas = -gravity;
   const Eigen::Vector3d gyr_meas = Eigen::Vector3d::Zero();
 
-  auto preint = MakePreintegration(acc_meas, gyr_meas, 0.1, 10);
+  auto preint = make_preintegration(acc_meas, gyr_meas, 0.1, 10);
 
   const Sophus::SE3d    T_w_b;
   const Eigen::Vector3d v  = Eigen::Vector3d::Zero();
@@ -236,7 +237,7 @@ TEST_F(ImuPreintegrationCostTest, BiasChangeResidual) {
 
   // Same bias → zero residual
   auto residual_same =
-    EvaluateResidual(preint, gravity, T_w_b, T_w_b, v, v, ba, bg, ba, bg);
+    evaluate_residual(preint, gravity, T_w_b, T_w_b, v, v, ba, bg, ba, bg);
   EXPECT_NEAR(residual_same.norm(), 0.0, 1e-6);
 
   // Different bias at j → non-zero residual
@@ -244,7 +245,7 @@ TEST_F(ImuPreintegrationCostTest, BiasChangeResidual) {
   const Eigen::Vector3d bg_j(0.0, 0.01, 0.0);
 
   auto residual_diff =
-    EvaluateResidual(preint, gravity, T_w_b, T_w_b, v, v, ba, bg, ba_j, bg_j);
+    evaluate_residual(preint, gravity, T_w_b, T_w_b, v, v, ba, bg, ba_j, bg_j);
 
   EXPECT_GT(residual_diff.norm(), 0.01)
     << "Residual should be non-zero for mismatched bias";
@@ -303,9 +304,9 @@ TEST_F(ImuPreintegrationCostTest, CovarianceDoesNotDependOnStepSubdivision) {
       imu1.t_ns = static_cast<int64_t>((i + 1) * dt_step * 1e9);
       imu1.acc.setZero();
       imu1.gyr.setZero();
-      preint.IntegrateMeasurement(imu0, imu1);
+      preint.integrate_measurement(imu0, imu1);
     }
-    return preint.GetCovariance();
+    return preint.get_covariance();
   };
 
   const Eigen::Matrix15d cov_10  = integrate(10);
@@ -327,7 +328,7 @@ TEST_F(ImuPreintegrationCostTest, CeresOptimizationRecoversVelocity) {
   const Eigen::Vector3d gyr_meas = Eigen::Vector3d::Zero();
 
   const double dt     = 1.0;
-  auto         preint = MakePreintegration(acc_meas, gyr_meas, dt, 100);
+  auto         preint = make_preintegration(acc_meas, gyr_meas, dt, 100);
 
   // Ground truth: stationary
   Eigen::Vector6d pose_i = Eigen::Vector6d::Zero();

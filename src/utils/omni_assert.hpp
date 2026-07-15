@@ -6,13 +6,13 @@
 
 #ifndef OMNI_DISABLE_ASSERT
 #define OMNI_ASSERT(result)                                                    \
-  ::omni_slam::OmniAssert::Assert(!!(result), __FILE__, __LINE__, __FUNCTION__)
+  ::omni_slam::OmniAssert::check(!!(result), __FILE__, __LINE__, __FUNCTION__)
 #define OMNI_ASSERT_MESSAGE(result, message)                                   \
-  ::omni_slam::OmniAssert::Assert(!!(result),                                  \
-                                  (message),                                   \
-                                  __FILE__,                                    \
-                                  __LINE__,                                    \
-                                  __FUNCTION__)
+  ::omni_slam::OmniAssert::check(!!(result),                                   \
+                                 (message),                                    \
+                                 __FILE__,                                     \
+                                 __LINE__,                                     \
+                                 __FUNCTION__)
 #else
 #define OMNI_ASSERT(result) ((void)0)
 #define OMNI_ASSERT_MESSAGE(result, message) ((void)0)
@@ -22,29 +22,29 @@ namespace omni_slam {
 
 class OmniAssert {
  public:
-  static inline void Assert(bool        result,
-                            const char* file,
-                            int         line,
-                            const char* function) {
+  static inline void check(bool        result,
+                           const char* file,
+                           int         line,
+                           const char* function) {
     if (result) {
       return;
     }
-    Logger::Error(Logger::extractFileName(file),
+    Logger::error(Logger::extract_file_name(file),
                   line,
                   "Assertion failed in {}",
                   function);
     std::abort();
   }
 
-  static inline void Assert(bool        result,
-                            const char* message,
-                            const char* file,
-                            int         line,
-                            const char* function) {
+  static inline void check(bool        result,
+                           const char* message,
+                           const char* file,
+                           int         line,
+                           const char* function) {
     if (result) {
       return;
     }
-    Logger::Error(Logger::extractFileName(file),
+    Logger::error(Logger::extract_file_name(file),
                   line,
                   "Assertion failed in {} by {}",
                   function,
