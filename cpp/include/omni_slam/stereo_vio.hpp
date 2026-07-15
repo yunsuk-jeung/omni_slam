@@ -75,9 +75,8 @@ class StereoVIO : public Odometry {
   tbb::concurrent_queue<std::shared_ptr<Frame>> result_queue_;
   std::unique_ptr<OpticalFlow>                  optical_flow_;
 
-  std::unique_ptr<SlidingWindow> sliding_window_;
-  std::map<uint64_t, InertialState>
-    inertial_states_;  // v_wb, bias_acc, bias_gyr
+  std::unique_ptr<SlidingWindow>        sliding_window_;
+  std::map<uint64_t, InertialState>     inertial_states_;
   std::map<uint64_t, ImuPreintegration> imu_preintegrations_;
 
   std::unique_ptr<VIOEstimator> estimator_;
