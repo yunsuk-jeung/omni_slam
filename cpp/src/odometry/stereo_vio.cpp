@@ -195,63 +195,40 @@ void StereoVIO::pop_imu_data_until(int64_t               timestamp_ns,
   imu_data.clear();
 
   auto append_sample = [&](const ImuData& sample) {
-    if (!imu_data.empty() && sample.t_ns <= imu_data.back().t_ns) {
-      return;
+    if (imu_data.empty() || sample.t_ns > imu_data.back().t_ns) {
+      imu_data.push_back(sample);
     }
-    imu_data.push_back(sample);
   };
 
-  bool    has_before = false;
-  ImuData before;
   if (has_last_frame_imu_) {
     append_sample(last_frame_imu_);
-    before     = last_frame_imu_;
-    has_before = true;
   }
 
-  auto consume_before = [&](const ImuData& sample) {
-    append_sample(sample);
-    before     = sample;
-    has_before = true;
-  };
-
-  bool    has_after = false;
-  ImuData after;
-
-  if (has_pending_imu_) {
-    if (pending_imu_.t_ns <= timestamp_ns) {
-      consume_before(pending_imu_);
-      has_pending_imu_ = false;
+  // Drain samples with t <= timestamp_ns through the one-sample peek buffer
+  // pending_imu_; the first later sample stays buffered for the next frame.
+  while (true) {
+    if (!has_pending_imu_) {
+      if (!imu_queue_.try_pop(pending_imu_)) {
+        break;
+      }
+      imu_queue_size_.fetch_sub(1, std::memory_order_relaxed);
+      has_pending_imu_ = true;
     }
-    else {
-      after     = pending_imu_;
-      has_after = true;
+    if (pending_imu_.t_ns > timestamp_ns) {
+      break;
     }
+    append_sample(pending_imu_);
+    has_pending_imu_ = false;
   }
 
-  ImuData imu;
-  while (!has_after && imu_queue_.try_pop(imu)) {
-    imu_queue_size_.fetch_sub(1, std::memory_order_relaxed);
-    if (imu.t_ns <= timestamp_ns) {
-      consume_before(imu);
-      continue;
-    }
-
-    pending_imu_     = imu;
-    has_pending_imu_ = true;
-    after            = imu;
-    has_after        = true;
-    break;
-  }
-
-  if (!has_before) {
+  if (imu_data.empty()) {
     return;
   }
 
-  ImuData frame_imu = before;
-  if (before.t_ns < timestamp_ns && has_after) {
-    frame_imu = interpolate_imu_data(before, after, timestamp_ns);
-    append_sample(frame_imu);
+  ImuData frame_imu = imu_data.back();
+  if (frame_imu.t_ns < timestamp_ns && has_pending_imu_) {
+    frame_imu = interpolate_imu_data(frame_imu, pending_imu_, timestamp_ns);
+    imu_data.push_back(frame_imu);
   }
 
   last_frame_imu_     = frame_imu;
