@@ -13,10 +13,10 @@
 
 #include "device/dataset_simulator.hpp"
 #include "device/euroc_loader.hpp"
-#include "odometry/odometry_result.hpp"
-#include "odometry/stereo_vo.hpp"
+#include "omni_slam/odometry_result.hpp"
+#include "omni_slam/stereo_vo.hpp"
+#include "omni_slam/types.hpp"
 #include "utils/logger.hpp"
-#include "utils/types.hpp"
 
 namespace {
 
@@ -35,7 +35,7 @@ const rerun::components::Color kAxisXColor(255, 0, 0, 255);
 const rerun::components::Color kAxisYColor(0, 255, 0, 255);
 const rerun::components::Color kAxisZColor(0, 0, 255, 255);
 
-rerun::Image MakeRerunImage(const cv::Mat& image) {
+rerun::Image make_rerun_image(const cv::Mat& image) {
   if (image.empty()) {
     return rerun::Image::clear_fields();
   }
@@ -84,7 +84,7 @@ rerun::Image MakeRerunImage(const cv::Mat& image) {
   return rerun::Image::clear_fields();
 }
 
-rerun::Transform3D MakeTransform(const Sophus::SE3d& T) {
+rerun::Transform3D make_transform(const Sophus::SE3d& T) {
   const Eigen::Vector3d    t = T.translation();
   const Eigen::Quaterniond q = T.so3().unit_quaternion();
 
@@ -99,7 +99,7 @@ rerun::Transform3D MakeTransform(const Sophus::SE3d& T) {
   return rerun::Transform3D(translation, rerun::Rotation3D(quat), true);
 }
 
-void LogOriginAxes(rerun::RecordingStream& rec) {
+void log_origin_axes(rerun::RecordingStream& rec) {
   std::vector<rerun::components::Position3D> origins;
   std::vector<rerun::components::Vector3D>   vectors;
   std::vector<rerun::components::Color>      colors;
@@ -148,12 +148,12 @@ int main(int argc, char** argv) {
                                        / "datasets/EUROC/V1_01_easy";
 
   omni_slam::EurocLoader loader;
-  if (!loader.Setup(dataset_path.string())) {
+  if (!loader.setup(dataset_path.string())) {
     LogE("Failed to initialize EuRoC loader");
     return -1;
   }
 
-  if (!loader.HasCameraData()) {
+  if (!loader.has_camera_data()) {
     LogE("No camera data available in dataset");
     return -1;
   }
@@ -161,33 +161,33 @@ int main(int argc, char** argv) {
   omni_slam::StereoVO   stereo_vo;
   std::filesystem::path config_path = project_root / "configs/svo_euroc.json";
 
-  if (!stereo_vo.Setup(config_path.string())) {
+  if (!stereo_vo.setup(config_path.string())) {
     LogE("Failed to initialize VO pipeline");
     return -1;
   }
 
   rerun::RecordingStream rec("stereo_vo");
   rec.spawn().exit_on_failure();
-  LogOriginAxes(rec);
+  log_origin_axes(rec);
 
   omni_slam::DatasetSimulator simulator(loader);
-  simulator.SetCameraCallback(
+  simulator.camera_callback(
     [&stereo_vo](int64_t                     timestamp_ns,
                  const std::vector<cv::Mat>& images,
                  const std::vector<omni_slam::CameraParameter>&
                    camera_parameters) {
-      stereo_vo.OnCameraFrame(timestamp_ns, images, camera_parameters);
+      stereo_vo.on_camera_frame(timestamp_ns, images, camera_parameters);
     });
 
-  simulator.Start();
-  stereo_vo.Run();
+  simulator.start();
+  stereo_vo.run();
 
   int64_t last_timestamp = std::numeric_limits<int64_t>::min();
   omni_slam::OdometryResult         result;
   std::vector<std::array<float, 3>> trajectory_points;
 
-  while (loader.HasCameraData()) {
-    if (stereo_vo.FetchResult(result)
+  while (loader.has_camera_data()) {
+    if (stereo_vo.fetch_result(result)
         && result.timestamp_ns != last_timestamp) {
       last_timestamp = result.timestamp_ns;
       rec.set_time_sequence("frame_id", static_cast<int64_t>(result.frame_id));
@@ -195,10 +195,10 @@ int main(int argc, char** argv) {
                                                result.timestamp_ns);
 
       if (result.images.size() > 0) {
-        rec.log("cam0/image", MakeRerunImage(result.images[0]));
+        rec.log("cam0/image", make_rerun_image(result.images[0]));
       }
       if (result.images.size() > 1) {
-        rec.log("cam1/image", MakeRerunImage(result.images[1]));
+        rec.log("cam1/image", make_rerun_image(result.images[1]));
       }
 
       auto log_overlay = [&](size_t cam_idx, const std::string& points_path) {
@@ -274,7 +274,7 @@ int main(int argc, char** argv) {
       rec.log("world/window", rerun::Clear::RECURSIVE);
       for (size_t i = 0; i < result.T_w_b_window.size(); ++i) {
         const std::string path = "world/window/body_" + std::to_string(i);
-        rec.log(path, MakeTransform(result.T_w_b_window[i]));
+        rec.log(path, make_transform(result.T_w_b_window[i]));
       }
 
       if (!result.T_w_b_window.empty() && !result.T_b_c.empty()) {
@@ -284,7 +284,7 @@ int main(int argc, char** argv) {
             const auto        T_w_c = T_w_b * result.T_b_c[cam_idx];
             const std::string path  = "world/window/cam_" + std::to_string(i)
                                      + "_" + std::to_string(cam_idx);
-            rec.log(path, MakeTransform(T_w_c));
+            rec.log(path, make_transform(T_w_c));
           }
         }
       }
@@ -347,9 +347,9 @@ int main(int argc, char** argv) {
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
 
-  simulator.Stop();
+  simulator.stop();
 
-  stereo_vo.Shutdown();
+  stereo_vo.shutdown();
   LogI("VO application finished");
 
   return 0;

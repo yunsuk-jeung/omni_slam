@@ -5,6 +5,11 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# Export compile_commands.json and symlink it to the source root for clangd
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+file(CREATE_LINK "${CMAKE_BINARY_DIR}/compile_commands.json"
+     "${CMAKE_SOURCE_DIR}/compile_commands.json" SYMBOLIC)
+
 # Build options
 option(OMNI_BUILD_STEREO_VO "Build Stereo Visual Odometry pipeline" ON)
 option(OMNI_BUILD_STEREO_VIO "Build Stereo Visual-Inertial Odometry pipeline" OFF)
@@ -40,5 +45,5 @@ find_package(Sophus REQUIRED)
 find_package(nlohmann_json REQUIRED)
 
 # Source tree (build options live in src/CMakeLists.txt)
-add_subdirectory(src)
+add_subdirectory(cpp/src)
 add_subdirectory(apps)

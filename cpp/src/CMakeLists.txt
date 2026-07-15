@@ -1,0 +1,103 @@
+# Core library (always built)
+add_library(omni_utils INTERFACE)
+
+target_include_directories(omni_utils INTERFACE
+  ${CMAKE_SOURCE_DIR}/cpp/include
+  ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+target_compile_definitions(omni_utils INTERFACE
+  OMNI_SLAM_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+)
+
+target_link_libraries(omni_utils INTERFACE
+  Eigen3::Eigen
+  Sophus::Sophus
+  spdlog::spdlog
+  TBB::tbb
+  nlohmann_json::nlohmann_json
+  Ceres::ceres
+)
+
+target_compile_options(omni_utils INTERFACE
+  $<$<CONFIG:Release>:-O3>
+  $<$<CONFIG:RelWithDebInfo>:-O2>
+)
+
+target_compile_features(omni_utils INTERFACE cxx_std_20)
+
+# Dataset loader library
+add_library(omni_device INTERFACE)
+
+target_sources(omni_device INTERFACE
+  ${CMAKE_CURRENT_SOURCE_DIR}/device/vio_loader.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/device/euroc_loader.cpp
+)
+
+target_link_libraries(omni_device INTERFACE
+  omni_utils
+)
+
+target_compile_features(omni_device INTERFACE cxx_std_20)
+
+# Dataset loader library
+add_library(omni_camera_model INTERFACE)
+
+target_link_libraries(omni_camera_model INTERFACE
+  omni_utils
+)
+
+target_compile_features(omni_camera_model INTERFACE cxx_std_20)
+
+if(OMNI_BUILD_STEREO_VO)
+  add_library(svo SHARED
+    ${CMAKE_CURRENT_SOURCE_DIR}/feature_tracking/optical_flow.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/config/svo_config.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/camera_model/camera_model.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/database/frame.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/database/map_point.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/odometry/sliding_window.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/odometry/stereo_vo.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/optimizer/vo_estimator.cpp
+  )
+  target_include_directories(svo PRIVATE ${OpenCV_INCLUDE_DIRS})
+  target_link_libraries(svo omni_utils omni_camera_model ${OpenCV_LIBS})
+  target_compile_options(svo PRIVATE
+    $<$<CONFIG:Release>:-O3>
+    $<$<CONFIG:RelWithDebInfo>:-O2>
+  )
+  target_compile_features(svo INTERFACE cxx_std_20)
+endif()
+
+if(OMNI_BUILD_STEREO_VIO)
+  add_library(svio SHARED
+    ${CMAKE_CURRENT_SOURCE_DIR}/feature_tracking/optical_flow.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/config/svo_config.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/config/svio_config.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/camera_model/camera_model.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/database/frame.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/database/map_point.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/odometry/imu_preintegration.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/odometry/sliding_window.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/odometry/stereo_vio.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/optimizer/vio_estimator.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/optimizer/vo_estimator.cpp
+  )
+  target_include_directories(svio PRIVATE ${OpenCV_INCLUDE_DIRS})
+  target_link_libraries(svio omni_utils omni_camera_model ${OpenCV_LIBS})
+  target_compile_options(svio PRIVATE
+    $<$<CONFIG:Release>:-O3>
+    $<$<CONFIG:RelWithDebInfo>:-O2>
+  )
+  target_compile_features(svio INTERFACE cxx_std_20)
+endif()
+
+
+if(OMNI_BUILD_LIO)
+endif()
+
+# Tests
+if(OMNI_BUILD_TESTS)
+  enable_testing()
+  add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../tests ${CMAKE_CURRENT_BINARY_DIR}/tests)
+endif()
