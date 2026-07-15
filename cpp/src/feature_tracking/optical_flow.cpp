@@ -69,10 +69,9 @@ void run_forward_backward_optical_flow(const std::vector<cv::Mat>& src_pyramid,
 
 }  // namespace
 
-OpticalFlow::OpticalFlow(
-  const size_t                                   cam_num,
-  tbb::concurrent_queue<std::shared_ptr<Frame>>& in_queue,
-  tbb::concurrent_queue<std::shared_ptr<Frame>>& out_queue)
+OpticalFlow::OpticalFlow(const size_t                             cam_num,
+                         ConcurrentQueue<std::shared_ptr<Frame>>& in_queue,
+                         ConcurrentQueue<std::shared_ptr<Frame>>& out_queue)
   : kCamNum{cam_num}
   , in_queue_(in_queue)
   , out_queue_(out_queue)

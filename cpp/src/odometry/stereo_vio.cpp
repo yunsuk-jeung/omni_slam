@@ -59,11 +59,8 @@ StereoVIO::StereoVIO()
   , result_mutex_{}
   , has_result_{false}
   , latest_result_{}
-  , imu_queue_{}
-  , imu_queue_size_{0}
+  , imu_queue_{kMaxImuQueueSize}
   , imu_data_buffer_{}
-  , has_pending_imu_{false}
-  , pending_imu_{}
   , has_last_frame_imu_{false}
   , last_frame_imu_{}
   , inertial_states_{}
@@ -131,17 +128,7 @@ void StereoVIO::on_camera_frame(
 }
 
 void StereoVIO::on_imu_data(const ImuData& imu_data) {
-  constexpr size_t kMaxImuBufferSize = 5000;
   imu_queue_.push(imu_data);
-  imu_queue_size_.fetch_add(1, std::memory_order_relaxed);
-
-  while (imu_queue_size_.load(std::memory_order_relaxed) > kMaxImuBufferSize) {
-    ImuData dropped;
-    if (!imu_queue_.try_pop(dropped)) {
-      break;
-    }
-    imu_queue_size_.fetch_sub(1, std::memory_order_relaxed);
-  }
 }
 
 void StereoVIO::optical_flow_loop() {
@@ -204,30 +191,25 @@ void StereoVIO::pop_imu_data_until(int64_t               timestamp_ns,
     append_sample(last_frame_imu_);
   }
 
-  // Drain samples with t <= timestamp_ns through the one-sample peek buffer
-  // pending_imu_; the first later sample stays buffered for the next frame.
-  while (true) {
-    if (!has_pending_imu_) {
-      if (!imu_queue_.try_pop(pending_imu_)) {
-        break;
-      }
-      imu_queue_size_.fetch_sub(1, std::memory_order_relaxed);
-      has_pending_imu_ = true;
-    }
-    if (pending_imu_.t_ns > timestamp_ns) {
-      break;
-    }
-    append_sample(pending_imu_);
-    has_pending_imu_ = false;
+  const auto is_before = [&](const ImuData& sample) {
+    return sample.t_ns <= timestamp_ns;
+  };
+
+  ImuData imu;
+  while (imu_queue_.try_pop_if(imu, is_before)) {
+    append_sample(imu);
   }
 
   if (imu_data.empty()) {
     return;
   }
 
+  // The first sample past timestamp_ns stays queued for the next frame and
+  // serves as the interpolation endpoint at the frame boundary.
   ImuData frame_imu = imu_data.back();
-  if (frame_imu.t_ns < timestamp_ns && has_pending_imu_) {
-    frame_imu = interpolate_imu_data(frame_imu, pending_imu_, timestamp_ns);
+  ImuData next;
+  if (frame_imu.t_ns < timestamp_ns && imu_queue_.try_peek(next)) {
+    frame_imu = interpolate_imu_data(frame_imu, next, timestamp_ns);
     imu_data.push_back(frame_imu);
   }
 

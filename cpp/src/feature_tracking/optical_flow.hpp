@@ -6,9 +6,9 @@
 #include <memory>
 
 #include <opencv2/core.hpp>
-#include <tbb/concurrent_queue.h>
 
 #include "feature_tracking/tracking_result.hpp"
+#include "utils/concurrent_queue.hpp"
 
 namespace cv {
 class CLAHE;
@@ -20,9 +20,9 @@ class Frame;
 class OpticalFlow {
  public:
   OpticalFlow() = delete;
-  OpticalFlow(const size_t                                   cam_num,
-              tbb::concurrent_queue<std::shared_ptr<Frame>>& in_queue,
-              tbb::concurrent_queue<std::shared_ptr<Frame>>& out_queue);
+  OpticalFlow(const size_t                             cam_num,
+              ConcurrentQueue<std::shared_ptr<Frame>>& in_queue,
+              ConcurrentQueue<std::shared_ptr<Frame>>& out_queue);
 
   ~OpticalFlow() = default;
 
@@ -37,9 +37,9 @@ class OpticalFlow {
   void detect_features(const std::shared_ptr<Frame>& curr_frame);
 
  private:
-  const size_t                                   kCamNum;
-  tbb::concurrent_queue<std::shared_ptr<Frame>>& in_queue_;
-  tbb::concurrent_queue<std::shared_ptr<Frame>>& out_queue_;
+  const size_t                             kCamNum;
+  ConcurrentQueue<std::shared_ptr<Frame>>& in_queue_;
+  ConcurrentQueue<std::shared_ptr<Frame>>& out_queue_;
 
   cv::Ptr<cv::CLAHE>     clahe_;
   std::shared_ptr<Frame> prev_frame_;

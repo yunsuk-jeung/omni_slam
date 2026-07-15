@@ -37,7 +37,6 @@ set(CMAKE_PREFIX_PATH "${DEPS_INSTALL_DIR}" ${CMAKE_PREFIX_PATH})
 
 find_package(Eigen3 REQUIRED)
 find_package(spdlog REQUIRED)
-find_package(TBB REQUIRED)
 find_package(GTest REQUIRED)
 find_package(Ceres REQUIRED)
 find_package(OpenCV REQUIRED COMPONENTS core imgproc imgcodecs features2d calib3d highgui)
