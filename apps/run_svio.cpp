@@ -170,6 +170,13 @@ int main(int argc, char** argv) {
   rec.spawn().exit_on_failure();
   log_origin_axes(rec);
 
+  const rerun::SeriesLines bias_series =
+    rerun::SeriesLines()
+      .with_names({"x", "y", "z"})
+      .with_colors({kAxisXColor, kAxisYColor, kAxisZColor});
+  rec.log_static("acc_bias", bias_series);
+  rec.log_static("gyr_bias", bias_series);
+
   omni_slam::DatasetSimulator simulator(loader);
   simulator.camera_callback(
     [&stereo_vio](int64_t                     timestamp_ns,
@@ -260,12 +267,14 @@ int main(int argc, char** argv) {
         rec.log("world/map_points", rerun::Points3D(points3d));
       }
 
-      rec.log("acc_bias/x", rerun::Scalars(result.acc_bias.x()));
-      rec.log("acc_bias/y", rerun::Scalars(result.acc_bias.y()));
-      rec.log("acc_bias/z", rerun::Scalars(result.acc_bias.z()));
-      rec.log("gyr_bias/x", rerun::Scalars(result.gyr_bias.x()));
-      rec.log("gyr_bias/y", rerun::Scalars(result.gyr_bias.y()));
-      rec.log("gyr_bias/z", rerun::Scalars(result.gyr_bias.z()));
+      rec.log("acc_bias",
+              rerun::Scalars({result.acc_bias.x(),
+                              result.acc_bias.y(),
+                              result.acc_bias.z()}));
+      rec.log("gyr_bias",
+              rerun::Scalars({result.gyr_bias.x(),
+                              result.gyr_bias.y(),
+                              result.gyr_bias.z()}));
 
       if (!result.T_w_b_window.empty()) {
         const auto&           T_w_b = result.T_w_b_window.back();

@@ -5,18 +5,19 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <set>
 #include <string>
 #include <thread>
 #include <vector>
 
 #include <opencv2/core.hpp>
-#include <tbb/concurrent_queue.h>
 
 #include "odometry/imu_preintegration.hpp"
 #include "omni_slam/odometry.hpp"
 #include "omni_slam/odometry_result.hpp"
 #include "omni_slam/types.hpp"
+#include "utils/concurrent_queue.hpp"
 #include "utils/eigen_utils.hpp"
 
 namespace omni_slam {
@@ -71,9 +72,9 @@ class StereoVIO : public Odometry {
   std::thread       optical_flow_thread_;
   std::thread       estimator_thread_;
 
-  tbb::concurrent_queue<std::shared_ptr<Frame>> frame_queue_;
-  tbb::concurrent_queue<std::shared_ptr<Frame>> result_queue_;
-  std::unique_ptr<OpticalFlow>                  optical_flow_;
+  ConcurrentQueue<std::shared_ptr<Frame>> raw_frame_queue_;
+  ConcurrentQueue<std::shared_ptr<Frame>> tracked_frame_queue_;
+  std::unique_ptr<OpticalFlow>            optical_flow_;
 
   std::unique_ptr<SlidingWindow>        sliding_window_;
   std::map<uint64_t, InertialState>     inertial_states_;
@@ -89,14 +90,12 @@ class StereoVIO : public Odometry {
   bool           has_result_;
   OdometryResult latest_result_;
 
-  tbb::concurrent_queue<ImuData> imu_queue_;
-  std::atomic<size_t>            imu_queue_size_;
-  std::vector<ImuData>           imu_data_buffer_;
-  bool                           has_pending_imu_;
-  ImuData                        pending_imu_;
-  bool                           has_last_frame_imu_;
-  ImuData                        last_frame_imu_;
-  ImuPreintegration::Parameters  imu_parameters;
+  static constexpr size_t kMaxImuQueueSize = 5000;
+
+  ConcurrentQueue<ImuData>      imu_queue_;
+  std::vector<ImuData>          imu_data_buffer_;
+  std::optional<ImuData>        last_frame_imu_;
+  ImuPreintegration::Parameters imu_parameters;
 };
 
 }  // namespace omni_slam

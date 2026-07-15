@@ -14,7 +14,6 @@ target_link_libraries(omni_utils INTERFACE
   Eigen3::Eigen
   Sophus::Sophus
   spdlog::spdlog
-  TBB::tbb
   nlohmann_json::nlohmann_json
   Ceres::ceres
 )

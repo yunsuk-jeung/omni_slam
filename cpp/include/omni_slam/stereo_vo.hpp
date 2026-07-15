@@ -11,11 +11,11 @@
 #include <vector>
 
 #include <opencv2/core.hpp>
-#include <tbb/concurrent_queue.h>
 
 #include "omni_slam/odometry.hpp"
 #include "omni_slam/odometry_result.hpp"
 #include "omni_slam/types.hpp"
+#include "utils/concurrent_queue.hpp"
 
 namespace omni_slam {
 class TrackingResult;
@@ -62,9 +62,9 @@ class StereoVO : public Odometry {
   std::thread       optical_flow_thread_;
   std::thread       estimator_thread_;
 
-  tbb::concurrent_queue<std::shared_ptr<Frame>> frame_queue_;
-  tbb::concurrent_queue<std::shared_ptr<Frame>> result_queue_;
-  std::unique_ptr<OpticalFlow>                  optical_flow_;
+  ConcurrentQueue<std::shared_ptr<Frame>> raw_frame_queue_;
+  ConcurrentQueue<std::shared_ptr<Frame>> tracked_frame_queue_;
+  std::unique_ptr<OpticalFlow>            optical_flow_;
 
   std::unique_ptr<SlidingWindow> sliding_window_;
 

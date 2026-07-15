@@ -1,8 +1,6 @@
 
 
 #include <algorithm>
-#include <chrono>
-#include <thread>
 #include <vector>
 
 #include <opencv2/features2d.hpp>
@@ -69,13 +67,8 @@ void run_forward_backward_optical_flow(const std::vector<cv::Mat>& src_pyramid,
 
 }  // namespace
 
-OpticalFlow::OpticalFlow(
-  const size_t                                   cam_num,
-  tbb::concurrent_queue<std::shared_ptr<Frame>>& in_queue,
-  tbb::concurrent_queue<std::shared_ptr<Frame>>& out_queue)
+OpticalFlow::OpticalFlow(const size_t cam_num)
   : kCamNum{cam_num}
-  , in_queue_(in_queue)
-  , out_queue_(out_queue)
   , prev_frame_{nullptr}
   , next_feature_id_{0} {
   if (SVOConfig::equalize_histogram) {
@@ -253,22 +246,5 @@ void OpticalFlow::process(std::shared_ptr<Frame>& curr_frame) {
     track_stereo(curr_frame);
   }
   prev_frame_ = curr_frame;
-  out_queue_.push(curr_frame);
-}
-
-void OpticalFlow::run(std::atomic<bool>& running) {
-  std::shared_ptr<Frame> curr_frame;
-  while (running.load(std::memory_order_acquire)) {
-    if (!in_queue_.try_pop(curr_frame)) {
-      std::this_thread::sleep_for(std::chrono::milliseconds(1));
-      continue;
-    }
-
-    if (!curr_frame) {
-      continue;
-    }
-
-    process(curr_frame);
-  }
 }
 }  // namespace omni_slam

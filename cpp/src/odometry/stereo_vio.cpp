@@ -1,5 +1,4 @@
 #include <algorithm>
-#include <chrono>
 #include <cmath>
 #include <limits>
 #include <set>
@@ -48,8 +47,8 @@ ImuData interpolate_imu_data(const ImuData& imu0,
 }  // namespace
 
 StereoVIO::StereoVIO()
-  : frame_queue_{}
-  , result_queue_{}
+  : raw_frame_queue_{}
+  , tracked_frame_queue_{}
   , optical_flow_{nullptr}
   , running_{false}
   , status_{Status::Initializing}
@@ -59,12 +58,8 @@ StereoVIO::StereoVIO()
   , result_mutex_{}
   , has_result_{false}
   , latest_result_{}
-  , imu_queue_{}
-  , imu_queue_size_{0}
+  , imu_queue_{kMaxImuQueueSize}
   , imu_data_buffer_{}
-  , has_pending_imu_{false}
-  , pending_imu_{}
-  , has_last_frame_imu_{false}
   , last_frame_imu_{}
   , inertial_states_{}
   , imu_parameters{} {
@@ -91,8 +86,7 @@ bool StereoVIO::setup(const std::string& config_path) {
   imu_parameters.min_integration_dt_s = SVIOConfig::imu_min_integration_dt_s;
 
   sliding_window_->max_size(SVIOConfig::max_keyframe_size + 1u);
-  optical_flow_ =
-    std::make_unique<OpticalFlow>(kCamNum, frame_queue_, result_queue_);
+  optical_flow_ = std::make_unique<OpticalFlow>(kCamNum);
 
   return true;
 }
@@ -108,6 +102,8 @@ void StereoVIO::run() {
 void StereoVIO::shutdown() {
   Logger::info("Shutting down VIO Pipeline");
   running_.store(false, std::memory_order_release);
+  raw_frame_queue_.close();
+  tracked_frame_queue_.close();
 
   if (optical_flow_thread_.joinable()) {
     optical_flow_thread_.join();
@@ -127,35 +123,36 @@ void StereoVIO::on_camera_frame(
   }
 
   auto frame = std::make_shared<Frame>(timestamp_ns, images, camera_parameters);
-  frame_queue_.push(frame);
+  raw_frame_queue_.push(frame);
 }
 
 void StereoVIO::on_imu_data(const ImuData& imu_data) {
-  constexpr size_t kMaxImuBufferSize = 5000;
   imu_queue_.push(imu_data);
-  imu_queue_size_.fetch_add(1, std::memory_order_relaxed);
-
-  while (imu_queue_size_.load(std::memory_order_relaxed) > kMaxImuBufferSize) {
-    ImuData dropped;
-    if (!imu_queue_.try_pop(dropped)) {
-      break;
-    }
-    imu_queue_size_.fetch_sub(1, std::memory_order_relaxed);
-  }
 }
 
 void StereoVIO::optical_flow_loop() {
-  optical_flow_->run(running_);
+  std::shared_ptr<Frame> frame;
+  while (running_.load(std::memory_order_acquire)) {
+    if (!raw_frame_queue_.wait()) {
+      break;
+    }
+    if (!raw_frame_queue_.try_pop(frame)) {
+      continue;
+    }
+    optical_flow_->process(frame);
+    tracked_frame_queue_.push(frame);
+  }
 }
 
 void StereoVIO::estimator_loop() {
   std::shared_ptr<Frame> frame;
   while (running_.load(std::memory_order_acquire)) {
-    if (!result_queue_.try_pop(frame)) {
-      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    if (!tracked_frame_queue_.wait()) {
+      break;
+    }
+    if (!tracked_frame_queue_.try_pop(frame)) {
       continue;
     }
-
     const int64_t frame_ts_ns = frame->timestamp_ns();
     pop_imu_data_until(frame_ts_ns, imu_data_buffer_);
     process(frame, imu_data_buffer_);
@@ -195,67 +192,37 @@ void StereoVIO::pop_imu_data_until(int64_t               timestamp_ns,
   imu_data.clear();
 
   auto append_sample = [&](const ImuData& sample) {
-    if (!imu_data.empty() && sample.t_ns <= imu_data.back().t_ns) {
-      return;
+    if (imu_data.empty() || sample.t_ns > imu_data.back().t_ns) {
+      imu_data.push_back(sample);
     }
-    imu_data.push_back(sample);
   };
 
-  bool    has_before = false;
-  ImuData before;
-  if (has_last_frame_imu_) {
-    append_sample(last_frame_imu_);
-    before     = last_frame_imu_;
-    has_before = true;
+  if (last_frame_imu_) {
+    append_sample(*last_frame_imu_);
   }
 
-  auto consume_before = [&](const ImuData& sample) {
-    append_sample(sample);
-    before     = sample;
-    has_before = true;
+  const auto is_before = [&](const ImuData& sample) {
+    return sample.t_ns <= timestamp_ns;
   };
-
-  bool    has_after = false;
-  ImuData after;
-
-  if (has_pending_imu_) {
-    if (pending_imu_.t_ns <= timestamp_ns) {
-      consume_before(pending_imu_);
-      has_pending_imu_ = false;
-    }
-    else {
-      after     = pending_imu_;
-      has_after = true;
-    }
-  }
 
   ImuData imu;
-  while (!has_after && imu_queue_.try_pop(imu)) {
-    imu_queue_size_.fetch_sub(1, std::memory_order_relaxed);
-    if (imu.t_ns <= timestamp_ns) {
-      consume_before(imu);
-      continue;
-    }
-
-    pending_imu_     = imu;
-    has_pending_imu_ = true;
-    after            = imu;
-    has_after        = true;
-    break;
+  while (imu_queue_.try_pop_if(imu, is_before)) {
+    append_sample(imu);
   }
 
-  if (!has_before) {
+  if (imu_data.empty()) {
     return;
   }
 
-  ImuData frame_imu = before;
-  if (before.t_ns < timestamp_ns && has_after) {
-    frame_imu = interpolate_imu_data(before, after, timestamp_ns);
+  ImuData frame_imu = imu_data.back();
+  ImuData next;
+  if (frame_imu.t_ns < timestamp_ns && imu_queue_.try_peek(next)
+      && next.t_ns > timestamp_ns) {
+    frame_imu = interpolate_imu_data(frame_imu, next, timestamp_ns);
     append_sample(frame_imu);
   }
 
-  last_frame_imu_     = frame_imu;
-  has_last_frame_imu_ = true;
+  last_frame_imu_ = frame_imu;
 }
 
 bool StereoVIO::initialize(std::shared_ptr<Frame>&     frame,
