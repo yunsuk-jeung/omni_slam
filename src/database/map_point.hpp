@@ -5,7 +5,7 @@
 
 #include <Eigen/Dense>
 
-#include "utils/types.hpp"
+#include "omni_slam/types.hpp"
 namespace omni_slam {
 
 class Frame;

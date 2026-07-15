@@ -13,9 +13,9 @@
 #include <opencv2/core.hpp>
 #include <tbb/concurrent_queue.h>
 
-#include "odometry/odometry.hpp"
-#include "odometry/odometry_result.hpp"
-#include "utils/types.hpp"
+#include "omni_slam/odometry.hpp"
+#include "omni_slam/odometry_result.hpp"
+#include "omni_slam/types.hpp"
 
 namespace omni_slam {
 class TrackingResult;

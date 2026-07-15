@@ -3,7 +3,7 @@
 #include <memory>
 
 #include "device/dataset_types.hpp"
-#include "utils/types.hpp"
+#include "omni_slam/types.hpp"
 
 namespace omni_slam {
 

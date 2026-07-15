@@ -2,6 +2,7 @@
 add_library(omni_utils INTERFACE)
 
 target_include_directories(omni_utils INTERFACE
+  ${CMAKE_SOURCE_DIR}/include
   ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
@@ -53,8 +54,8 @@ if(OMNI_BUILD_STEREO_VO)
     ${CMAKE_CURRENT_SOURCE_DIR}/feature_tracking/optical_flow.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/config/svo_config.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/camera_model/camera_model.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/database/Frame.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/database/MapPoint.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/database/frame.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/database/map_point.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/odometry/sliding_window.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/odometry/stereo_vo.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/optimizer/vo_estimator.cpp
@@ -74,8 +75,8 @@ if(OMNI_BUILD_STEREO_VIO)
     ${CMAKE_CURRENT_SOURCE_DIR}/config/svo_config.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/config/svio_config.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/camera_model/camera_model.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/database/Frame.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/database/MapPoint.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/database/frame.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/database/map_point.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/odometry/imu_preintegration.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/odometry/sliding_window.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/odometry/stereo_vio.cpp

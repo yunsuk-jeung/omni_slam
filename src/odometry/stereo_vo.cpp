@@ -9,11 +9,11 @@
 #include <opencv2/imgproc.hpp>
 
 #include "config/svo_config.hpp"
-#include "database/Frame.hpp"
-#include "database/MapPoint.hpp"
+#include "database/frame.hpp"
+#include "database/map_point.hpp"
 #include "feature_tracking/optical_flow.hpp"
 #include "odometry/sliding_window.hpp"
-#include "odometry/stereo_vo.hpp"
+#include "omni_slam/stereo_vo.hpp"
 #include "optimizer/geometry.hpp"
 #include "optimizer/vo_estimator.hpp"
 #include "utils/logger.hpp"

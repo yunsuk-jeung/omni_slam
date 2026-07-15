@@ -11,7 +11,7 @@
 #include <opencv2/video/tracking.hpp>
 
 #include "config/svo_config.hpp"
-#include "database/Frame.hpp"
+#include "database/frame.hpp"
 #include "feature_tracking/optical_flow.hpp"
 #include "utils/logger.hpp"
 

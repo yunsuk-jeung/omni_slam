@@ -7,7 +7,7 @@
 #include <Eigen/Dense>
 #include <opencv2/core/core.hpp>
 
-#include "utils/types.hpp"
+#include "omni_slam/types.hpp"
 
 namespace omni_slam {
 

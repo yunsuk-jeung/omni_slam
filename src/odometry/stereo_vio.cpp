@@ -10,11 +10,11 @@
 #include <opencv2/imgproc.hpp>
 
 #include "config/svio_config.hpp"
-#include "database/Frame.hpp"
-#include "database/MapPoint.hpp"
+#include "database/frame.hpp"
+#include "database/map_point.hpp"
 #include "feature_tracking/optical_flow.hpp"
 #include "odometry/sliding_window.hpp"
-#include "odometry/stereo_vio.hpp"
+#include "omni_slam/stereo_vio.hpp"
 #include "optimizer/geometry.hpp"
 #include "optimizer/vio_estimator.hpp"
 #include "utils/logger.hpp"

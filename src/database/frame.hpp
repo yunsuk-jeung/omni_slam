@@ -8,7 +8,7 @@
 #include <sophus/se3.hpp>
 
 #include "camera_model/camera_model.hpp"
-#include "utils/types.hpp"
+#include "omni_slam/types.hpp"
 
 namespace omni_slam {
 class TrackingResult;

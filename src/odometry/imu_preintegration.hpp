@@ -6,8 +6,8 @@
 
 #include <sophus/so3.hpp>
 
+#include "omni_slam/types.hpp"
 #include "utils/eigen_utils.hpp"
-#include "utils/types.hpp"
 
 namespace omni_slam {
 struct InertialState {

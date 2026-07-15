@@ -1,8 +1,8 @@
 
 #include <unordered_set>
 
-#include "database/Frame.hpp"
-#include "database/MapPoint.hpp"
+#include "database/frame.hpp"
+#include "database/map_point.hpp"
 #include "feature_tracking/tracking_result.hpp"
 #include "odometry/sliding_window.hpp"
 

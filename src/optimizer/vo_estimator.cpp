@@ -7,8 +7,8 @@
 #include <ceres/ceres.h>
 
 #include "config/svo_config.hpp"
-#include "database/Frame.hpp"
-#include "database/MapPoint.hpp"
+#include "database/frame.hpp"
+#include "database/map_point.hpp"
 #include "odometry/sliding_window.hpp"
 #include "optimizer/cost_function.hpp"
 #include "optimizer/marginalizer.hpp"

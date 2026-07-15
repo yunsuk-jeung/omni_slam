@@ -13,10 +13,10 @@
 
 #include "device/dataset_simulator.hpp"
 #include "device/euroc_loader.hpp"
-#include "odometry/odometry_result.hpp"
-#include "odometry/stereo_vo.hpp"
+#include "omni_slam/odometry_result.hpp"
+#include "omni_slam/stereo_vo.hpp"
+#include "omni_slam/types.hpp"
 #include "utils/logger.hpp"
-#include "utils/types.hpp"
 
 namespace {
 

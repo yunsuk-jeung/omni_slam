@@ -2,7 +2,7 @@
 #include <utility>
 
 #include "config/svo_config.hpp"
-#include "database/Frame.hpp"
+#include "database/frame.hpp"
 #include "feature_tracking/tracking_result.hpp"
 
 namespace omni_slam {

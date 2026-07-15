@@ -5,8 +5,8 @@
 
 #include "camera_model/camera_model.hpp"
 #include "config/svo_config.hpp"
+#include "omni_slam/types.hpp"
 #include "utils/logger.hpp"
-#include "utils/types.hpp"
 
 namespace omni_slam {
 bool             SVOConfig::debug                             = false;

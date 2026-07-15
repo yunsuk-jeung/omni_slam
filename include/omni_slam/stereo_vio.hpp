@@ -14,10 +14,10 @@
 #include <tbb/concurrent_queue.h>
 
 #include "odometry/imu_preintegration.hpp"
-#include "odometry/odometry.hpp"
-#include "odometry/odometry_result.hpp"
+#include "omni_slam/odometry.hpp"
+#include "omni_slam/odometry_result.hpp"
+#include "omni_slam/types.hpp"
 #include "utils/eigen_utils.hpp"
-#include "utils/types.hpp"
 
 namespace omni_slam {
 class TrackingResult;
