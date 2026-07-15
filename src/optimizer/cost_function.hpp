@@ -662,20 +662,20 @@ struct ImuPreintegrationCostAuto {
     const ImuPreintegration& preintegration,
     const Eigen::Vector3d&   gravity_vector_w,
     ResidualSqrtScale        residual_sqrt_scale = ResidualSqrtScale::Ones())
-    : delta_r_(preintegration.get_delta_r())
-    , delta_v_(preintegration.get_delta_v())
-    , delta_p_(preintegration.get_delta_p())
-    , dt_(preintegration.get_delta_time_sec())
-    , bias_acc_ref_(preintegration.get_bias_acc())
-    , bias_gyr_ref_(preintegration.get_bias_gyr())
-    , j_delta_r_dbg_(preintegration.get_j_delta_r_dbg())
-    , j_delta_v_dba_(preintegration.get_j_delta_vd_ba())
-    , j_delta_v_dbg_(preintegration.get_j_delta_v_dbg())
-    , j_delta_p_dba_(preintegration.get_j_delta_pd_ba())
-    , j_delta_p_dbg_(preintegration.get_j_delta_p_dbg())
+    : delta_r_(preintegration.delta_r())
+    , delta_v_(preintegration.delta_v())
+    , delta_p_(preintegration.delta_p())
+    , dt_(preintegration.delta_time_sec())
+    , bias_acc_ref_(preintegration.bias_acc())
+    , bias_gyr_ref_(preintegration.bias_gyr())
+    , j_delta_r_dbg_(preintegration.j_delta_r_dbg())
+    , j_delta_v_dba_(preintegration.j_delta_vd_ba())
+    , j_delta_v_dbg_(preintegration.j_delta_v_dbg())
+    , j_delta_p_dba_(preintegration.j_delta_pd_ba())
+    , j_delta_p_dbg_(preintegration.j_delta_p_dbg())
     , gravity_vector_w_(gravity_vector_w) {
     sqrt_information_.setIdentity();
-    const auto                   information = preintegration.get_information();
+    const auto                   information = preintegration.information();
     Eigen::LLT<Eigen::Matrix15d> llt(information);
     if (llt.info() == Eigen::Success) {
       sqrt_information_ = llt.matrixL().transpose();
@@ -791,20 +791,20 @@ class ImuPreintegrationCost final
     const ImuPreintegration& preintegration,
     const Eigen::Vector3d&   gravity_vector_w,
     ResidualSqrtScale        residual_sqrt_scale = ResidualSqrtScale::Ones())
-    : delta_r_(preintegration.get_delta_r())
-    , delta_v_(preintegration.get_delta_v())
-    , delta_p_(preintegration.get_delta_p())
-    , dt_(preintegration.get_delta_time_sec())
-    , bias_acc_ref_(preintegration.get_bias_acc())
-    , bias_gyr_ref_(preintegration.get_bias_gyr())
-    , j_delta_r_dbg_(preintegration.get_j_delta_r_dbg())
-    , j_delta_v_dba_(preintegration.get_j_delta_vd_ba())
-    , j_delta_v_dbg_(preintegration.get_j_delta_v_dbg())
-    , j_delta_p_dba_(preintegration.get_j_delta_pd_ba())
-    , j_delta_p_dbg_(preintegration.get_j_delta_p_dbg())
+    : delta_r_(preintegration.delta_r())
+    , delta_v_(preintegration.delta_v())
+    , delta_p_(preintegration.delta_p())
+    , dt_(preintegration.delta_time_sec())
+    , bias_acc_ref_(preintegration.bias_acc())
+    , bias_gyr_ref_(preintegration.bias_gyr())
+    , j_delta_r_dbg_(preintegration.j_delta_r_dbg())
+    , j_delta_v_dba_(preintegration.j_delta_vd_ba())
+    , j_delta_v_dbg_(preintegration.j_delta_v_dbg())
+    , j_delta_p_dba_(preintegration.j_delta_pd_ba())
+    , j_delta_p_dbg_(preintegration.j_delta_p_dbg())
     , gravity_vector_w_(gravity_vector_w) {
     sqrt_information_.setIdentity();
-    const auto                   information = preintegration.get_information();
+    const auto                   information = preintegration.information();
     Eigen::LLT<Eigen::Matrix15d> llt(information);
     if (llt.info() == Eigen::Success) {
       sqrt_information_ = llt.matrixL().transpose();

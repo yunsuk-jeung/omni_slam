@@ -19,27 +19,27 @@ class VioLoader {
   virtual void reset() = 0;
 
   // Camera data access
-  virtual bool        has_camera_data() const        = 0;
-  virtual CameraFrame get_next_camera_frame()        = 0;
-  virtual size_t      get_camera_frame_count() const = 0;
+  virtual bool        has_camera_data() const    = 0;
+  virtual CameraFrame get_next_camera_frame()    = 0;
+  virtual size_t      camera_frame_count() const = 0;
 
   // IMU data access
-  virtual bool    has_imu_data() const              = 0;
-  virtual ImuData get_next_imu_measurement()        = 0;
-  virtual size_t  get_imu_measurement_count() const = 0;
+  virtual bool    has_imu_data() const          = 0;
+  virtual ImuData get_next_imu_measurement()    = 0;
+  virtual size_t  imu_measurement_count() const = 0;
 
   // Ground truth data access (optional - may not exist in all datasets)
-  virtual bool            has_ground_truth_data() const       = 0;
-  virtual GroundTruthPose get_next_ground_truth_pose()        = 0;
-  virtual size_t          get_ground_truth_pose_count() const = 0;
+  virtual bool            has_ground_truth_data() const   = 0;
+  virtual GroundTruthPose get_next_ground_truth_pose()    = 0;
+  virtual size_t          ground_truth_pose_count() const = 0;
 
   // Get timestamp range for synchronization purposes
-  virtual int64_t get_start_timestamp_ns() const = 0;
-  virtual int64_t get_end_timestamp_ns() const   = 0;
+  virtual int64_t start_timestamp_ns() const = 0;
+  virtual int64_t end_timestamp_ns() const   = 0;
 
   // Dataset metadata
-  virtual std::string get_dataset_name() const = 0;
-  virtual bool        is_stereo() const        = 0;
+  virtual std::string dataset_name() const = 0;
+  virtual bool        is_stereo() const    = 0;
 };
 
 // Supported dataset types

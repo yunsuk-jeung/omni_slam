@@ -44,16 +44,16 @@ class DatasetSimulator final : public DeviceInterface {
     }
   }
 
-  void set_camera_callback(CameraCallback callback) override {
+  void camera_callback(CameraCallback callback) override {
     camera_callback_ = std::move(callback);
   }
 
-  void set_imu_callback(ImuCallback callback) override {
+  void imu_callback(ImuCallback callback) override {
     imu_callback_ = std::move(callback);
   }
 
-  void set_realtime(bool realtime) { realtime_ = realtime; }
-  void set_speed(double speed) { speed_ = speed; }
+  void realtime(bool realtime) { realtime_ = realtime; }
+  void speed(double speed) { speed_ = speed; }
 
  private:
   void feed_images() {

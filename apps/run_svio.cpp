@@ -171,14 +171,14 @@ int main(int argc, char** argv) {
   log_origin_axes(rec);
 
   omni_slam::DatasetSimulator simulator(loader);
-  simulator.set_camera_callback(
+  simulator.camera_callback(
     [&stereo_vio](int64_t                     timestamp_ns,
                   const std::vector<cv::Mat>& images,
                   const std::vector<omni_slam::CameraParameter>&
                     camera_parameters) {
       stereo_vio.on_camera_frame(timestamp_ns, images, camera_parameters);
     });
-  simulator.set_imu_callback([&stereo_vio](const omni_slam::ImuData& imu_data) {
+  simulator.imu_callback([&stereo_vio](const omni_slam::ImuData& imu_data) {
     stereo_vio.on_imu_data(imu_data);
   });
 

@@ -31,7 +31,7 @@ class CameraModelBase {
   virtual bool unproject(const cv::Point2f& uv, Eigen::Vector3d& bearing_) = 0;
 
  protected:
-  void set_intrinsics(const std::array<double, 4>& intrinsics) {
+  void intrinsics(const std::array<double, 4>& intrinsics) {
     cv_K_ = (cv::Mat_<double>(3, 3) << intrinsics[0],
              0.0,
              intrinsics[2],
@@ -47,7 +47,7 @@ class CameraModelBase {
     cy_   = intrinsics[3];
   }
 
-  virtual void set_distortions(const std::vector<double>& distortions) = 0;
+  virtual void distortions(const std::vector<double>& distortions) = 0;
 
   cv::Mat cv_K_, cv_D_;
   double  fx_{0.0}, fy_{0.0}, cx_{0.0}, cy_{0.0};

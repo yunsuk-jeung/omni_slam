@@ -10,8 +10,8 @@ class PinholeRadialTangential : public CameraModelBase {
 
   PinholeRadialTangential() = default;
   explicit PinholeRadialTangential(const CameraParameter& params) {
-    set_intrinsics(params.intrinsics);
-    set_distortions(params.distortions);
+    intrinsics(params.intrinsics);
+    distortions(params.distortions);
   }
   ~PinholeRadialTangential() = default;
 
@@ -112,7 +112,7 @@ class PinholeRadialTangential : public CameraModelBase {
   };
 
  protected:
-  void set_distortions(const std::vector<double>& distortions) override {
+  void distortions(const std::vector<double>& distortions) override {
     if (distortions.size() >= 4) {
       cv_D_           = (cv::Mat_<double>(1, 4) << distortions[0],
                distortions[1],

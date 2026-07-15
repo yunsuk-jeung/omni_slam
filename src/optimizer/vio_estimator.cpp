@@ -143,12 +143,12 @@ static AddImuFactorResult add_imu_factor(
   const ImuPreintegration&                          preintegration,
   const Eigen::Matrix<double, kImuResidualSize, 1>& residual_sqrt_scale,
   ImuCostType                                       cost_type) {
-  if (preintegration.get_delta_time_sec() <= 0.0) {
+  if (preintegration.delta_time_sec() <= 0.0) {
     return AddImuFactorResult::kSkippedDt;
   }
 
-  const uint64_t from_id = preintegration.get_from_frame_id();
-  const uint64_t to_id   = preintegration.get_to_frame_id();
+  const uint64_t from_id = preintegration.from_frame_id();
+  const uint64_t to_id   = preintegration.to_frame_id();
   if (!blocks.has_frame(from_id) || !blocks.has_frame(to_id)
       || !blocks.has_inertial_state(from_id)
       || !blocks.has_inertial_state(to_id)) {
@@ -195,15 +195,15 @@ static void add_bearing_residuals_for_map_point(
   double*                          bearing_param,
   double*                          inv_dist_param,
   bool                             robustify_host_prior) {
-  const FrameCamId frame_cam_id0 = mp->get_host_frame_cam_id();
-  auto             frame0        = window->get_frame(frame_cam_id0.frame_id);
+  const FrameCamId frame_cam_id0 = mp->host_frame_cam_id();
+  auto             frame0        = window->frame(frame_cam_id0.frame_id);
   if (!frame0 || !blocks.has_frame(frame_cam_id0.frame_id)) {
     return;
   }
 
-  const Sophus::SE3d& T_b_c0       = frame0->get_tbc(frame_cam_id0.cam_id);
+  const Sophus::SE3d& T_b_c0       = frame0->tbc(frame_cam_id0.cam_id);
   double*             pose_param0  = blocks.pose_param(frame_cam_id0.frame_id);
-  const auto&         observations = mp->get_observation();
+  const auto&         observations = mp->observation();
 
   const auto host_obs_it = observations.find(frame_cam_id0);
   if (host_obs_it != observations.end()) {
@@ -224,12 +224,12 @@ static void add_bearing_residuals_for_map_point(
       continue;
     }
 
-    auto frame1 = window->get_frame(frame_cam_id1.frame_id);
+    auto frame1 = window->frame(frame_cam_id1.frame_id);
     if (!frame1) {
       continue;
     }
 
-    const Sophus::SE3d& T_b_c1 = frame1->get_tbc(frame_cam_id1.cam_id);
+    const Sophus::SE3d& T_b_c1 = frame1->tbc(frame_cam_id1.cam_id);
 
     ceres::LossFunction* loss =
       new ceres::HuberLoss(SVOConfig::bearing_huber_const);
@@ -365,30 +365,30 @@ void VIOEstimator::optimize_single_frame(std::shared_ptr<Frame> frame,
     return;
   }
 
-  Eigen::Vector6d box_w_b = SE3BoxplusManifold::to_params(frame->get_twb());
+  Eigen::Vector6d box_w_b = SE3BoxplusManifold::to_params(frame->twb());
 
   ceres::Problem problem;
   auto*          se3_box_plus_manifold = new SE3BoxplusManifold();
   problem.AddParameterBlock(box_w_b.data(), kPoseSize, se3_box_plus_manifold);
 
-  auto& mp_id_to_bearing = frame->get_observation(kCamIdx);
+  auto& mp_id_to_bearing = frame->observation(kCamIdx);
 
   for (auto& [mp_id, bearing] : mp_id_to_bearing) {
-    std::shared_ptr<MapPoint> mp = window->get_map_point(mp_id);
-    if (!mp || mp->get_status() < MapPoint::Status::TRACKING) {
+    std::shared_ptr<MapPoint> mp = window->map_point(mp_id);
+    if (!mp || mp->status() < MapPoint::Status::TRACKING) {
       continue;
     }
 
     std::shared_ptr<Frame> host_frame =
-      window->get_frame(mp->get_host_frame_cam_id().frame_id);
+      window->frame(mp->host_frame_cam_id().frame_id);
     if (!host_frame) {
       continue;
     }
 
-    const Sophus::SE3d    Twc0  = host_frame->get_twc(kCamIdx);
-    const Eigen::Vector3d p_c0  = mp->get_bearing() / mp->get_inv_dist();
+    const Sophus::SE3d    Twc0  = host_frame->twc(kCamIdx);
+    const Eigen::Vector3d p_c0  = mp->bearing() / mp->inv_dist();
     const Eigen::Vector3d p_w   = Twc0 * p_c0;
-    const Sophus::SE3d&   T_b_c = frame->get_tbc(kCamIdx);
+    const Sophus::SE3d&   T_b_c = frame->tbc(kCamIdx);
 
     ceres::CostFunction* cost =
       new PoseOnlyBearingCost(p_w,
@@ -409,7 +409,7 @@ void VIOEstimator::optimize_single_frame(std::shared_ptr<Frame> frame,
   ceres::Solver::Summary summary;
   ceres::Solve(options, &problem, &summary);
 
-  frame->set_twb(SE3BoxplusManifold::from_params(box_w_b.data()));
+  frame->twb(SE3BoxplusManifold::from_params(box_w_b.data()));
 }
 
 VIOEstimator::VIOEstimator()
@@ -466,8 +466,8 @@ void VIOEstimator::optimize_window(
     return;
   }
 
-  const auto& frames     = window->get_frames();
-  const auto& map_points = window->get_map_points();
+  const auto& frames     = window->frames();
+  const auto& map_points = window->map_points();
 
   if (frames.size() < 3) {
     return;
@@ -479,7 +479,7 @@ void VIOEstimator::optimize_window(
   WindowBlocks blocks;
   blocks.pose_params.reserve(frames.size());
   for (const auto& [frame_id, frame] : frames) {
-    blocks.add_pose(frame_id, frame->get_twb());
+    blocks.add_pose(frame_id, frame->twb());
   }
   register_pose_blocks(problem, blocks);
 
@@ -504,18 +504,18 @@ void VIOEstimator::optimize_window(
   std::unordered_map<uint64_t, size_t> mp_id_to_index;
   std::vector<Eigen::Vector3d>         bearing_params;
   std::vector<double>                  inv_dist_params;
-  bearing_params.reserve(window->get_map_point_count());
-  inv_dist_params.reserve(window->get_map_point_count());
+  bearing_params.reserve(window->map_point_count());
+  inv_dist_params.reserve(window->map_point_count());
 
   for (const auto& [mp_id, mp] : map_points) {
     mp_id_to_index[mp_id] = bearing_params.size();
-    bearing_params.push_back(mp->get_bearing());
-    inv_dist_params.push_back(sanitize_inv_dist(mp->get_inv_dist()));
+    bearing_params.push_back(mp->bearing());
+    inv_dist_params.push_back(sanitize_inv_dist(mp->inv_dist()));
   }
   register_map_point_blocks(problem, bearing_params, inv_dist_params);
   {
     std::string window_ids_str;
-    for (const auto& fid : window->get_frame_ids()) {
+    for (const auto& fid : window->frame_ids()) {
       window_ids_str += std::to_string(fid) + ",";
     }
     LogI("OptimizeWindow: window=[{}], prior_frames=[{}], prior_preints=[{}]",
@@ -528,10 +528,10 @@ void VIOEstimator::optimize_window(
                                          blocks);
 
   for (const auto& [mp_id, mp] : map_points) {
-    if (mp->get_status() < MapPoint::Status::TRACKING) {
+    if (mp->status() < MapPoint::Status::TRACKING) {
       continue;
     }
-    const double inv_dist = mp->get_inv_dist();
+    const double inv_dist = mp->inv_dist();
     if (!std::isfinite(inv_dist) || inv_dist <= 0.0) {
       continue;
     }
@@ -556,8 +556,7 @@ void VIOEstimator::optimize_window(
   ceres::Solve(options, &problem, &summary);
 
   for (const auto& [frame_id, frame] : frames) {
-    frame->set_twb(
-      SE3BoxplusManifold::from_params(blocks.pose_param(frame_id)));
+    frame->twb(SE3BoxplusManifold::from_params(blocks.pose_param(frame_id)));
   }
 
   for (const auto& [frame_id, idx] : blocks.inertial_id_to_index) {
@@ -571,7 +570,7 @@ void VIOEstimator::optimize_window(
   }
 
   for (const auto& [mp_id, idx] : mp_id_to_index) {
-    std::shared_ptr<MapPoint> mp = window->get_map_point(mp_id);
+    std::shared_ptr<MapPoint> mp = window->map_point(mp_id);
     if (!mp) {
       continue;
     }
@@ -579,9 +578,8 @@ void VIOEstimator::optimize_window(
     if (b.norm() > 0.0) {
       b.normalize();
     }
-    mp->get_bearing() = b;
-    mp->set_inv_dist(
-      std::max(inv_dist_params[idx], SVOConfig::inv_dist_min_value));
+    mp->bearing() = b;
+    mp->inv_dist(std::max(inv_dist_params[idx], SVOConfig::inv_dist_min_value));
   }
 }
 
@@ -604,7 +602,7 @@ void VIOEstimator::marginalize(
        join_ids(marginalization_prior_->preintegration_ids_));
   {
     std::string window_ids_str;
-    for (const auto& fid : window->get_frame_ids()) {
+    for (const auto& fid : window->frame_ids()) {
       window_ids_str += std::to_string(fid) + ",";
     }
     LogI("  window frame_ids: [{}]", window_ids_str);
@@ -612,7 +610,7 @@ void VIOEstimator::marginalize(
 
   // Contract check: preintegration map key must be from_id.
   for (const auto& [from_id, preintegration] : imu_preintegrations) {
-    OMNI_ASSERT_MESSAGE(preintegration.get_from_frame_id() == from_id,
+    OMNI_ASSERT_MESSAGE(preintegration.from_frame_id() == from_id,
                         "preintegration key must be from_id");
   }
 
@@ -625,18 +623,18 @@ void VIOEstimator::marginalize(
     }
   }
 
-  auto& mp_id_to_mp = window->get_map_points();
+  auto& mp_id_to_mp = window->map_points();
 
   std::vector<std::shared_ptr<MapPoint>> marginal_map_points;
   marginal_map_points.reserve(mp_id_to_mp.size());
   for (auto& [_, mp] : mp_id_to_mp) {
-    if (marginal_frame_ids.count(mp->get_host_frame_cam_id().frame_id) > 0) {
+    if (marginal_frame_ids.count(mp->host_frame_cam_id().frame_id) > 0) {
       marginal_map_points.push_back(mp);
     }
   }
 
   for (const auto& mp : marginal_map_points) {
-    auto& frame_cam_id_to_bearing = mp->get_observation();
+    auto& frame_cam_id_to_bearing = mp->observation();
     for (const auto& [frame_cam_id, _] : frame_cam_id_to_bearing) {
       if (marginal_frame_ids.count(frame_cam_id.frame_id) > 0) {
         continue;
@@ -661,8 +659,8 @@ void VIOEstimator::marginalize(
 
   auto imu_factor_touches_marginal =
     [&](const ImuPreintegration& preintegration) {
-      const uint64_t from_id = preintegration.get_from_frame_id();
-      const uint64_t to_id   = preintegration.get_to_frame_id();
+      const uint64_t from_id = preintegration.from_frame_id();
+      const uint64_t to_id   = preintegration.to_frame_id();
       return marginal_inertial_ids.count(from_id) > 0
              || marginal_inertial_ids.count(to_id) > 0
              || marginal_frame_ids.count(from_id) > 0
@@ -684,8 +682,8 @@ void VIOEstimator::marginalize(
     if (!imu_factor_touches_marginal(preintegration)) {
       continue;
     }
-    const uint64_t from_id = preintegration.get_from_frame_id();
-    const uint64_t to_id   = preintegration.get_to_frame_id();
+    const uint64_t from_id = preintegration.from_frame_id();
+    const uint64_t to_id   = preintegration.to_frame_id();
     add_remain_inertial_if_active(from_id);
     add_remain_inertial_if_active(to_id);
   }
@@ -693,13 +691,13 @@ void VIOEstimator::marginalize(
   // Ensure pose blocks exist for all inertial states.
   for (const uint64_t id : marginal_inertial_ids) {
     if (marginal_frame_ids.count(id) == 0 && remain_frame_ids.count(id) == 0
-        && window->get_frame(id)) {
+        && window->frame(id)) {
       remain_frame_ids.insert(id);
     }
   }
   for (const uint64_t id : remain_inertial_ids) {
     if (marginal_frame_ids.count(id) == 0 && remain_frame_ids.count(id) == 0
-        && window->get_frame(id)) {
+        && window->frame(id)) {
       remain_frame_ids.insert(id);
     }
   }
@@ -713,13 +711,13 @@ void VIOEstimator::marginalize(
   blocks.pose_params.reserve(marginal_frame_ids.size()
                              + remain_frame_ids.size());
   for (const auto& frame_id : marginal_frame_ids) {
-    if (auto frame = window->get_frame(frame_id)) {
-      blocks.add_pose(frame_id, frame->get_twb());
+    if (auto frame = window->frame(frame_id)) {
+      blocks.add_pose(frame_id, frame->twb());
     }
   }
   for (const auto& frame_id : remain_frame_ids) {
-    if (auto frame = window->get_frame(frame_id)) {
-      blocks.add_pose(frame_id, frame->get_twb());
+    if (auto frame = window->frame(frame_id)) {
+      blocks.add_pose(frame_id, frame->twb());
     }
   }
   register_pose_blocks(problem, blocks);
@@ -754,8 +752,8 @@ void VIOEstimator::marginalize(
   inv_dist_params.reserve(marginal_map_points.size());
 
   for (const auto& map_point : marginal_map_points) {
-    bearing_params.push_back(map_point->get_bearing());
-    inv_dist_params.push_back(sanitize_inv_dist(map_point->get_inv_dist()));
+    bearing_params.push_back(map_point->bearing());
+    inv_dist_params.push_back(sanitize_inv_dist(map_point->inv_dist()));
   }
   register_map_point_blocks(problem, bearing_params, inv_dist_params);
 
@@ -765,7 +763,7 @@ void VIOEstimator::marginalize(
 
   for (size_t i = 0; i < marginal_map_points.size(); ++i) {
     const std::shared_ptr<MapPoint>& mp = marginal_map_points[i];
-    if (!mp || mp->get_status() < MapPoint::Status::TRACKING) {
+    if (!mp || mp->status() < MapPoint::Status::TRACKING) {
       continue;
     }
     add_bearing_residuals_for_map_point(problem,
@@ -784,7 +782,7 @@ void VIOEstimator::marginalize(
   size_t marginal_imu_skip_keep    = 0;
   for (const auto& [_, preintegration] : imu_preintegrations) {
     ++marginal_imu_total;
-    if (preintegration.get_delta_time_sec() <= 0.0) {
+    if (preintegration.delta_time_sec() <= 0.0) {
       ++marginal_imu_skip_dt;
       continue;
     }

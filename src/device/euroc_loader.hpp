@@ -22,20 +22,20 @@ class EurocLoader : public VioLoader {
 
   bool        has_camera_data() const override;
   CameraFrame get_next_camera_frame() override;
-  size_t      get_camera_frame_count() const override;
+  size_t      camera_frame_count() const override;
 
   bool    has_imu_data() const override;
   ImuData get_next_imu_measurement() override;
-  size_t  get_imu_measurement_count() const override;
+  size_t  imu_measurement_count() const override;
 
   bool            has_ground_truth_data() const override;
   GroundTruthPose get_next_ground_truth_pose() override;
-  size_t          get_ground_truth_pose_count() const override;
+  size_t          ground_truth_pose_count() const override;
 
-  int64_t get_start_timestamp_ns() const override;
-  int64_t get_end_timestamp_ns() const override;
+  int64_t start_timestamp_ns() const override;
+  int64_t end_timestamp_ns() const override;
 
-  std::string get_dataset_name() const override;
+  std::string dataset_name() const override;
   bool        is_stereo() const override;
 
  private:

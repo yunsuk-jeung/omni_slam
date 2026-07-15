@@ -48,9 +48,8 @@ class ImuPreintegration {
                     const Parameters&      parameters);
 
   void reset(const Eigen::Vector3d& bias_acc, const Eigen::Vector3d& bias_gyr);
-  void set_bias(const Eigen::Vector3d& bias_acc,
-                const Eigen::Vector3d& bias_gyr);
-  void set_parameters(const Parameters& parameters);
+  void bias(const Eigen::Vector3d& bias_acc, const Eigen::Vector3d& bias_gyr);
+  void parameters(const Parameters& parameters);
 
   bool integrate_measurement(const ImuData& imu0, const ImuData& imu1);
   bool integrate_measurements(const std::vector<ImuData>& imu_data);
@@ -63,36 +62,35 @@ class ImuPreintegration {
   bool repropagate(const Eigen::Vector3d& bias_acc,
                    const Eigen::Vector3d& bias_gyr);
 
-  const std::vector<ImuData>& get_imu_measurements() const {
+  const std::vector<ImuData>& imu_measurements() const {
     return imu_measurements_;
   }
 
-  CorrectedDelta get_bias_corrected_delta(
-    const Eigen::Vector3d& bias_acc,
-    const Eigen::Vector3d& bias_gyr) const;
+  CorrectedDelta bias_corrected_delta(const Eigen::Vector3d& bias_acc,
+                                      const Eigen::Vector3d& bias_gyr) const;
 
-  Eigen::Matrix15d get_information(double damping = 1e-12) const;
+  Eigen::Matrix15d information(double damping = 1e-12) const;
 
-  const Sophus::SO3d&   get_delta_r() const { return delta_r_; }
-  const Eigen::Vector3d get_delta_v() const { return delta_v_; }
-  const Eigen::Vector3d get_delta_p() const { return delta_p_; }
-  double                get_delta_time_sec() const { return delta_t_sec_; }
+  const Sophus::SO3d&   delta_r() const { return delta_r_; }
+  const Eigen::Vector3d delta_v() const { return delta_v_; }
+  const Eigen::Vector3d delta_p() const { return delta_p_; }
+  double                delta_time_sec() const { return delta_t_sec_; }
 
-  const Eigen::Vector3d& get_bias_acc() const { return bias_acc_; }
-  const Eigen::Vector3d& get_bias_gyr() const { return bias_gyr_; }
-  uint64_t               get_from_frame_id() const { return from_frame_id_; }
-  uint64_t               get_to_frame_id() const { return to_frame_id_; }
+  const Eigen::Vector3d& bias_acc() const { return bias_acc_; }
+  const Eigen::Vector3d& bias_gyr() const { return bias_gyr_; }
+  uint64_t               from_frame_id() const { return from_frame_id_; }
+  uint64_t               to_frame_id() const { return to_frame_id_; }
 
-  const Eigen::Matrix15d& get_jacobian() const { return jacobian_; }
-  const Eigen::Matrix15d& get_covariance() const { return covariance_; }
+  const Eigen::Matrix15d& jacobian() const { return jacobian_; }
+  const Eigen::Matrix15d& covariance() const { return covariance_; }
 
-  Eigen::Matrix3d get_j_delta_r_dbg() const;
-  Eigen::Matrix3d get_j_delta_vd_ba() const;
-  Eigen::Matrix3d get_j_delta_v_dbg() const;
-  Eigen::Matrix3d get_j_delta_pd_ba() const;
-  Eigen::Matrix3d get_j_delta_p_dbg() const;
+  Eigen::Matrix3d j_delta_r_dbg() const;
+  Eigen::Matrix3d j_delta_vd_ba() const;
+  Eigen::Matrix3d j_delta_v_dbg() const;
+  Eigen::Matrix3d j_delta_pd_ba() const;
+  Eigen::Matrix3d j_delta_p_dbg() const;
 
-  size_t get_integration_step_count() const { return integration_steps_; }
+  size_t integration_step_count() const { return integration_steps_; }
 
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 

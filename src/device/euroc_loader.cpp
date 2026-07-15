@@ -76,9 +76,9 @@ bool EurocLoader::setup(const std::string& dataset_path) {
   initialized_ = true;
 
   Logger::info("EuRoC dataset loaded successfully:");
-  Logger::info("  Camera frames: {}", get_camera_frame_count());
-  Logger::info("  IMU measurements: {}", get_imu_measurement_count());
-  Logger::info("  Ground truth poses: {}", get_ground_truth_pose_count());
+  Logger::info("  Camera frames: {}", camera_frame_count());
+  Logger::info("  IMU measurements: {}", imu_measurement_count());
+  Logger::info("  Ground truth poses: {}", ground_truth_pose_count());
   Logger::info("  Stereo: {}", is_stereo_ ? "Yes" : "No");
 
   return true;
@@ -112,7 +112,7 @@ CameraFrame EurocLoader::get_next_camera_frame() {
   return frame;
 }
 
-size_t EurocLoader::get_camera_frame_count() const {
+size_t EurocLoader::camera_frame_count() const {
   return cam0_data_.size();
 }
 
@@ -129,7 +129,7 @@ ImuData EurocLoader::get_next_imu_measurement() {
   return imu_data_[imu_index_++];
 }
 
-size_t EurocLoader::get_imu_measurement_count() const {
+size_t EurocLoader::imu_measurement_count() const {
   return imu_data_.size();
 }
 
@@ -147,19 +147,19 @@ GroundTruthPose EurocLoader::get_next_ground_truth_pose() {
   return ground_truth_data_[ground_truth_index_++];
 }
 
-size_t EurocLoader::get_ground_truth_pose_count() const {
+size_t EurocLoader::ground_truth_pose_count() const {
   return ground_truth_data_.size();
 }
 
-int64_t EurocLoader::get_start_timestamp_ns() const {
+int64_t EurocLoader::start_timestamp_ns() const {
   return start_timestamp_ns_;
 }
 
-int64_t EurocLoader::get_end_timestamp_ns() const {
+int64_t EurocLoader::end_timestamp_ns() const {
   return end_timestamp_ns_;
 }
 
-std::string EurocLoader::get_dataset_name() const {
+std::string EurocLoader::dataset_name() const {
   return dataset_name_;
 }
 

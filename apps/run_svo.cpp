@@ -171,7 +171,7 @@ int main(int argc, char** argv) {
   log_origin_axes(rec);
 
   omni_slam::DatasetSimulator simulator(loader);
-  simulator.set_camera_callback(
+  simulator.camera_callback(
     [&stereo_vo](int64_t                     timestamp_ns,
                  const std::vector<cv::Mat>& images,
                  const std::vector<omni_slam::CameraParameter>&

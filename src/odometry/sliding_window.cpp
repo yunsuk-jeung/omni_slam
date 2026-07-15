@@ -10,22 +10,22 @@ namespace omni_slam {
 
 SlidingWindow::SlidingWindow(size_t max_size)
   : next_map_point_id_(0) {
-  set_max_size(max_size);
-}
-
-void SlidingWindow::set_max_size(size_t max_size) {
   max_size_ = max_size;
 }
 
-size_t SlidingWindow::get_max_size() const {
+void SlidingWindow::max_size(size_t max_size) {
+  max_size_ = max_size;
+}
+
+size_t SlidingWindow::max_size() const {
   return max_size_;
 }
 
-size_t SlidingWindow::get_frame_count() const {
+size_t SlidingWindow::frame_count() const {
   return frames_.size();
 }
 
-size_t SlidingWindow::get_map_point_count() const {
+size_t SlidingWindow::map_point_count() const {
   return map_points_.size();
 }
 
@@ -33,14 +33,14 @@ void SlidingWindow::add_frame(std::shared_ptr<Frame>& frame) {
   if (!frame) {
     return;
   }
-  const size_t id = frame->get_id();
+  const size_t id = frame->id();
   auto         it = frames_.find(id);
 
   frame_ids_.insert(id);
   frames_.emplace(id, frame);
 }
 
-std::shared_ptr<Frame> SlidingWindow::get_frame(const uint64_t& id) {
+std::shared_ptr<Frame> SlidingWindow::frame(const uint64_t& id) {
   const auto it = frames_.find(id);
   return (it == frames_.end()) ? nullptr : it->second;
 }
@@ -64,14 +64,13 @@ void SlidingWindow::remove_frames(const std::set<uint64_t>& frame_ids) {
         continue;
       }
 
-      if (to_remove.find(mp->get_host_frame_cam_id().frame_id)
-          != to_remove.end()) {
+      if (to_remove.find(mp->host_frame_cam_id().frame_id) != to_remove.end()) {
         removed_map_point_ids.insert(it->first);
         it = container.erase(it);
         continue;
       }
 
-      auto& observations = mp->get_observation();
+      auto& observations = mp->observation();
       for (auto obs_it = observations.begin(); obs_it != observations.end();) {
         if (to_remove.find(obs_it->first.frame_id) != to_remove.end()) {
           obs_it = observations.erase(obs_it);
@@ -113,13 +112,12 @@ void SlidingWindow::add_map_point(std::shared_ptr<MapPoint>& map_point) {
   if (!map_point) {
     return;
   }
-  const size_t id = map_point->get_id();
+  const size_t id = map_point->id();
   auto         it = map_points_.find(id);
   map_points_.emplace(id, map_point);
 }
 
-std::shared_ptr<MapPoint> SlidingWindow::get_map_point(
-  const uint64_t& id) const {
+std::shared_ptr<MapPoint> SlidingWindow::map_point(const uint64_t& id) const {
   const auto it = map_points_.find(id);
   return (it == map_points_.end()) ? nullptr : it->second;
 }
@@ -135,7 +133,7 @@ std::shared_ptr<MapPoint> SlidingWindow::get_or_create_map_point_candidate(
   return map_point;
 }
 
-bool SlidingWindow::get_has_map_point(const uint64_t& id) const {
+bool SlidingWindow::has_map_point(const uint64_t& id) const {
   const auto it = map_points_.find(id);
   return !(it == map_points_.end());
 }

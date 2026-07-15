@@ -156,7 +156,7 @@ TEST_F(ImuPreintegrationCostTest, PureRotationResidual) {
   auto         preint = make_preintegration(acc_meas, gyr_meas, dt, steps);
 
   const Sophus::SO3d R_i;
-  const Sophus::SO3d R_j = R_i * preint.get_delta_r();
+  const Sophus::SO3d R_j = R_i * preint.delta_r();
 
   const Sophus::SE3d    T_i(R_i, Eigen::Vector3d::Zero());
   const Sophus::SE3d    T_j(R_j, Eigen::Vector3d::Zero());
@@ -306,7 +306,7 @@ TEST_F(ImuPreintegrationCostTest, CovarianceDoesNotDependOnStepSubdivision) {
       imu1.gyr.setZero();
       preint.integrate_measurement(imu0, imu1);
     }
-    return preint.get_covariance();
+    return preint.covariance();
   };
 
   const Eigen::Matrix15d cov_10  = integrate(10);

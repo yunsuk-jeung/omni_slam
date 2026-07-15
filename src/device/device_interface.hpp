@@ -25,8 +25,8 @@ class DeviceInterface {
   virtual void start() = 0;
   virtual void stop()  = 0;
 
-  virtual void set_camera_callback(CameraCallback callback) = 0;
-  virtual void set_imu_callback(ImuCallback callback)       = 0;
+  virtual void camera_callback(CameraCallback callback) = 0;
+  virtual void imu_callback(ImuCallback callback)       = 0;
 };
 
 }  // namespace omni_slam

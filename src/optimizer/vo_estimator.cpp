@@ -54,34 +54,33 @@ static void add_marginalization_prior_if_available(
 void VOEstimator::optimize_single_frame(std::shared_ptr<Frame> frame,
                                         SlidingWindow*         window) {
   constexpr size_t kCamIdx     = 0;
-  auto&            mp_id_to_uv = frame->get_observation(kCamIdx);
-  auto&            T_w_b       = frame->get_twb();
-  auto&            T_b_c       = frame->get_tbc(kCamIdx);
+  auto&            mp_id_to_uv = frame->observation(kCamIdx);
+  auto&            T_w_b       = frame->twb();
+  auto&            T_b_c       = frame->tbc(kCamIdx);
 
-  Eigen::Vector6d box_w_b = SE3BoxplusManifold::to_params(frame->get_twb());
+  Eigen::Vector6d box_w_b = SE3BoxplusManifold::to_params(frame->twb());
 
   ceres::Problem      problem;
   SE3BoxplusManifold* se3_box_plus_manifold = new SE3BoxplusManifold();
   problem.AddParameterBlock(box_w_b.data(), kPoseSize, se3_box_plus_manifold);
 
-  auto& mp_id_to_bearing = frame->get_observation(kCamIdx);
+  auto& mp_id_to_bearing = frame->observation(kCamIdx);
 
   for (auto& [mp_id, bearing] : mp_id_to_bearing) {
-    std::shared_ptr<MapPoint> mp = window->get_map_point(mp_id);
+    std::shared_ptr<MapPoint> mp = window->map_point(mp_id);
 
-    if (!mp || mp->get_status() < MapPoint::Status::TRACKING) {
+    if (!mp || mp->status() < MapPoint::Status::TRACKING) {
       continue;
     }
 
-    std::shared_ptr<Frame> f0 =
-      window->get_frame(mp->get_host_frame_cam_id().frame_id);
-    Sophus::SE3d Twc = f0->get_twc(kCamIdx);
+    std::shared_ptr<Frame> f0 = window->frame(mp->host_frame_cam_id().frame_id);
+    Sophus::SE3d           Twc = f0->twc(kCamIdx);
 
     // world point reconstruction from host frame
-    const Sophus::SE3d Twc0 = f0->get_twc(kCamIdx);
+    const Sophus::SE3d Twc0 = f0->twc(kCamIdx);
 
     // bearing * inverse depth  → point in host camera frame
-    const Eigen::Vector3d p_c0 = mp->get_bearing() / mp->get_inv_dist();
+    const Eigen::Vector3d p_c0 = mp->bearing() / mp->inv_dist();
 
     // world point
     const Eigen::Vector3d p_w = Twc0 * p_c0;
@@ -118,7 +117,7 @@ void VOEstimator::optimize_single_frame(std::shared_ptr<Frame> frame,
   // LogD("{}", summary.FullReport());
 
   // update pose
-  frame->set_twb(SE3BoxplusManifold::from_params(box_w_b.data()));
+  frame->twb(SE3BoxplusManifold::from_params(box_w_b.data()));
 }
 
 VOEstimator::VOEstimator()
@@ -150,8 +149,8 @@ void VOEstimator::optimize_window(SlidingWindow* window) {
     return;
   }
 
-  const auto& frames     = window->get_frames();
-  const auto& map_points = window->get_map_points();
+  const auto& frames     = window->frames();
+  const auto& map_points = window->map_points();
 
   if (frames.size() < 2) {
     return;
@@ -167,7 +166,7 @@ void VOEstimator::optimize_window(SlidingWindow* window) {
 
   for (const auto& [frame_id, frame] : frames) {
     frame_id_to_index[frame_id] = pose_params.size();
-    pose_params.push_back(SE3BoxplusManifold::to_params(frame->get_twb()));
+    pose_params.push_back(SE3BoxplusManifold::to_params(frame->twb()));
   }
 
   SE3BoxplusManifold* se3_box_plus_manifold = new SE3BoxplusManifold();
@@ -178,13 +177,13 @@ void VOEstimator::optimize_window(SlidingWindow* window) {
   std::unordered_map<uint64_t, size_t> mp_id_to_index;
   std::vector<Eigen::Vector3d>         bearing_params;
   std::vector<double>                  inv_dist_params;
-  bearing_params.reserve(window->get_map_point_count());
-  inv_dist_params.reserve(window->get_map_point_count());
+  bearing_params.reserve(window->map_point_count());
+  inv_dist_params.reserve(window->map_point_count());
 
   for (const auto& [mp_id, mp] : map_points) {
     mp_id_to_index[mp_id] = bearing_params.size();
-    bearing_params.push_back(mp->get_bearing());
-    double inv_dist = mp->get_inv_dist();
+    bearing_params.push_back(mp->bearing());
+    double inv_dist = mp->inv_dist();
     if (!std::isfinite(inv_dist) || inv_dist <= SVOConfig::inv_dist_min_value) {
       inv_dist = SVOConfig::inv_dist_initial_value;
     }
@@ -207,23 +206,23 @@ void VOEstimator::optimize_window(SlidingWindow* window) {
                                          pose_params);
 
   for (const auto& [mp_id, mp] : map_points) {
-    if (mp->get_status() < MapPoint::Status::TRACKING) {
+    if (mp->status() < MapPoint::Status::TRACKING) {
       continue;
     }
-    const double inv_dist = mp->get_inv_dist();
+    const double inv_dist = mp->inv_dist();
     if (!std::isfinite(inv_dist) || inv_dist <= 0.0) {
       continue;
     }
 
-    const FrameCamId       frame_cam_id0 = mp->get_host_frame_cam_id();
-    std::shared_ptr<Frame> frame0 = window->get_frame(frame_cam_id0.frame_id);
-    const Sophus::SE3d&    T_b_c0 = frame0->get_tbc(frame_cam_id0.cam_id);
+    const FrameCamId       frame_cam_id0 = mp->host_frame_cam_id();
+    std::shared_ptr<Frame> frame0 = window->frame(frame_cam_id0.frame_id);
+    const Sophus::SE3d&    T_b_c0 = frame0->tbc(frame_cam_id0.cam_id);
     double*                pose_param0 =
       pose_params[frame_id_to_index[frame_cam_id0.frame_id]].data();
 
-    const auto& observations = mp->get_observation();
-    double* bearing_param = bearing_params[mp_id_to_index[mp->get_id()]].data();
-    double* inv_dist_param = &inv_dist_params[mp_id_to_index[mp->get_id()]];
+    const auto& observations  = mp->observation();
+    double*     bearing_param = bearing_params[mp_id_to_index[mp->id()]].data();
+    double*     inv_dist_param = &inv_dist_params[mp_id_to_index[mp->id()]];
 
     const auto host_obs_it = observations.find(frame_cam_id0);
     if (host_obs_it != observations.end()) {
@@ -238,10 +237,10 @@ void VOEstimator::optimize_window(SlidingWindow* window) {
         continue;
       }
 
-      std::shared_ptr<Frame> frame1 = window->get_frame(frame_cam_id1.frame_id);
+      std::shared_ptr<Frame> frame1 = window->frame(frame_cam_id1.frame_id);
       double*                pose_param1 =
         pose_params[frame_id_to_index[frame_cam_id1.frame_id]].data();
-      const Sophus::SE3d& T_b_c1 = frame1->get_tbc(frame_cam_id1.cam_id);
+      const Sophus::SE3d& T_b_c1 = frame1->tbc(frame_cam_id1.cam_id);
 
       ceres::LossFunction* loss =
         new ceres::HuberLoss(SVOConfig::bearing_huber_const);
@@ -281,19 +280,17 @@ void VOEstimator::optimize_window(SlidingWindow* window) {
 
   for (const auto& [frame_id, frame] : frames) {
     const auto it = frame_id_to_index.find(frame_id);
-    frame->set_twb(
-      SE3BoxplusManifold::from_params(pose_params[it->second].data()));
+    frame->twb(SE3BoxplusManifold::from_params(pose_params[it->second].data()));
   }
 
   for (const auto& [mp_id, idx] : mp_id_to_index) {
-    std::shared_ptr<MapPoint> mp = window->get_map_point(mp_id);
+    std::shared_ptr<MapPoint> mp = window->map_point(mp_id);
     Eigen::Vector3d           b  = bearing_params[idx];
     if (b.norm() > 0.0) {
       b.normalize();
     }
-    mp->get_bearing() = b;
-    mp->set_inv_dist(
-      std::max(inv_dist_params[idx], SVOConfig::inv_dist_min_value));
+    mp->bearing() = b;
+    mp->inv_dist(std::max(inv_dist_params[idx], SVOConfig::inv_dist_min_value));
   }
 }
 
@@ -313,19 +310,19 @@ void VOEstimator::marginalize(SlidingWindow*     window,
     }
   }
 
-  auto& mp_id_to_mp = window->get_map_points();
+  auto& mp_id_to_mp = window->map_points();
 
   std::vector<std::shared_ptr<MapPoint>> marginal_map_points;
   marginal_map_points.reserve(mp_id_to_mp.size());
 
   for (auto& [_, mp] : mp_id_to_mp) {
-    if (marginal_kf_ids.count(mp->get_host_frame_cam_id().frame_id) > 0) {
+    if (marginal_kf_ids.count(mp->host_frame_cam_id().frame_id) > 0) {
       marginal_map_points.push_back(mp);
     }
   }
 
   for (const auto& mp : marginal_map_points) {
-    auto& frame_cam_id_to_bearing = mp->get_observation();
+    auto& frame_cam_id_to_bearing = mp->observation();
     for (const auto& [frame_cam_id, _] : frame_cam_id_to_bearing) {
       if (marginal_kf_ids.count(frame_cam_id.frame_id) > 0) {
         continue;
@@ -344,9 +341,9 @@ void VOEstimator::marginalize(SlidingWindow*     window,
 
   pose_params.reserve(marginal_kf_ids.size() + remain_frame_ids.size());
   for (const auto& frame_id : marginal_kf_ids) {
-    std::shared_ptr<Frame> frame = window->get_frame(frame_id);
+    std::shared_ptr<Frame> frame = window->frame(frame_id);
     frame_id_to_index[frame_id]  = pose_params.size();
-    pose_params.push_back(SE3BoxplusManifold::to_params(frame->get_twb()));
+    pose_params.push_back(SE3BoxplusManifold::to_params(frame->twb()));
     problem.AddParameterBlock(pose_params.back().data(),
                               kPoseSize,
                               box_plus_manifold);
@@ -354,12 +351,12 @@ void VOEstimator::marginalize(SlidingWindow*     window,
 
   std::vector<Eigen::Vector3d> bearing_params;
   std::vector<double>          inv_dist_params;
-  bearing_params.reserve(window->get_map_point_count());
-  inv_dist_params.reserve(window->get_map_point_count());
+  bearing_params.reserve(window->map_point_count());
+  inv_dist_params.reserve(window->map_point_count());
 
   for (const auto& map_point : marginal_map_points) {
-    bearing_params.push_back(map_point->get_bearing());
-    double inv_dist = map_point->get_inv_dist();
+    bearing_params.push_back(map_point->bearing());
+    double inv_dist = map_point->inv_dist();
     if (!std::isfinite(inv_dist) || inv_dist <= SVOConfig::inv_dist_min_value) {
       inv_dist = SVOConfig::inv_dist_initial_value;
     }
@@ -377,9 +374,9 @@ void VOEstimator::marginalize(SlidingWindow*     window,
   }
 
   for (const auto& frame_id : remain_frame_ids) {
-    std::shared_ptr<Frame> frame = window->get_frame(frame_id);
+    std::shared_ptr<Frame> frame = window->frame(frame_id);
     frame_id_to_index[frame_id]  = pose_params.size();
-    pose_params.push_back(SE3BoxplusManifold::to_params(frame->get_twb()));
+    pose_params.push_back(SE3BoxplusManifold::to_params(frame->twb()));
     problem.AddParameterBlock(pose_params.back().data(),
                               kPoseSize,
                               box_plus_manifold);
@@ -392,17 +389,17 @@ void VOEstimator::marginalize(SlidingWindow*     window,
 
   for (size_t i = 0; i < marginal_map_points.size(); i++) {
     std::shared_ptr<MapPoint> mp = marginal_map_points[i];
-    if (mp->get_status() < MapPoint::Status::TRACKING) {
+    if (mp->status() < MapPoint::Status::TRACKING) {
       continue;
     }
-    const FrameCamId       frame_cam_id0 = mp->get_host_frame_cam_id();
-    std::shared_ptr<Frame> frame0 = window->get_frame(frame_cam_id0.frame_id);
+    const FrameCamId       frame_cam_id0 = mp->host_frame_cam_id();
+    std::shared_ptr<Frame> frame0 = window->frame(frame_cam_id0.frame_id);
 
-    const Sophus::SE3d& T_b_c0 = frame0->get_tbc(frame_cam_id0.cam_id);
+    const Sophus::SE3d& T_b_c0 = frame0->tbc(frame_cam_id0.cam_id);
     double*             pose_param0 =
       pose_params[frame_id_to_index[frame_cam_id0.frame_id]].data();
 
-    const auto& observations   = mp->get_observation();
+    const auto& observations   = mp->observation();
     double*     bearing_param  = bearing_params[i].data();
     double*     inv_dist_param = &inv_dist_params[i];
 
@@ -423,10 +420,10 @@ void VOEstimator::marginalize(SlidingWindow*     window,
         continue;
       }
 
-      std::shared_ptr<Frame> frame1 = window->get_frame(frame_cam_id1.frame_id);
+      std::shared_ptr<Frame> frame1 = window->frame(frame_cam_id1.frame_id);
       double*                pose_param1 =
         pose_params[frame_id_to_index[frame_cam_id1.frame_id]].data();
-      const Sophus::SE3d& T_b_c1 = frame1->get_tbc(frame_cam_id1.cam_id);
+      const Sophus::SE3d& T_b_c1 = frame1->tbc(frame_cam_id1.cam_id);
 
       if (frame_cam_id0.frame_id == frame_cam_id1.frame_id) {
         // Stereo within the same frame: use a single pose parameter block.

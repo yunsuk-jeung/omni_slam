@@ -18,7 +18,7 @@ class TrackingResult {
 
   ~TrackingResult() = default;
 
-  size_t get_size(size_t cam_idx) const { return ids_[cam_idx].size(); }
+  size_t size(size_t cam_idx) const { return ids_[cam_idx].size(); }
 
   void clear() {
     for (size_t i = 0; i < kCamNum; ++i) {
@@ -38,13 +38,11 @@ class TrackingResult {
     uvs_[cam_idx].push_back(uv);
   }
 
-  std::vector<size_t>&       get_ids(size_t cam_idx) { return ids_[cam_idx]; }
-  const std::vector<size_t>& get_ids(size_t cam_idx) const {
-    return ids_[cam_idx];
-  }
+  std::vector<size_t>&       ids(size_t cam_idx) { return ids_[cam_idx]; }
+  const std::vector<size_t>& ids(size_t cam_idx) const { return ids_[cam_idx]; }
 
-  std::vector<cv::Point2f>& get_uvs(size_t cam_idx) { return uvs_[cam_idx]; }
-  const std::vector<cv::Point2f>& get_uvs(size_t cam_idx) const {
+  std::vector<cv::Point2f>&       uvs(size_t cam_idx) { return uvs_[cam_idx]; }
+  const std::vector<cv::Point2f>& uvs(size_t cam_idx) const {
     return uvs_[cam_idx];
   }
 
