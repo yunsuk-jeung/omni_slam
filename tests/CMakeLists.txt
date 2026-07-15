@@ -4,7 +4,7 @@ add_executable(core_tests
 )
 
 target_link_libraries(core_tests PRIVATE
-  omni_core
+  omni_utils
   GTest::gtest
   GTest::gtest_main
 )
