@@ -21,8 +21,8 @@
 
 namespace omni_slam {
 StereoVO::StereoVO()
-  : frame_queue_{}
-  , result_queue_{}
+  : raw_frame_queue_{}
+  , tracked_frame_queue_{}
   , optical_flow_{nullptr}
   , running_{false}
   , status_{Status::Initializing}
@@ -49,8 +49,7 @@ bool StereoVO::setup(const std::string& config_path) {
   Logger::info("Loaded VO config: {}", config_path.c_str());
 
   sliding_window_->max_size(SVOConfig::max_keyframe_size + 1u);
-  optical_flow_ =
-    std::make_unique<OpticalFlow>(kCamNum, frame_queue_, result_queue_);
+  optical_flow_ = std::make_unique<OpticalFlow>(kCamNum);
 
   return true;
 }
@@ -85,17 +84,28 @@ void StereoVO::on_camera_frame(
   }
 
   auto frame = std::make_shared<Frame>(timestamp_ns, images, camera_parameters);
-  frame_queue_.push(frame);
+  raw_frame_queue_.push(frame);
 }
 
 void StereoVO::optical_flow_loop() {
-  optical_flow_->run(running_);
+  std::shared_ptr<Frame> frame;
+  while (running_.load(std::memory_order_acquire)) {
+    if (!raw_frame_queue_.try_pop(frame)) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+      continue;
+    }
+    if (!frame) {
+      continue;
+    }
+    optical_flow_->process(frame);
+    tracked_frame_queue_.push(frame);
+  }
 }
 
 void StereoVO::estimator_loop() {
   std::shared_ptr<Frame> frame;
   while (running_.load(std::memory_order_acquire)) {
-    if (!result_queue_.try_pop(frame)) {
+    if (!tracked_frame_queue_.try_pop(frame)) {
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
       continue;
     }

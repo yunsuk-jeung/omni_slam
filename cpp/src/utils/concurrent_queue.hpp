@@ -31,9 +31,18 @@ class ConcurrentQueue {
     return true;
   }
 
-  void push_front(T value) {
+  // Pops only when the front element satisfies pred. Atomic check-and-pop:
+  // the popped element is always the one the predicate examined, even if a
+  // producer's bounded push evicts the front between the consumer's calls.
+  template <typename Pred>
+  bool try_pop_if(T& out, Pred pred) {
     std::scoped_lock lock(mutex_);
-    queue_.push_front(std::move(value));
+    if (queue_.empty() || !pred(queue_.front())) {
+      return false;
+    }
+    out = std::move(queue_.front());
+    queue_.pop_front();
+    return true;
   }
 
   bool try_peek(T& out) const {

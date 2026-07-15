@@ -5,6 +5,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <set>
 #include <string>
 #include <thread>
@@ -71,8 +72,8 @@ class StereoVIO : public Odometry {
   std::thread       optical_flow_thread_;
   std::thread       estimator_thread_;
 
-  ConcurrentQueue<std::shared_ptr<Frame>> frame_queue_;
-  ConcurrentQueue<std::shared_ptr<Frame>> result_queue_;
+  ConcurrentQueue<std::shared_ptr<Frame>> raw_frame_queue_;
+  ConcurrentQueue<std::shared_ptr<Frame>> tracked_frame_queue_;
   std::unique_ptr<OpticalFlow>            optical_flow_;
 
   std::unique_ptr<SlidingWindow>        sliding_window_;
@@ -93,6 +94,7 @@ class StereoVIO : public Odometry {
 
   ConcurrentQueue<ImuData>      imu_queue_;
   std::vector<ImuData>          imu_data_buffer_;
+  std::optional<ImuData>        last_frame_imu_;
   ImuPreintegration::Parameters imu_parameters;
 };
 

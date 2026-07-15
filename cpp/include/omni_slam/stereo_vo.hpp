@@ -62,8 +62,8 @@ class StereoVO : public Odometry {
   std::thread       optical_flow_thread_;
   std::thread       estimator_thread_;
 
-  ConcurrentQueue<std::shared_ptr<Frame>> frame_queue_;
-  ConcurrentQueue<std::shared_ptr<Frame>> result_queue_;
+  ConcurrentQueue<std::shared_ptr<Frame>> raw_frame_queue_;
+  ConcurrentQueue<std::shared_ptr<Frame>> tracked_frame_queue_;
   std::unique_ptr<OpticalFlow>            optical_flow_;
 
   std::unique_ptr<SlidingWindow> sliding_window_;
