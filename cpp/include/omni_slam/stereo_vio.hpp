@@ -93,8 +93,6 @@ class StereoVIO : public Odometry {
 
   ConcurrentQueue<ImuData>      imu_queue_;
   std::vector<ImuData>          imu_data_buffer_;
-  bool                          has_last_frame_imu_;
-  ImuData                       last_frame_imu_;
   ImuPreintegration::Parameters imu_parameters;
 };
 

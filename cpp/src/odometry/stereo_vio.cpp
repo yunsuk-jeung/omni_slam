@@ -61,8 +61,6 @@ StereoVIO::StereoVIO()
   , latest_result_{}
   , imu_queue_{kMaxImuQueueSize}
   , imu_data_buffer_{}
-  , has_last_frame_imu_{false}
-  , last_frame_imu_{}
   , inertial_states_{}
   , imu_parameters{} {
   sliding_window_ = std::make_unique<SlidingWindow>();
@@ -187,17 +185,10 @@ void StereoVIO::pop_imu_data_until(int64_t               timestamp_ns,
     }
   };
 
-  if (has_last_frame_imu_) {
-    append_sample(last_frame_imu_);
-  }
-
-  const auto is_before = [&](const ImuData& sample) {
-    return sample.t_ns <= timestamp_ns;
-  };
-
   ImuData imu;
-  while (imu_queue_.try_pop_if(imu, is_before)) {
+  while (imu_queue_.try_peek(imu) && imu.t_ns <= timestamp_ns) {
     append_sample(imu);
+    imu_queue_.try_pop(imu);
   }
 
   if (imu_data.empty()) {
@@ -210,11 +201,12 @@ void StereoVIO::pop_imu_data_until(int64_t               timestamp_ns,
   ImuData next;
   if (frame_imu.t_ns < timestamp_ns && imu_queue_.try_peek(next)) {
     frame_imu = interpolate_imu_data(frame_imu, next, timestamp_ns);
-    imu_data.push_back(frame_imu);
+    append_sample(frame_imu);
   }
 
-  last_frame_imu_     = frame_imu;
-  has_last_frame_imu_ = true;
+  // Return the boundary sample to the queue so the next interval starts
+  // exactly at this frame's timestamp.
+  imu_queue_.push_front(frame_imu);
 }
 
 bool StereoVIO::initialize(std::shared_ptr<Frame>&     frame,

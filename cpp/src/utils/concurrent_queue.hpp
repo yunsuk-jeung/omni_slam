@@ -7,9 +7,6 @@
 
 namespace omni_slam {
 
-// Mutex-based FIFO shared between producer and consumer threads.
-// max_size 0 means unbounded; otherwise push drops the oldest element
-// once the queue is full.
 template <typename T>
 class ConcurrentQueue {
  public:
@@ -34,19 +31,11 @@ class ConcurrentQueue {
     return true;
   }
 
-  // Pops only when the front element satisfies pred.
-  template <typename Pred>
-  bool try_pop_if(T& out, Pred pred) {
+  void push_front(T value) {
     std::scoped_lock lock(mutex_);
-    if (queue_.empty() || !pred(queue_.front())) {
-      return false;
-    }
-    out = std::move(queue_.front());
-    queue_.pop_front();
-    return true;
+    queue_.push_front(std::move(value));
   }
 
-  // Copies the front element without removing it.
   bool try_peek(T& out) const {
     std::scoped_lock lock(mutex_);
     if (queue_.empty()) {
