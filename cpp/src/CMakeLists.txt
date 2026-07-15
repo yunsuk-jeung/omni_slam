@@ -2,7 +2,7 @@
 add_library(omni_utils INTERFACE)
 
 target_include_directories(omni_utils INTERFACE
-  ${CMAKE_SOURCE_DIR}/include
+  ${CMAKE_SOURCE_DIR}/cpp/include
   ${CMAKE_CURRENT_SOURCE_DIR}
 )
 

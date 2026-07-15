@@ -16,7 +16,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CLANG_FORMAT="${CLANG_FORMAT:-clang-format}"
 
 # Directories that hold our sources. third_party/ and build/ are never touched.
-SEARCH_DIRS=(include src apps tests)
+SEARCH_DIRS=(cpp apps)
 
 # File extensions to format.
 EXTENSIONS=(c cc cxx cpp h hh hxx hpp)

@@ -16,7 +16,7 @@ add_executable(optimizer_tests
   optimizer/test_cost_function_autodiff.cpp
   optimizer/test_imu_preintegration_cost.cpp
   optimizer/test_marginalization_cost.cpp
-  ${CMAKE_SOURCE_DIR}/src/odometry/imu_preintegration.cpp
+  ${CMAKE_SOURCE_DIR}/cpp/src/odometry/imu_preintegration.cpp
 )
 
 target_link_libraries(optimizer_tests PRIVATE

@@ -45,5 +45,5 @@ find_package(Sophus REQUIRED)
 find_package(nlohmann_json REQUIRED)
 
 # Source tree (build options live in src/CMakeLists.txt)
-add_subdirectory(src)
+add_subdirectory(cpp/src)
 add_subdirectory(apps)
