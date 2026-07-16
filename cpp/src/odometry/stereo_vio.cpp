@@ -363,7 +363,6 @@ void StereoVIO::track(std::shared_ptr<Frame>&     frame,
   //   ScopedTimer timer("optimize_frame");
   //   VIOEstimator::OptimizeSingleFrame(frame, this->sliding_window_.get());
   // }
-  LogE("frame id : {}", frame->id());
 
   // sliding window bundle
   {
@@ -403,8 +402,8 @@ void StereoVIO::track(std::shared_ptr<Frame>&     frame,
       }
       return s;
     };
-    LogI("margin frame_ids   : [{}]", join_ids(marginal_frame_ids));
-    LogI("margin inertial_ids: [{}]", join_ids(marginal_inertial_state_ids));
+    // LogI("margin frame_ids   : [{}]", join_ids(marginal_frame_ids));
+    // LogI("margin inertial_ids: [{}]", join_ids(marginal_inertial_state_ids));
   }
   // marginalize
   ScopedTimer timer("marginalize ");

@@ -16,6 +16,11 @@ class SVIOConfig : public SVOConfig {
   // Maximum number of inertial states kept during VIO optimization.
   static size_t max_inertial_states;
 
+  // First-estimate jacobians: freeze linearization points of states that
+  // join the marginalization prior. Disable to A/B against plain
+  // relinearization.
+  static bool enable_fej;
+
   // Initial prior weight for bias blocks in VIO marginalizer.
   static double marginalizer_initial_bias_weight;
 

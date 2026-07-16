@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <unordered_map>
 #include <vector>
 
@@ -46,6 +47,20 @@ class Frame {
   Sophus::SE3d        twc(size_t i) { return T_w_b_ * T_b_cs_[i]; }
   const Sophus::SE3d& tbc(size_t i) const { return T_b_cs_[i]; }
 
+  // First-estimate (FEJ) accessors. Until set_lin_true() is called the
+  // linearization point follows the current estimate; afterwards it stays
+  // frozen at the value it had when the frame joined the marginalization
+  // prior, and only twb() keeps moving.
+  const Sophus::SE3d& twb_lin() const {
+    return T_w_b_lin_ ? *T_w_b_lin_ : T_w_b_;
+  }
+  bool is_linearized() const { return T_w_b_lin_.has_value(); }
+  void set_lin_true() {
+    if (!T_w_b_lin_) {
+      T_w_b_lin_ = T_w_b_;
+    }
+  }
+
   void       keyframe() { is_keyframe_ = true; }
   const bool is_keyframe() const { return is_keyframe_; }
 
@@ -72,6 +87,7 @@ class Frame {
   std::unique_ptr<TrackingResult> tracking_result_;
 
   Sophus::SE3d                                  T_w_b_;
+  std::optional<Sophus::SE3d>                   T_w_b_lin_;
   std::vector<std::unique_ptr<CameraModelBase>> cams_;
   std::vector<Sophus::SE3d>                     T_b_cs_;
 

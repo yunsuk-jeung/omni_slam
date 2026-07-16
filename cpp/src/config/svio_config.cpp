@@ -11,6 +11,7 @@
 namespace omni_slam {
 
 size_t                SVIOConfig::max_inertial_states              = 5;
+bool                  SVIOConfig::enable_fej                       = true;
 double                SVIOConfig::marginalizer_initial_bias_weight = 100.0;
 double                SVIOConfig::imu_residual_scale               = 1.0;
 double                SVIOConfig::imu_position_residual_scale      = 1.0;
@@ -113,6 +114,7 @@ void SVIOConfig::ParseConfig(const std::string& file) {
   max_inertial_states = read_size_t_with_aliases(config,
                                                  {"max_inertial_states"},
                                                  max_inertial_states);
+  enable_fej          = config.value("enable_fej", enable_fej);
   imu_residual_scale =
     read_double_with_aliases(*imu_node,
                              {"residual_scale", "imu_residual_scale"},

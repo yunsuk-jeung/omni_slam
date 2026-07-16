@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <vector>
 
 #include <sophus/so3.hpp>
@@ -15,6 +16,33 @@ struct InertialState {
   Eigen::Vector3d v_w_b    = Eigen::Vector3d::Zero();
   Eigen::Vector3d bias_acc = Eigen::Vector3d::Zero();
   Eigen::Vector3d bias_gyr = Eigen::Vector3d::Zero();
+
+  // First-estimate (FEJ) snapshot, frozen when the state joins the
+  // marginalization prior. Same pattern as Frame::twb_lin().
+  struct Snapshot {
+    Eigen::Vector3d v_w_b;
+    Eigen::Vector3d bias_acc;
+    Eigen::Vector3d bias_gyr;
+  };
+
+  const Eigen::Vector3d& v_w_b_lin() const {
+    return lin_ ? lin_->v_w_b : v_w_b;
+  }
+  const Eigen::Vector3d& bias_acc_lin() const {
+    return lin_ ? lin_->bias_acc : bias_acc;
+  }
+  const Eigen::Vector3d& bias_gyr_lin() const {
+    return lin_ ? lin_->bias_gyr : bias_gyr;
+  }
+  bool is_linearized() const { return lin_.has_value(); }
+  void set_lin_true() {
+    if (!lin_) {
+      lin_ = Snapshot{v_w_b, bias_acc, bias_gyr};
+    }
+  }
+
+ private:
+  std::optional<Snapshot> lin_;
 };
 
 class ImuPreintegration {
