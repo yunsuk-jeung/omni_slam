@@ -3,10 +3,6 @@
 #include <limits>
 #include <set>
 #include <unordered_map>
-#include <unordered_set>
-
-#include <opencv2/highgui.hpp>
-#include <opencv2/imgproc.hpp>
 
 #include "config/svio_config.hpp"
 #include "database/frame.hpp"

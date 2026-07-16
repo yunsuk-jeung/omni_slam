@@ -4,14 +4,12 @@
 #include <vector>
 
 #include <opencv2/features2d.hpp>
-#include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/video/tracking.hpp>
 
 #include "config/svo_config.hpp"
 #include "database/frame.hpp"
 #include "feature_tracking/optical_flow.hpp"
-#include "utils/logger.hpp"
 
 namespace omni_slam {
 namespace {
