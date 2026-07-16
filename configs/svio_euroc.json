@@ -24,7 +24,7 @@
   "window_max_iterations": 10,
   "window_num_threads": 2,
   "inv_dist_initial_value": 0.001,
-  "inv_dist_min_value": 0.000001,
+  "inv_dist_min_value": 1e-06,
   "marginalizer_initial_prior_weight": 10000000000.0,
   "marginalizer_initial_bias_weight": 100.0,
   "imu": {
@@ -37,7 +37,7 @@
     "rotation_residual_scale": 1.0,
     "velocity_residual_scale": 1.0,
     "bias_residual_scale": 1.0,
-    "min_integration_dt_s": 0.000001,
+    "min_integration_dt_s": 1e-06,
     "g_norm": 9.81007,
     "init_bias_acc": [
       0.0,
@@ -89,7 +89,7 @@
       -0.28340811,
       0.07395907,
       0.00019359,
-      1.76187114e-5
+      1.76187114e-05
     ]
   },
   "cam1": {
@@ -126,7 +126,7 @@
       -0.28368365,
       0.07451284,
       -0.00010473,
-      -3.555907e-5
+      -3.555907e-05
     ]
   }
 }
