@@ -5,8 +5,9 @@
 `src/optimizer/marginalizer.hpp`, `src/optimizer/parameterization.hpp`,
 `src/optimizer/vio_estimator.cpp`의 `marginalize()`.
 
-표기: pose 파라미터 $x = (t, \varphi) \in \mathbb{R}^6$ (ambient),
-$R = \mathrm{Exp}(\varphi)$, tangent 증분 $\delta = (\delta t, \delta\theta)$.
+표기: 회전행렬 $R$, 그 log 좌표 $r = \mathrm{Log}(R)$. pose 파라미터
+$x = (t, r) \in \mathbb{R}^6$ (ambient), tangent 증분
+$\delta = (\delta t, \delta\theta)$, residual은 $e$ (회전 $r$과의 혼동 방지).
 
 ---
 
@@ -29,9 +30,9 @@ $R = \mathrm{Exp}(\varphi)$, tangent 증분 $\delta = (\delta t, \delta\theta)$.
 |---|---|---|
 | 회전행렬 $R$ | 9 | 제약 6개 (직교성) |
 | 쿼터니언 $q$ | 4 | 제약 1개 (단위노름) |
-| log 좌표 $\varphi = \mathrm{Log}(R)$ | 3 | 제약 없음, 대신 눈금이 비선형 |
+| log 좌표 $r = \mathrm{Log}(R)$ | 3 | 제약 없음, 대신 눈금이 비선형 |
 
-우리 코드는 pose를 $x = (t, \varphi) \in \mathbb{R}^6$으로 저장한다 — 세 번째 방식.
+우리 코드는 pose를 $x = (t, r) \in \mathbb{R}^6$으로 저장한다 — 세 번째 방식.
 ambient는 말 그대로 "둘러싸는" 공간이다: manifold가 이 좌표 공간 안에 잠겨 있다.
 
 **Tangent 공간** — manifold 위의 한 점 $x$에서 **실제로 움직일 수 있는 방향들**의
@@ -42,21 +43,21 @@ tangent는 "지금 서 있는 곳에서 북쪽으로 1 km, 동쪽으로 2 km"라
 "변화량"은 전부 tangent 소속**이다.
 
 둘이 왜 어긋나는가: ambient 좌표의 눈금이 균일하지 않기 때문이다. 극지방에서
-경도 1도의 실제 거리가 적도와 다르듯, $\varphi$가 큰 곳에서는 "$\varphi$ 숫자
+경도 1도의 실제 거리가 적도와 다르듯, $r$가 큰 곳에서는 "$r$ 숫자
 1단위 변화"와 "실제 회전 1 rad"이 서로 다르다 (아래 §5 수치 예시).
 둘 사이의 국소 환산이 바로 PlusJacobian이다.
 
 **Boxplus** (`SE3BoxplusManifold`):
 
-$$x \boxplus \delta = \big(\,t + \delta t,\;\; \mathrm{Log}(\mathrm{Exp}(\varphi)\,\mathrm{Exp}(\delta\theta))\,\big)$$
+$$x \boxplus \delta = \big(\,t + \delta t,\;\; \mathrm{Log}(\mathrm{Exp}(r)\,\mathrm{Exp}(\delta\theta))\,\big)$$
 
 BCH 1차 전개:
 
-$$\mathrm{Log}(\mathrm{Exp}(\varphi)\,\mathrm{Exp}(\delta\theta)) = \varphi + J_r^{-1}(\varphi)\,\delta\theta + O(\|\delta\theta\|^2)$$
+$$\mathrm{Log}(\mathrm{Exp}(r)\,\mathrm{Exp}(\delta\theta)) = r + J_r^{-1}(r)\,\delta\theta + O(\|\delta\theta\|^2)$$
 
 따라서 **PlusJacobian**:
 
-$$P(x) \;=\; \frac{\partial (x \boxplus \delta)}{\partial \delta}\Big|_{\delta=0} \;=\; \begin{bmatrix} I_3 & 0 \\ 0 & J_r^{-1}(\varphi) \end{bmatrix}$$
+$$P(x) \;=\; \frac{\partial (x \boxplus \delta)}{\partial \delta}\Big|_{\delta=0} \;=\; \begin{bmatrix} I_3 & 0 \\ 0 & J_r^{-1}(r) \end{bmatrix}$$
 
 ### PlusJacobian이 ambient와 tangent를 잇는 방식
 
@@ -73,15 +74,15 @@ $$P(x) \;=\; \frac{\partial (x \boxplus \delta)}{\partial \delta}\Big|_{\delta=0
 $= \lim_{h\to0} \tfrac{1}{h}\big((x \boxplus h e_j) - x\big)$ — tangent 기저
 $e_j$로 한 발 디뎠을 때의 ambient 변위.
 
-이제 residual $r(x)$를 생각하자. 코스트 함수가 반환하는 것은 ambient 기울기:
+이제 residual $e(x)$를 생각하자. 코스트 함수가 반환하는 것은 ambient 기울기:
 
-$$J_a = \frac{\partial r}{\partial x}$$
+$$J_a = \frac{\partial e}{\partial x}$$
 
 하지만 최적화 변수는 $\delta$다 — 상태는 반드시 $x(\delta) = x^{\text{cur}} \boxplus \delta$
 형태로만 움직이기 때문. 따라서 실제로 필요한 미분은 합성함수
-$r\big(x(\delta)\big)$의 것이고, 체인룰로:
+$e\big(x(\delta)\big)$의 것이고, 체인룰로:
 
-$$J_t = \frac{\partial r}{\partial \delta}\Big|_{\delta=0} = \frac{\partial r}{\partial x}\cdot\frac{\partial x(\delta)}{\partial \delta}\Big|_{\delta=0} = J_a\,P(x)$$
+$$J_t = \frac{\partial e}{\partial \delta}\Big|_{\delta=0} = \frac{\partial e}{\partial x}\cdot\frac{\partial x(\delta)}{\partial \delta}\Big|_{\delta=0} = J_a\,P(x)$$
 
 **$P$는 "ambient 언어로 말한 기울기 $J_a$"를 "tangent 언어의 기울기 $J_t$"로
 번역하는 접착제**다. 방향에 주의:
@@ -94,7 +95,7 @@ $$J_t = \frac{\partial r}{\partial \delta}\Big|_{\delta=0} = \frac{\partial r}{\
 | tangent 야코비안 → ambient 야코비안 | $J_a = J_t\,P^{-1}$ | 이번 수정에서 쓴 방향 |
 
 마지막 행이 이번 버그 수정의 핵심이다: 우리가 가진 prior의 $J_p$는 tangent
-야코비안이므로, Ceres에 돌려주기 전에 $P^{-1}$ (회전 열에 $J_r(\varphi)$)을 곱해
+야코비안이므로, Ceres에 돌려주기 전에 $P^{-1}$ (회전 열에 $J_r(r)$)을 곱해
 ambient로 되돌려 놓아야 Ceres가 다시 $P$를 곱했을 때 원래의 $J_p$가 복원된다.
 
 한 가지 흔한 오해: "ambient와 tangent는 차원이 다르다"는 인상 (쿼터니언 4→3 같은
@@ -104,10 +105,10 @@ ambient로 되돌려 놓아야 Ceres가 다시 $P$를 곱했을 때 원래의 $J
 
 ### Ceres의 계약
 
-- 코스트 함수의 `Evaluate`는 **ambient 야코비안** $J_a = \partial r/\partial x$를
+- 코스트 함수의 `Evaluate`는 **ambient 야코비안** $J_a = \partial e/\partial x$를
   반환한다.
 - Ceres는 내부에서 $J_t = J_a\,P(x)$로 **tangent 야코비안**을 만들고, tangent에서
-  $\min_\delta \tfrac12\|r + J_t\,\delta\|^2$ (+ damping)을 푼 뒤
+  $\min_\delta \tfrac12\|e + J_t\,\delta\|^2$ (+ damping)을 푼 뒤
   $x \leftarrow x \boxplus \delta$로 갱신한다.
 - **`Problem::Evaluate`가 반환하는 야코비안도 $J_t$다** (ceres `problem.h` Note 2:
   manifold 블록은 TangentSize 열). 우리 pose는 ambient = tangent = 6이라
@@ -115,17 +116,17 @@ ambient로 되돌려 놓아야 Ceres가 다시 $P$를 곱했을 때 원래의 $J
 
 ### Boxminus와 그 미분
 
-$$x \boxminus x^0 = \big(\,t - t^0,\;\; \mathrm{Log}(\mathrm{Exp}(\varphi^0)^{-1}\mathrm{Exp}(\varphi))\,\big)$$
+$$x \boxminus x^0 = \big(\,t - t^0,\;\; \mathrm{Log}(\mathrm{Exp}(r^0)^{-1}\mathrm{Exp}(r))\,\big)$$
 
-$f(\varphi) = \mathrm{Log}(\mathrm{Exp}(\varphi^0)^{-1}\mathrm{Exp}(\varphi))$에
-$\mathrm{Exp}(\varphi+\varepsilon) = \mathrm{Exp}(\varphi)\,\mathrm{Exp}(J_r(\varphi)\varepsilon) + O(\varepsilon^2)$를
+$f(r) = \mathrm{Log}(\mathrm{Exp}(r^0)^{-1}\mathrm{Exp}(r))$에
+$\mathrm{Exp}(r+\varepsilon) = \mathrm{Exp}(r)\,\mathrm{Exp}(J_r(r)\varepsilon) + O(\varepsilon^2)$를
 대입하면:
 
-$$\frac{\partial f}{\partial \varphi} = J_r^{-1}\!\big(f(\varphi)\big)\, J_r(\varphi) \;\;\xrightarrow{\;x \to x^0\;}\;\; J_r(\varphi)$$
+$$\frac{\partial f}{\partial r} = J_r^{-1}\!\big(f(r)\big)\, J_r(r) \;\;\xrightarrow{\;x \to x^0\;}\;\; J_r(r)$$
 
-특히 $\varphi = \varphi^0 + \varepsilon$이면 $f = J_r(\varphi^0)\,\varepsilon + O(\varepsilon^2)$:
+특히 $r = r^0 + \varepsilon$이면 $f = J_r(r^0)\,\varepsilon + O(\varepsilon^2)$:
 
-$$\boxed{\;\delta\theta_{\text{true}} = J_r(\varphi^0)\,(\varphi - \varphi^0)\;}$$
+$$\boxed{\;\delta\theta_{\text{true}} = J_r(r^0)\,(r - r^0)\;}$$
 
 **raw 좌표 차이와 진짜 tangent 증분은 $J_r$ 한 배 차이다.**
 
@@ -134,11 +135,11 @@ $$\boxed{\;\delta\theta_{\text{true}} = J_r(\varphi^0)\,(\varphi - \varphi^0)\;}
 ## 2. Marginalization 유도
 
 marginalize 시점 상태를 $x^0 = (x^0_m, x^0_k)$ (m = marginalize, k = keep)라 하자.
-모든 팩터의 residual을 쌓아 $\bar r$, tangent 야코비안을 $\bar J_t$라 하면
+모든 팩터의 residual을 쌓아 $\bar e$, tangent 야코비안을 $\bar J_t$라 하면
 ($x^0$에서 선형화), Gauss–Newton 2차 모델은 tangent 변수
 $\delta = (\delta_m, \delta_k)$에 대해:
 
-$$\tfrac12\|\bar r + \bar J_t \delta\|^2 = \text{const} + b^\top\delta + \tfrac12 \delta^\top H \delta,\qquad H = \bar J_t^\top \bar J_t,\;\; b = \bar J_t^\top \bar r$$
+$$\tfrac12\|\bar e + \bar J_t \delta\|^2 = \text{const} + b^\top\delta + \tfrac12 \delta^\top H \delta,\qquad H = \bar J_t^\top \bar J_t,\;\; b = \bar J_t^\top \bar e$$
 
 (`create_hessian_from_crs_matrix`가 만드는 $H$, $b$가 정확히 이것 — **tangent 기준**.)
 
@@ -151,12 +152,12 @@ $$A = H_{kk} - H_{km}H_{mm}^{-1}H_{mk},\qquad b^\ast = b_k - H_{km}H_{mm}^{-1}b_
 
 Ceres 팩터로 쓰기 위한 제곱꼴 분해: $A = V\Lambda V^\top$에서
 
-$$J_p = \Lambda^{1/2}V^\top,\qquad r_0 = \Lambda^{-1/2}V^\top b^\ast$$
+$$J_p = \Lambda^{1/2}V^\top,\qquad e_0 = \Lambda^{-1/2}V^\top b^\ast$$
 
-로 두면 $J_p^\top J_p = A$, $J_p^\top r_0 = b^\ast$이므로 아래 팩터가 같은
+로 두면 $J_p^\top J_p = A$, $J_p^\top e_0 = b^\ast$이므로 아래 팩터가 같은
 gradient·Hessian을 재현한다:
 
-$$\boxed{\;\text{prior cost} = \tfrac12\big\| \,r_0 + J_p\,\delta_k\, \big\|^2,\qquad \delta_k = x_k \boxminus x_k^0\;}$$
+$$\boxed{\;\text{prior cost} = \tfrac12\big\| \,e_0 + J_p\,\delta_k\, \big\|^2,\qquad \delta_k = x_k \boxminus x_k^0\;}$$
 
 **핵심: $J_p$가 tangent에서 만들어졌으므로 $\delta_k$도 tangent 증분(boxminus)이어야
 한다.** (고유값이 $\epsilon$ 이하인 방향 — gauge null-space — 은 0으로 클리핑되어
@@ -168,18 +169,18 @@ prior가 그 방향으로는 어떤 gradient도 만들지 않는다.)
 
 Ceres에는 ambient 야코비안을 반환해야 하므로 체인룰:
 
-$$\frac{\partial r_p}{\partial x} = J_p \cdot D(x),\qquad D(x) = \frac{\partial (x \boxminus x^0)}{\partial x} = \begin{bmatrix} I & 0\\ 0 & J_r^{-1}(f)\,J_r(\varphi)\end{bmatrix} \approx \begin{bmatrix} I & 0\\ 0 & J_r(\varphi)\end{bmatrix}$$
+$$\frac{\partial e_p}{\partial x} = J_p \cdot D(x),\qquad D(x) = \frac{\partial (x \boxminus x^0)}{\partial x} = \begin{bmatrix} I & 0\\ 0 & J_r^{-1}(f)\,J_r(r)\end{bmatrix} \approx \begin{bmatrix} I & 0\\ 0 & J_r(r)\end{bmatrix}$$
 
 ($f \approx 0$ 근사는 prior 자체가 1차 모델인 것과 같은 급 — `SE3BoxplusManifold::MinusJacobian`과 동일 관례.)
 
 Ceres가 내부에서 만드는 유효 tangent 야코비안:
 
-$$J_t^{\text{eff}} = \big(J_p\, D(x)\big)\, P(x) = J_p \begin{bmatrix} I & 0\\ 0 & J_r(\varphi)\,J_r^{-1}(\varphi)\end{bmatrix} = J_p \;\checkmark$$
+$$J_t^{\text{eff}} = \big(J_p\, D(x)\big)\, P(x) = J_p \begin{bmatrix} I & 0\\ 0 & J_r(r)\,J_r^{-1}(r)\end{bmatrix} = J_p \;\checkmark$$
 
 저장된 tangent 정보가 정확히 복원된다. 이것이 수정된 `MarginalizationCost::Evaluate`:
 
 - pose 블록의 $dx$: raw 차이 대신 **boxminus** $[\,t-t_0,\; \mathrm{Log}(R_0^{-1}R)\,]$
-- 반환 야코비안: 회전 열에 $J_r(\varphi_{\text{current}})$를 곱해 ambient로 변환
+- 반환 야코비안: 회전 열에 $J_r(r_{\text{current}})$를 곱해 ambient로 변환
 
 ---
 
@@ -187,23 +188,23 @@ $$J_t^{\text{eff}} = \big(J_p\, D(x)\big)\, P(x) = J_p \begin{bmatrix} I & 0\\ 0
 
 **Residual** — $\delta_k$ 자리에 raw 차이 사용:
 
-$$r_p^{\text{old}} = r_0 + J_p\,(x - x^0) = r_0 + J_p \begin{bmatrix} I & 0\\ 0 & J_r^{-1}(\varphi^0)\end{bmatrix}\delta_{\text{true}} + O(\delta^2)$$
+$$e_p^{\text{old}} = e_0 + J_p\,(x - x^0) = e_0 + J_p \begin{bmatrix} I & 0\\ 0 & J_r^{-1}(r^0)\end{bmatrix}\delta_{\text{true}} + O(\delta^2)$$
 
-스프링이 $J_r^{-1}(\varphi^0)$만큼 왜곡된 자로 잰 변위에 벌점을 매긴다.
+스프링이 $J_r^{-1}(r^0)$만큼 왜곡된 자로 잰 변위에 벌점을 매긴다.
 
 **Jacobian** — $J_p$를 그대로 반환하여 Ceres가 $P$를 곱함:
 
-$$J_t^{\text{eff,old}} = J_p\,P(x) = J_p \begin{bmatrix} I & 0\\ 0 & J_r^{-1}(\varphi)\end{bmatrix}$$
+$$J_t^{\text{eff,old}} = J_p\,P(x) = J_p \begin{bmatrix} I & 0\\ 0 & J_r^{-1}(r)\end{bmatrix}$$
 
 **이중 왜곡의 자기모순** — 이 팩터의 gradient:
 
-$$g^{\text{old}} = (J_t^{\text{eff,old}})^\top r_p^{\text{old}} = \begin{bmatrix} I & 0\\ 0 & J_r^{-\top}(\varphi)\end{bmatrix} J_p^\top\Big(r_0 + J_p \begin{bmatrix} I & 0\\ 0 & J_r^{-1}(\varphi^0)\end{bmatrix}\delta\Big)$$
+$$g^{\text{old}} = (J_t^{\text{eff,old}})^\top e_p^{\text{old}} = \begin{bmatrix} I & 0\\ 0 & J_r^{-\top}(r)\end{bmatrix} J_p^\top\Big(e_0 + J_p \begin{bmatrix} I & 0\\ 0 & J_r^{-1}(r^0)\end{bmatrix}\delta\Big)$$
 
-정답 $g = J_p^\top(r_0 + J_p\,\delta)$ 대비, residual 쪽 왜곡은 $J_r^{-1}(\varphi^0)$,
-gradient 사영 쪽 왜곡은 $J_r^{-\top}(\varphi)$ — **서로 다른 두 왜곡**이 겹친다.
+정답 $g = J_p^\top(e_0 + J_p\,\delta)$ 대비, residual 쪽 왜곡은 $J_r^{-1}(r^0)$,
+gradient 사영 쪽 왜곡은 $J_r^{-\top}(r)$ — **서로 다른 두 왜곡**이 겹친다.
 
-- $\varphi \to 0$이면 $J_r \to I$라 무해 (초기 구간에서 멀쩡했던 이유).
-- $\|\varphi\|$가 클수록 $J_r = I - \tfrac{1-\cos\theta}{\theta^2}[\varphi]_\times + \tfrac{\theta-\sin\theta}{\theta^3}[\varphi]_\times^2$의
+- $r \to 0$이면 $J_r \to I$라 무해 (초기 구간에서 멀쩡했던 이유).
+- $\|r\|$가 클수록 $J_r = I - \tfrac{1-\cos\theta}{\theta^2}[r]_\times + \tfrac{\theta-\sin\theta}{\theta^3}[r]_\times^2$의
   비항등 항이 커져 벌점의 크기·방향이 모두 틀어진다 ($\theta = 90°$에서 ~36%).
 - 이 틀린 힘 중 뻣뻣한 방향 성분은 다른 팩터가 상쇄하지만, $A$의
   null-space(전역 병진·yaw) 성분은 저항 없이 상태를 밀어낸다 → **윈도우 강체 점프**
@@ -213,18 +214,18 @@ gradient 사영 쪽 왜곡은 $J_r^{-\top}(\varphi)$ — **서로 다른 두 왜
 
 ## 5. 직관용 수치 예시
 
-$\varphi^0 = [0, 0, \tfrac{\pi}{2}]$ (z축 90°)에서 바디 x축으로
+$r^0 = [0, 0, \tfrac{\pi}{2}]$ (z축 90°)에서 바디 x축으로
 $\delta\theta = [0.1, 0, 0]$ rad 회전하면:
 
 | 량 | 값 |
 |---|---|
-| $\varphi_{\text{new}} = \mathrm{Log}(\mathrm{Exp}(\varphi^0)\mathrm{Exp}(\delta\theta))$ | $[0.0785,\ 0.0785,\ -0.0014]$ |
-| raw 차이 $\varphi_{\text{new}} - \varphi^0$ | $[0.0785,\ 0.0785,\ -0.0014]$ |
+| $r_{\text{new}} = \mathrm{Log}(\mathrm{Exp}(r^0)\mathrm{Exp}(\delta\theta))$ | $[0.0785,\ 0.0785,\ -0.0014]$ |
+| raw 차이 $r_{\text{new}} - r^0$ | $[0.0785,\ 0.0785,\ -0.0014]$ |
 | boxminus $\mathrm{Log}(R_0^\top R)$ | $[0.1,\ 0,\ 0]$ ✓ |
 
 x축으로만 걸었는데 raw 차이는 x·y가 섞이고 크기도 21% 작다.
-$J_r(\varphi^0)$의 상단 2×2 블록이 $\begin{bmatrix}0.64 & 0.64\\ -0.64 & 0.64\end{bmatrix}$로
-항등과 크게 다른 것이 그 이유이며, $J_r(\varphi^0) \cdot (\text{raw 차이}) = [0.1, 0, -0.001]$로
+$J_r(r^0)$의 상단 2×2 블록이 $\begin{bmatrix}0.64 & 0.64\\ -0.64 & 0.64\end{bmatrix}$로
+항등과 크게 다른 것이 그 이유이며, $J_r(r^0) \cdot (\text{raw 차이}) = [0.1, 0, -0.001]$로
 진짜 걸음이 복원된다.
 
 ---
