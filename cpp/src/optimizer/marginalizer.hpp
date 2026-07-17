@@ -46,6 +46,8 @@ class MarginalizationCost : public ceres::CostFunction {
       state_dim += block_size;
     }
 
+    // Guard against a stale prior: block sizes / J_ / x0_ out of sync with the
+    // registered parameter blocks.
     if (state_dim != x0_.size() || J_.rows() != residual_dim
         || J_.cols() != state_dim) {
       return false;

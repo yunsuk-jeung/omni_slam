@@ -36,11 +36,11 @@ inline Sophus::SE3d compute_rel_pose(
   if (d_rel_d_t) {
     const Eigen::Matrix3d R_ct_w = T_w_c_t.so3().inverse().matrix();
     const Eigen::Matrix3d R_cb_t = T_b_c_t.so3().inverse().matrix();
-    const Eigen::Vector3d u      = T_w_b_t.so3().inverse()
+    const Eigen::Vector3d p_h_in_tb = T_w_b_t.so3().inverse()
                               * (T_w_c_h.translation() - T_w_b_t.translation());
     d_rel_d_t->setZero();
     d_rel_d_t->topLeftCorner<3, 3>()     = -R_ct_w;
-    d_rel_d_t->topRightCorner<3, 3>()    = R_cb_t * Sophus::SO3d::hat(u);
+    d_rel_d_t->topRightCorner<3, 3>()    = R_cb_t * Sophus::SO3d::hat(p_h_in_tb);
     d_rel_d_t->bottomRightCorner<3, 3>() = -(T_t_h.so3().inverse().matrix())
                                            * R_cb_t;
   }
