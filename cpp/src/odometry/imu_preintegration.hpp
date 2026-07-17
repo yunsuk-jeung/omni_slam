@@ -76,6 +76,8 @@ class ImuPreintegration {
                     const Parameters&      parameters);
 
   void reset(const Eigen::Vector3d& bias_acc, const Eigen::Vector3d& bias_gyr);
+  // Overwrites only bias_acc_/bias_gyr_ (unlike reset(), which also clears the
+  // deltas, jacobian/covariance, and the sample buffer).
   void bias(const Eigen::Vector3d& bias_acc, const Eigen::Vector3d& bias_gyr);
   void parameters(const Parameters& parameters);
 
@@ -97,7 +99,8 @@ class ImuPreintegration {
   CorrectedDelta bias_corrected_delta(const Eigen::Vector3d& bias_acc,
                                       const Eigen::Vector3d& bias_gyr) const;
 
-  Eigen::Matrix15d information(double damping = 1e-12) const;
+  static constexpr double kDefaultInformationDamping = 1e-12;
+  Eigen::Matrix15d information(double damping = kDefaultInformationDamping) const;
 
   const Sophus::SO3d&   delta_r() const { return delta_r_; }
   const Eigen::Vector3d delta_v() const { return delta_v_; }
@@ -151,8 +154,8 @@ class ImuPreintegration {
 
   size_t integration_steps_;
 
-  // Buffer of raw IMU samples consumed by IntegrateMeasurement(s).
-  // Retained so Repropagate can replay integration with an updated bias
+  // Buffer of raw IMU samples consumed by integrate_measurement(s).
+  // Retained so repropagate() can replay integration with an updated bias
   // linearization point.
   std::vector<ImuData> imu_measurements_;
 };
