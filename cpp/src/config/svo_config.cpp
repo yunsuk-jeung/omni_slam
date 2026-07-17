@@ -40,12 +40,12 @@ std::vector<std::vector<double>> SVOConfig::camera_distortions;
 std::vector<std::vector<int>>    SVOConfig::camera_resolutions;
 std::vector<Sophus::SE3d>        SVOConfig::camera_T_b_c;
 
-void parse_camera_params(const nlohmann::json&             node,
-                         std::vector<int>*                 models,
-                         std::vector<std::vector<double>>* intrinsics,
-                         std::vector<std::vector<double>>* distortions,
-                         std::vector<std::vector<int>>*    resolutions,
-                         std::vector<Sophus::SE3d>*        T_bc) {
+static void parse_camera_params(const nlohmann::json&             node,
+                                std::vector<int>*                 models,
+                                std::vector<std::vector<double>>* intrinsics,
+                                std::vector<std::vector<double>>* distortions,
+                                std::vector<std::vector<int>>*    resolutions,
+                                std::vector<Sophus::SE3d>*        T_bc) {
   if (!node.is_object()) {
     return;
   }
@@ -88,10 +88,11 @@ void parse_camera_params(const nlohmann::json&             node,
     }
     resolutions->push_back(std::move(vals));
   }
+  constexpr int kSE3MatrixElements = 16;  // flattened 4x4
   if (T_bc && node.contains("T_b_c") && node["T_b_c"].is_array()
-      && node["T_b_c"].size() == 16) {
+      && node["T_b_c"].size() == kSE3MatrixElements) {
     Eigen::Matrix4d T = Eigen::Matrix4d::Identity();
-    for (int i = 0; i < 16; ++i) {
+    for (int i = 0; i < kSE3MatrixElements; ++i) {
       T(i / 4, i % 4) = node["T_b_c"][i].get<double>();
     }
     T_bc->push_back(Sophus::SE3d(T));
@@ -133,8 +134,9 @@ void SVOConfig::parse_config(const std::string& file) {
   feature_grid_cols = config.value("feature_grid_cols", feature_grid_cols);
   max_pyramid_level = config.value("max_pyramid_level", max_pyramid_level);
   max_keyframe_size = config.value("max_keyframe_size", max_keyframe_size);
-  if (max_keyframe_size < 3)
+  if (max_keyframe_size < 3) {
     max_keyframe_size = 3;
+  }
   triangulation_dist_threshold  = config.value("triangulation_dist_threshold",
                                               triangulation_dist_threshold);
   keyframe_min_mp_ratio         = config.value("keyframe_min_mp_ratio",
@@ -146,6 +148,7 @@ void SVOConfig::parse_config(const std::string& file) {
   new_keyframe_after  = config.value("new_keyframe_after", new_keyframe_after);
   bearing_huber_const = config.value("bearing_huber_const",
                                      bearing_huber_const);
+  // "beraing_cost_scale" is an intentional fallback for a legacy misspelled key.
   bearing_cost_scale =
     config.value("bearing_cost_scale",
                  config.value("beraing_cost_scale", bearing_cost_scale));
@@ -166,9 +169,6 @@ void SVOConfig::parse_config(const std::string& file) {
   }
   if (!std::isfinite(bearing_cost_scale) || bearing_cost_scale <= 0.0) {
     bearing_cost_scale = 1.0;
-  }
-  if (bearing_huber_const <= 0.0) {
-    bearing_huber_const = 0.01;
   }
   if (single_frame_max_iterations < 1) {
     single_frame_max_iterations = 1;
