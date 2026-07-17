@@ -58,11 +58,7 @@ DatasetType VIOLoaderFactory::detect_dataset_type(
     return DatasetType::EUROC;
   }
 
-  // Future dataset type detection can be added here:
-  // if (IsKittiDataset(dataset_path)) {
-  //   Logger::info("Detected KITTI dataset format");
-  //   return DatasetType::KITTI;
-  // }
+  // TODO: add detection for other dataset formats (e.g. KITTI) here.
 
   Logger::warn("Unknown dataset type at: {}", dataset_path);
   return DatasetType::AUTO;
