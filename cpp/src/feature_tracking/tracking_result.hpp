@@ -28,9 +28,8 @@ class TrackingResult {
   }
 
   void reserve(size_t cam_idx, size_t size) {
-    const auto idx = cam_idx;
-    ids_[idx].reserve(size);
-    uvs_[idx].reserve(size);
+    ids_[cam_idx].reserve(size);
+    uvs_[cam_idx].reserve(size);
   }
 
   void add_feature(size_t cam_idx, const cv::Point2f& uv, int64_t id) {

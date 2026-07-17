@@ -21,10 +21,8 @@
 #include "utils/eigen_utils.hpp"
 
 namespace omni_slam {
-class TrackingResult;
 class OpticalFlow;
 class Frame;
-class MapPoint;
 class SlidingWindow;
 class VIOEstimator;
 class StereoVIO : public Odometry {

@@ -43,7 +43,7 @@ class Frame {
 
   const Sophus::SE3d& twb() const { return T_w_b_; }
   Sophus::SE3d&       twb() { return T_w_b_; }
-  void                twb(const Sophus::SE3d T_wb) { T_w_b_ = T_wb; }
+  void                twb(const Sophus::SE3d T_w_b) { T_w_b_ = T_w_b; }
   Sophus::SE3d        twc(size_t i) { return T_w_b_ * T_b_cs_[i]; }
   const Sophus::SE3d& tbc(size_t i) const { return T_b_cs_[i]; }
 

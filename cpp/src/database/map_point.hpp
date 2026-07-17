@@ -11,6 +11,8 @@ namespace omni_slam {
 class Frame;
 class MapPoint {
  public:
+  // Order is significant: call sites compare with relational operators
+  // (e.g. status() < Status::TRACKING). Do not reorder.
   enum class Status {
     NONE,
     TRACKING,
@@ -21,7 +23,7 @@ class MapPoint {
   ~MapPoint();
 
   void add_observation(const FrameCamId&      frame_cam_id,
-                       const Eigen::Vector3d& uv);
+                       const Eigen::Vector3d& bearing);
   void remove_observation(const FrameCamId& frame_cam_id);
 
  public:
