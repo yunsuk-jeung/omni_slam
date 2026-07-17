@@ -1,4 +1,28 @@
 cmake_minimum_required(VERSION 3.20)
+
+# --- Host-dependent compiler selection ---------------------------------------
+# Must run before project(). Skipped if the compiler is already pinned via a
+# preset, -DCMAKE_CXX_COMPILER=..., or the CXX environment variable.
+if(NOT DEFINED CMAKE_CXX_COMPILER AND NOT DEFINED ENV{CXX})
+  if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")
+    # Ubuntu: prefer a modern GCC with full C++20 support.
+    find_program(_OMNI_CXX NAMES g++-13 g++-14 g++)
+    find_program(_OMNI_CC  NAMES gcc-13 gcc-14 gcc)
+  elseif(CMAKE_HOST_SYSTEM_NAME STREQUAL "Darwin")
+    # macOS: use Clang (Homebrew LLVM if on PATH, otherwise AppleClang).
+    find_program(_OMNI_CXX NAMES clang++)
+    find_program(_OMNI_CC  NAMES clang)
+  endif()
+  if(_OMNI_CXX)
+    set(CMAKE_CXX_COMPILER "${_OMNI_CXX}" CACHE FILEPATH "C++ compiler")
+  endif()
+  if(_OMNI_CC)
+    set(CMAKE_C_COMPILER "${_OMNI_CC}" CACHE FILEPATH "C compiler")
+  endif()
+  unset(_OMNI_CXX CACHE)
+  unset(_OMNI_CC CACHE)
+endif()
+
 project(omni_slam VERSION 0.1.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)

@@ -1,6 +1,7 @@
 .ai/
 .claude/
 .keep/
+.cache/
 
 datasets/
 
