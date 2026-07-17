@@ -129,4 +129,13 @@ class Logger {
                            __LINE__,                                           \
                            fmt,                                                \
                            ##__VA_ARGS__);
-#define DEBUG_POINT() LogE("THIS Line is for debugging");
+
+// "Reached here" debug marker; no-op unless OMNI_SLAM_DEBUG_POINTS is defined.
+#ifdef OMNI_SLAM_DEBUG_POINTS
+#define DEBUG_POINT()                                                          \
+  LogD("reached {}:{}",                                                        \
+       omni_slam::Logger::extract_file_name(__FILE__),                         \
+       __LINE__)
+#else
+#define DEBUG_POINT() ((void)0)
+#endif

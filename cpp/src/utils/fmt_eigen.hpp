@@ -20,17 +20,18 @@ inline EigenFormat fmt_eigen(const Eigen::MatrixBase<Derived>& mat) {
   const bool           is_row_vec     = (mat.rows() == 1);
   const bool           is_vector      = is_col_vec || is_row_vec;
 
+  static constexpr const char* kMatrixRowIndent =
+    "                                         [";
+  static constexpr const char* kMatrixRowDivider =
+    "-------------------------------------------\n";
+
   Eigen::IOFormat format(eigenPrecision,
                          0,
                          ", ",
                          is_vector ? "\n" : ",\n",
-                         is_vector
-                           ? "["
-                           : "                                         [",
+                         is_vector ? "[" : kMatrixRowIndent,
                          "]",
-                         is_vector
-                           ? ""
-                           : "-------------------------------------------\n",
+                         is_vector ? "" : kMatrixRowDivider,
                          "");
 
   std::stringstream ss;
