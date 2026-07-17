@@ -43,6 +43,13 @@ static constexpr int      kInertialStateDim           = 3;
 static constexpr int      kInertialStateSize          = 3 * kInertialStateDim;
 static constexpr int      kImuResidualSize            = 15;
 static constexpr uint64_t kMarginalizerInitialFrameId = 0;
+static constexpr int      kSingleFrameNumThreads      = 2;
+
+// Rigid-window-shift (gauge drift) detector: flag when the mean per-frame
+// translation delta exceeds kGaugeShiftMeanThresholdM while its spread stays
+// below kGaugeShiftSpreadRatio of that mean.
+static constexpr double kGaugeShiftMeanThresholdM = 0.02;
+static constexpr double kGaugeShiftSpreadRatio    = 0.5;
 
 static Eigen::Matrix<double, kImuResidualSize, 1>
 make_imu_residual_sqrt_scale() {
@@ -473,7 +480,7 @@ void VIOEstimator::optimize_single_frame(std::shared_ptr<Frame> frame,
   ceres::Solver::Options options;
   options.linear_solver_type           = ceres::DENSE_QR;
   options.minimizer_progress_to_stdout = false;
-  options.num_threads                  = 2;
+  options.num_threads                  = kSingleFrameNumThreads;
   options.max_num_iterations           = SVOConfig::single_frame_max_iterations;
 
   ceres::Solver::Summary summary;
@@ -671,7 +678,8 @@ void VIOEstimator::optimize_window(
          mean_dt,
          min_dt,
          max_dt);
-    if (mean_dt > 0.02 && (max_dt - min_dt) < 0.5 * mean_dt) {
+    if (mean_dt > kGaugeShiftMeanThresholdM
+        && (max_dt - min_dt) < kGaugeShiftSpreadRatio * mean_dt) {
       LogW("[wopt] RIGID WINDOW SHIFT at f{}: mean {:.4f} m, spread {:.4f} m",
            newest_id,
            mean_dt,
