@@ -506,7 +506,6 @@ VIOEstimator::VIOEstimator()
 VIOEstimator::~VIOEstimator() = default;
 
 void VIOEstimator::clear_prior() {
-  LogE("something is wrong");
   if (!marginalization_prior_) {
     return;
   }
