@@ -1,5 +1,6 @@
 #include "camera_model/camera_model.hpp"
 #include "camera_model/pinhole_radtan.hpp"
+#include "utils/logger.hpp"
 
 namespace omni_slam {
 
@@ -12,6 +13,7 @@ std::unique_ptr<CameraModelBase> CameraModelFactory::create(
     camera = std::make_unique<PinholeRadialTangential>(params);
     break;
   default:
+    LogE("Unsupported camera model: {}", static_cast<int>(params.model));
     return nullptr;
   }
   return camera;

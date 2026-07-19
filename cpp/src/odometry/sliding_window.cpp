@@ -34,8 +34,6 @@ void SlidingWindow::add_frame(std::shared_ptr<Frame>& frame) {
     return;
   }
   const size_t id = frame->id();
-  auto         it = frames_.find(id);
-
   frame_ids_.insert(id);
   frames_.emplace(id, frame);
 }
@@ -56,6 +54,9 @@ void SlidingWindow::remove_frames(const std::set<uint64_t>& frame_ids) {
   std::unordered_set<uint64_t> to_remove(frame_ids.begin(), frame_ids.end());
   std::unordered_set<uint64_t> removed_map_point_ids;
 
+  // Drop a map point entirely if its shared_ptr is null, its host frame is
+  // being removed, or removing these frames empties its observations;
+  // otherwise just erase the stale observations. Reused for both containers.
   auto prune_container = [&](auto& container) {
     for (auto it = container.begin(); it != container.end();) {
       auto& mp = it->second;
@@ -113,7 +114,6 @@ void SlidingWindow::add_map_point(std::shared_ptr<MapPoint>& map_point) {
     return;
   }
   const size_t id = map_point->id();
-  auto         it = map_points_.find(id);
   map_points_.emplace(id, map_point);
 }
 

@@ -42,6 +42,10 @@ ImuData interpolate_imu_data(const ImuData& imu0,
 
 }  // namespace
 
+// Large sentinel so the first tracked frame always passes the
+// new_keyframe_after check before setup() overrides it from config.
+static constexpr int kInitialNewKeyframeAfter = 100;
+
 StereoVIO::StereoVIO()
   : raw_frame_queue_{}
   , tracked_frame_queue_{}
@@ -49,7 +53,7 @@ StereoVIO::StereoVIO()
   , running_{false}
   , status_{Status::Initializing}
   , make_keyframe_{true}
-  , new_keyframe_after_{100}
+  , new_keyframe_after_{kInitialNewKeyframeAfter}
   , created_map_point_nums_{}
   , result_mutex_{}
   , has_result_{false}
@@ -58,7 +62,7 @@ StereoVIO::StereoVIO()
   , imu_data_buffer_{}
   , last_frame_imu_{}
   , inertial_states_{}
-  , imu_parameters{} {
+  , imu_parameters_{} {
   sliding_window_ = std::make_unique<SlidingWindow>();
   estimator_      = std::make_unique<VIOEstimator>();
 }
@@ -75,11 +79,11 @@ bool StereoVIO::setup(const std::string& config_path) {
   SVIOConfig::ParseConfig(config_path);
   Logger::info("Loaded VIO config: {}", config_path.c_str());
 
-  imu_parameters.acc_noise_sigma      = SVIOConfig::acc_noise_density;
-  imu_parameters.gyr_noise_sigma      = SVIOConfig::gyr_noise_density;
-  imu_parameters.acc_bias_rw_sigma    = SVIOConfig::acc_random_walk;
-  imu_parameters.gyr_bias_rw_sigma    = SVIOConfig::gyr_random_walk;
-  imu_parameters.min_integration_dt_s = SVIOConfig::imu_min_integration_dt_s;
+  imu_parameters_.acc_noise_sigma      = SVIOConfig::acc_noise_density;
+  imu_parameters_.gyr_noise_sigma      = SVIOConfig::gyr_noise_density;
+  imu_parameters_.acc_bias_rw_sigma    = SVIOConfig::acc_random_walk;
+  imu_parameters_.gyr_bias_rw_sigma    = SVIOConfig::gyr_random_walk;
+  imu_parameters_.min_integration_dt_s = SVIOConfig::imu_min_integration_dt_s;
 
   sliding_window_->max_size(SVIOConfig::max_keyframe_size + 1u);
   optical_flow_ = std::make_unique<OpticalFlow>(kCamNum);
@@ -179,8 +183,6 @@ void StereoVIO::process(std::shared_ptr<Frame>&     frame,
     latest_result_ = std::move(result);
     has_result_    = true;
   }
-
-  // Statistics::reportAll();
 }
 
 void StereoVIO::pop_imu_data_until(int64_t               timestamp_ns,
@@ -255,7 +257,7 @@ bool StereoVIO::initialize(std::shared_ptr<Frame>&     frame,
 
   OMNI_ASSERT(!imu_data.empty());
 
-  // use first imu as a gravity direction
+  // use the latest imu sample in the batch as the gravity reference
   const Eigen::Vector3d& acc0_b       = imu_data.back().acc;
   const double           acc0_norm    = acc0_b.norm();
   const double           gravity_norm = SVIOConfig::g_w.norm();
@@ -313,7 +315,7 @@ void StereoVIO::track(std::shared_ptr<Frame>&     frame,
                                    frame->id(),
                                    predicted_inertial_state.bias_acc,
                                    predicted_inertial_state.bias_gyr,
-                                   imu_parameters);
+                                   imu_parameters_);
 
   if (preintegration.integrate_measurements(imu_data)) {
     const double          dt_sec  = preintegration.delta_time_sec();
@@ -354,12 +356,6 @@ void StereoVIO::track(std::shared_ptr<Frame>&     frame,
     ++new_keyframe_after_;
   }
 
-  // // single frame pose estimation
-  // {
-  //   ScopedTimer timer("optimize_frame");
-  //   VIOEstimator::OptimizeSingleFrame(frame, this->sliding_window_.get());
-  // }
-
   // sliding window bundle
   {
     ScopedTimer timer("optimize_window");
@@ -387,20 +383,6 @@ void StereoVIO::track(std::shared_ptr<Frame>&     frame,
   std::set<uint64_t> marginal_inertial_state_ids;
   select_marginal_frames(marginal_frame_ids, marginal_inertial_state_ids);
 
-  {
-    auto join_ids = [](const std::set<uint64_t>& ids) {
-      std::string s;
-      for (const auto id : ids) {
-        if (!s.empty()) {
-          s += ",";
-        }
-        s += std::to_string(id);
-      }
-      return s;
-    };
-    // LogI("margin frame_ids   : [{}]", join_ids(marginal_frame_ids));
-    // LogI("margin inertial_ids: [{}]", join_ids(marginal_inertial_state_ids));
-  }
   // marginalize
   ScopedTimer timer("marginalize ");
   estimator_->marginalize(this->sliding_window_.get(),
@@ -430,10 +412,10 @@ void StereoVIO::track(std::shared_ptr<Frame>&     frame,
 
 float StereoVIO::update_frame_observations(std::shared_ptr<Frame>& frame) {
   TrackingResult* tracking_result = frame->tracking_result_ptr();
-  const size_t    kCamNum         = frame->cam_num();
+  const size_t    cam_num         = frame->cam_num();
   size_t          connected       = 0;
 
-  for (size_t i = 0; i < kCamNum; ++i) {
+  for (size_t i = 0; i < cam_num; ++i) {
     auto&                        ids = tracking_result->ids(i);
     auto&                        uvs = tracking_result->uvs(i);
     std::vector<Eigen::Vector3d> bearings;
@@ -490,9 +472,11 @@ int StereoVIO::initialize_map_points(std::shared_ptr<Frame>& frame) {
   // triangulate
   auto& candidates = sliding_window_->map_point_candidates();
 
+  // Inverse-distance upper bound accepted for a newly triangulated point
+  // (i.e. a minimum depth of ~1/3 m).
+  constexpr double kMaxTriangulatedInvDist = 3.0;
+
   int init_count = 0;
-  int old_count  = 0;
-  int try_count  = candidates.size();
 
   FrameCamId         frame_cam_id0{frame->id(), 0};
   std::set<uint64_t> erase_mp_ids;
@@ -502,14 +486,12 @@ int StereoVIO::initialize_map_points(std::shared_ptr<Frame>& frame) {
     auto& frame_id_to_bearing = mp->observation();
 
     if (frame_id_to_bearing.count(frame_cam_id0) == 0) {
-      old_count++;
       erase_mp_ids.insert(mp_id);
       continue;
     }
 
     Eigen::Vector3d bearing0 = frame_id_to_bearing[frame_cam_id0];
 
-    bool success = false;
     for (auto& [frame_cam_id1, bearing1] : frame_id_to_bearing) {
       if (frame_cam_id0 == frame_cam_id1) {
         continue;
@@ -532,7 +514,8 @@ int StereoVIO::initialize_map_points(std::shared_ptr<Frame>& frame) {
 
       Eigen::Vector4d t_c0_x =
         Geometry::triangulate(bearing0, bearing1, T_c1_c0);
-      if (t_c0_x.array().isFinite().all() && t_c0_x[3] > 0 && t_c0_x[3] < 3.0) {
+      if (t_c0_x.array().isFinite().all() && t_c0_x[3] > 0
+          && t_c0_x[3] < kMaxTriangulatedInvDist) {
         mp->bearing()           = t_c0_x.head<3>();
         mp->inv_dist()          = t_c0_x[3];
         mp->host_frame_cam_id() = frame_cam_id0;
@@ -548,12 +531,6 @@ int StereoVIO::initialize_map_points(std::shared_ptr<Frame>& frame) {
   for (auto& id : erase_mp_ids) {
     candidates.erase(id);
   }
-
-  // LogD("init : {}, oldCount :{}, cand : {} -> {}",
-  //      init_count,
-  //      old_count,
-  //      try_count,
-  //      candidates.size());
 
   return init_count;
 }
@@ -660,9 +637,12 @@ void StereoVIO::select_marginal_frames(
       }
 
       if (!selected) {
-        const uint64_t last_kf_id   = *kf_ids.rbegin();
-        uint64_t       min_score_id = std::numeric_limits<uint64_t>::max();
-        double         min_score    = std::numeric_limits<double>::max();
+        // Guards the reciprocal-distance sum against division by zero when two
+        // keyframe positions coincide.
+        constexpr double kDistEpsilon = 1e-5;
+        const uint64_t   last_kf_id   = *kf_ids.rbegin();
+        uint64_t         min_score_id = std::numeric_limits<uint64_t>::max();
+        double           min_score    = std::numeric_limits<double>::max();
 
         for (auto it1 = kf_ids.begin(); it1 != end_minus_inertial_states;
              ++it1) {
@@ -690,7 +670,7 @@ void StereoVIO::select_marginal_frames(
               1.0
               / ((frame_i->twb().translation() - frame_j->twb().translation())
                    .norm()
-                 + 1e-5);
+                 + kDistEpsilon);
           }
 
           std::shared_ptr<Frame> last_kf = sliding_window_->frame(last_kf_id);

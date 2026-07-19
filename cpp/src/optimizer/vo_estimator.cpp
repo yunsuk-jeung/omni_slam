@@ -24,6 +24,7 @@ namespace omni_slam {
 static constexpr int      kPoseSize                   = 6;
 static constexpr int      kBearingSize                = 3;
 static constexpr uint64_t kMarginalizerInitialFrameId = 0;
+static constexpr int      kSingleFrameNumThreads      = 2;
 
 static void add_marginalization_prior_if_available(
   ceres::Problem&                             problem,
@@ -53,10 +54,8 @@ static void add_marginalization_prior_if_available(
 
 void VOEstimator::optimize_single_frame(std::shared_ptr<Frame> frame,
                                         SlidingWindow*         window) {
-  constexpr size_t kCamIdx     = 0;
-  auto&            mp_id_to_uv = frame->observation(kCamIdx);
-  auto&            T_w_b       = frame->twb();
-  auto&            T_b_c       = frame->tbc(kCamIdx);
+  constexpr size_t kCamIdx = 0;
+  auto&            T_b_c   = frame->tbc(kCamIdx);
 
   Eigen::Vector6d box_w_b = SE3BoxplusManifold::to_params(frame->twb());
 
@@ -74,7 +73,6 @@ void VOEstimator::optimize_single_frame(std::shared_ptr<Frame> frame,
     }
 
     std::shared_ptr<Frame> f0 = window->frame(mp->host_frame_cam_id().frame_id);
-    Sophus::SE3d           Twc = f0->twc(kCamIdx);
 
     // world point reconstruction from host frame
     const Sophus::SE3d Twc0 = f0->twc(kCamIdx);
@@ -92,31 +90,20 @@ void VOEstimator::optimize_single_frame(std::shared_ptr<Frame> frame,
                               T_b_c,
                               SVOConfig::bearing_cost_scale);
 
-    // auto* cost = new ceres::AutoDiffCostFunction<PoseOnlyBearingCostAuto,
-    //                                              2,  // residual dim
-    //                                              6   // pose dim
-    //                                              >(
-    //   new PoseOnlyBearingCostAuto(p_w, bearing, T_b_c));
-
     ceres::LossFunction* loss =
       new ceres::HuberLoss(SVOConfig::bearing_huber_const);
-    problem.AddResidualBlock(cost,
-                             loss,  // no robust loss for now
-                             box_w_b.data());
+    problem.AddResidualBlock(cost, loss, box_w_b.data());
   }
   // solver options
   ceres::Solver::Options options;
   options.linear_solver_type           = ceres::DENSE_QR;
   options.minimizer_progress_to_stdout = false;
-  options.num_threads                  = 2;
+  options.num_threads                  = kSingleFrameNumThreads;
   options.max_num_iterations           = SVOConfig::single_frame_max_iterations;
 
   ceres::Solver::Summary summary;
   ceres::Solve(options, &problem, &summary);
 
-  // LogD("{}", summary.FullReport());
-
-  // update pose
   frame->twb(SE3BoxplusManifold::from_params(box_w_b.data()));
 }
 
@@ -327,9 +314,7 @@ void VOEstimator::marginalize(SlidingWindow*     window,
       if (marginal_kf_ids.count(frame_cam_id.frame_id) > 0) {
         continue;
       }
-      if (remain_frame_ids.count(frame_cam_id.frame_id) == 0) {
-        remain_frame_ids.insert(frame_cam_id.frame_id);
-      }
+      remain_frame_ids.insert(frame_cam_id.frame_id);
     }
   }
 
@@ -468,6 +453,7 @@ void VOEstimator::marginalize(SlidingWindow*     window,
 
   H = 0.5 * (H + H.transpose());
 
+  // Schur complement dims: r = kept (remaining) state, m = marginalized state.
   const Eigen::Index r =
     static_cast<Eigen::Index>(remain_frame_ids.size() * kPoseSize);
   const Eigen::Index total_dim = H.cols();

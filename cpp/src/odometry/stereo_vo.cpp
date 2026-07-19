@@ -15,6 +15,10 @@
 #include "utils/timer.hpp"
 
 namespace omni_slam {
+// Large sentinel so the first tracked frame always passes the
+// new_keyframe_after check before setup() overrides it from config.
+static constexpr int kInitialNewKeyframeAfter = 100;
+
 StereoVO::StereoVO()
   : raw_frame_queue_{}
   , tracked_frame_queue_{}
@@ -22,7 +26,7 @@ StereoVO::StereoVO()
   , running_{false}
   , status_{Status::Initializing}
   , make_keyframe_{true}
-  , new_keyframe_after_{100}
+  , new_keyframe_after_{kInitialNewKeyframeAfter}
   , created_map_point_nums_{}
   , result_mutex_{}
   , has_result_{false}
@@ -170,7 +174,7 @@ bool StereoVO::initialize(std::shared_ptr<Frame>& frame) {
 
   new_keyframe_after_ = 0;
 
-  Logger::info("stereoVO initialized at frame {}, created_map_point",
+  Logger::info("stereoVO initialized at frame {}, created map points: {}",
                frame->id(),
                sliding_window_->map_point_count());
 
@@ -248,10 +252,10 @@ void StereoVO::track(std::shared_ptr<Frame>& frame) {
 
 float StereoVO::update_frame_observations(std::shared_ptr<Frame>& frame) {
   TrackingResult* tracking_result = frame->tracking_result_ptr();
-  const size_t    kCamNum         = frame->cam_num();
+  const size_t    cam_num         = frame->cam_num();
   size_t          connected       = 0;
 
-  for (size_t i = 0; i < kCamNum; ++i) {
+  for (size_t i = 0; i < cam_num; ++i) {
     auto&                        ids = tracking_result->ids(i);
     auto&                        uvs = tracking_result->uvs(i);
     std::vector<Eigen::Vector3d> bearings;
@@ -259,13 +263,13 @@ float StereoVO::update_frame_observations(std::shared_ptr<Frame>& frame) {
 
     frame->cam(i)->unproject(uvs, bearings, valid);
 
-    const auto& point_num = tracking_result->size(i);
+    const size_t point_num = tracking_result->size(i);
     for (size_t j = 0; j < point_num; j++) {
       if (!valid[j]) {
         continue;
       }
       const auto&     id = ids[j];
-      std::shared_ptr mp = sliding_window_->map_point(ids[j]);
+      std::shared_ptr mp = sliding_window_->map_point(id);
       if (mp) {
         if (i == 0) {
           ++connected;
@@ -308,9 +312,13 @@ int StereoVO::initialize_map_points(std::shared_ptr<Frame>& frame) {
   // triangulate
   auto& candidates = sliding_window_->map_point_candidates();
 
-  int init_count = 0;
-  int old_count  = 0;
-  int try_count  = candidates.size();
+  // Inverse-distance upper bound accepted for a newly triangulated point
+  // (i.e. a minimum depth of ~1/3 m).
+  constexpr double kMaxTriangulatedInvDist = 3.0;
+
+  int init_count              = 0;
+  int stale_candidate_count   = 0;
+  int initial_candidate_count = candidates.size();
 
   FrameCamId         frame_cam_id0{frame->id(), 0};
   std::set<uint64_t> erase_mp_ids;
@@ -320,7 +328,7 @@ int StereoVO::initialize_map_points(std::shared_ptr<Frame>& frame) {
     auto& frame_id_to_bearing = mp->observation();
 
     if (frame_id_to_bearing.count(frame_cam_id0) == 0) {
-      old_count++;
+      stale_candidate_count++;
       erase_mp_ids.insert(mp_id);
       continue;
     }
@@ -347,7 +355,8 @@ int StereoVO::initialize_map_points(std::shared_ptr<Frame>& frame) {
 
       Eigen::Vector4d t_c0_x =
         Geometry::triangulate(bearing0, bearing1, T_c1_c0);
-      if (t_c0_x.array().isFinite().all() && t_c0_x[3] > 0 && t_c0_x[3] < 3.0) {
+      if (t_c0_x.array().isFinite().all() && t_c0_x[3] > 0
+          && t_c0_x[3] < kMaxTriangulatedInvDist) {
         mp->bearing()           = t_c0_x.head<3>();
         mp->inv_dist()          = t_c0_x[3];
         mp->host_frame_cam_id() = frame_cam_id0;
@@ -366,8 +375,8 @@ int StereoVO::initialize_map_points(std::shared_ptr<Frame>& frame) {
 
   LogD("init : {}, oldCount :{}, cand : {} -> {}",
        init_count,
-       old_count,
-       try_count,
+       stale_candidate_count,
+       initial_candidate_count,
        candidates.size());
 
   return init_count;
@@ -378,6 +387,12 @@ void StereoVO::select_marginal_frames(
   std::set<uint64_t>& marginal_keyframe_ids) {
   marginal_none_keyframe_ids.clear();
   marginal_keyframe_ids.clear();
+
+  // The two most recent keyframes are always kept out of marginalization.
+  constexpr size_t kProtectedRecentKeyframes = 2;
+  // Guards the reciprocal-distance sum against division by zero when two
+  // keyframe positions coincide.
+  constexpr double kMinPairwiseDistanceEpsilon = 1e-5;
 
   const auto& frame_ids    = sliding_window_->frame_ids();
   const auto& keyframe_ids = sliding_window_->keyframe_ids();
@@ -417,21 +432,19 @@ void StereoVO::select_marginal_frames(
 
   auto kf_ids = keyframe_ids;
   while (kf_ids.size() > SVOConfig::max_keyframe_size) {
-    if (kf_ids.size() <= 2) {
+    if (kf_ids.size() <= kProtectedRecentKeyframes) {
       break;
     }
 
     bool     selected   = false;
     uint64_t id_to_marg = std::numeric_limits<uint64_t>::max();
 
-    auto end_minus_2 = std::prev(kf_ids.end(), 2);
+    auto end_minus_2 = std::prev(kf_ids.end(), kProtectedRecentKeyframes);
     for (auto it = kf_ids.begin(); it != end_minus_2; ++it) {
       const uint64_t kf_id   = *it;
       const int      count   = connected_map_points[kf_id];
       int            created = created_map_point_nums_[kf_id];
 
-      const double ratio = static_cast<double>(count)
-                           / static_cast<double>(created);
       if (count == 0
           || float(count) / float(created)
                < float(SVOConfig::marg_feature_connection_ratio)) {
@@ -461,7 +474,7 @@ void StereoVO::select_marginal_frames(
             1.0
             / ((frame_i->twb().translation() - frame_j->twb().translation())
                  .norm()
-               + 1e-5);
+               + kMinPairwiseDistanceEpsilon);
         }
 
         std::shared_ptr<Frame> last_kf = sliding_window_->frame(last_kf_id);

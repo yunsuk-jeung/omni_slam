@@ -1,10 +1,12 @@
 #pragma once
 
 #include <chrono>
+#include <ctime>
 #include <filesystem>
 #include <format>
 #include <iomanip>
 #include <memory>
+#include <mutex>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -16,14 +18,13 @@
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
 
-#include "utils/fmt_eigen.hpp"
-
 namespace omni_slam {
 
 class Logger {
  public:
   static void init(bool enable_file_logging = true) {
-    if (!logger_) {
+    static std::once_flag init_flag;
+    std::call_once(init_flag, [enable_file_logging]() {
       if (enable_file_logging) {
         // Keep logs in project-root/logs regardless of process working
         // directory.
@@ -35,12 +36,13 @@ class Logger {
 #endif
         std::filesystem::create_directories(log_dir);
 
-        // Generate filename with current timestamp
-        auto              now  = std::chrono::system_clock::now();
-        auto              time = std::chrono::system_clock::to_time_t(now);
+        // Generate filename with current timestamp.
+        auto    now  = std::chrono::system_clock::now();
+        auto    time = std::chrono::system_clock::to_time_t(now);
+        std::tm tm_buf{};
+        localtime_r(&time, &tm_buf);
         std::stringstream ss;
-        ss << "omni_slam_"
-           << std::put_time(std::localtime(&time), "%Y%m%d_%H%M%S") << ".log";
+        ss << "omni_slam_" << std::put_time(&tm_buf, "%Y%m%d_%H%M%S") << ".log";
         const std::string log_file = (log_dir / ss.str()).string();
 
         // Create sinks for both console and file output
@@ -61,7 +63,7 @@ class Logger {
         logger_ = spdlog::default_logger();
       }
       spdlog::set_default_logger(logger_);
-    }
+    });
   }
 
   template <typename... Args>
@@ -129,4 +131,13 @@ class Logger {
                            __LINE__,                                           \
                            fmt,                                                \
                            ##__VA_ARGS__);
-#define DEBUG_POINT() LogE("THIS Line is for debugging");
+
+// "Reached here" debug marker; no-op unless OMNI_SLAM_DEBUG_POINTS is defined.
+#ifdef OMNI_SLAM_DEBUG_POINTS
+#define DEBUG_POINT()                                                          \
+  LogD("reached {}:{}",                                                        \
+       omni_slam::Logger::extract_file_name(__FILE__),                         \
+       __LINE__)
+#else
+#define DEBUG_POINT() ((void)0)
+#endif

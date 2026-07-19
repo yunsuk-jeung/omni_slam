@@ -28,6 +28,9 @@ constexpr float kAxisRadius         = 0.01f;
 constexpr float kOriginAxisLength   = 1.0f;
 constexpr float kOriginAxisRadius   = 0.03f;
 
+// Cadence for polling stereo_vo.fetch_result() in the visualization loop.
+constexpr auto kResultPollInterval = std::chrono::milliseconds(10);
+
 const rerun::components::Color kTrackColor(255, 255, 0, 200);
 const rerun::components::Color kMapColor(0, 255, 255, 200);
 const rerun::components::Color kTrajectoryColor(255, 255, 255, 200);
@@ -112,20 +115,18 @@ void log_origin_axes(rerun::RecordingStream& rec) {
 
   const rerun::components::Position3D origin(0.0f, 0.0f, 0.0f);
 
-  origins.push_back(origin);
-  vectors.emplace_back(kOriginAxisLength, 0.0f, 0.0f);
-  colors.emplace_back(kAxisXColor);
-  radii.emplace_back(rerun::components::Radius::scene_units(kOriginAxisRadius));
+  auto append_axis = [&](const rerun::components::Vector3D& v,
+                         const rerun::components::Color&    c) {
+    origins.push_back(origin);
+    vectors.push_back(v);
+    colors.emplace_back(c);
+    radii.emplace_back(
+      rerun::components::Radius::scene_units(kOriginAxisRadius));
+  };
 
-  origins.push_back(origin);
-  vectors.emplace_back(0.0f, kOriginAxisLength, 0.0f);
-  colors.emplace_back(kAxisYColor);
-  radii.emplace_back(rerun::components::Radius::scene_units(kOriginAxisRadius));
-
-  origins.push_back(origin);
-  vectors.emplace_back(0.0f, 0.0f, kOriginAxisLength);
-  colors.emplace_back(kAxisZColor);
-  radii.emplace_back(rerun::components::Radius::scene_units(kOriginAxisRadius));
+  append_axis({kOriginAxisLength, 0.0f, 0.0f}, kAxisXColor);
+  append_axis({0.0f, kOriginAxisLength, 0.0f}, kAxisYColor);
+  append_axis({0.0f, 0.0f, kOriginAxisLength}, kAxisZColor);
 
   rec.log_static("world/origin_axes",
                  rerun::Arrows3D::from_vectors(vectors)
@@ -142,8 +143,7 @@ int main(int argc, char** argv) {
   const auto project_root =
     std::filesystem::path(__FILE__).parent_path().parent_path();
 
-  // std::filesystem::path dataset_path = project_root /
-  // "datasets/EUROC/V1_02_medium";
+  // Substitute another EuRoC sequence here to run a different dataset.
   std::filesystem::path dataset_path = project_root
                                        / "datasets/EUROC/V1_01_easy";
 
@@ -251,8 +251,8 @@ int main(int argc, char** argv) {
       if (!result.map_points.empty()) {
         std::vector<std::array<float, 3>> points3d;
         points3d.reserve(result.map_points.size());
-        for (const auto& packed : result.map_points) {
-          points3d.push_back({packed.x(), packed.y(), packed.z()});
+        for (const auto& map_point : result.map_points) {
+          points3d.push_back({map_point.x(), map_point.y(), map_point.z()});
         }
         rec.log("world/map_points", rerun::Points3D(points3d));
       }
@@ -295,10 +295,11 @@ int main(int argc, char** argv) {
         std::vector<rerun::components::Color>      colors;
         std::vector<rerun::components::Radius>     radii;
 
-        origins.reserve(result.T_w_b_window.size() * 3);
-        vectors.reserve(result.T_w_b_window.size() * 3);
-        colors.reserve(result.T_w_b_window.size() * 3);
-        radii.reserve(result.T_w_b_window.size() * 3);
+        const size_t axis_component_count = result.T_w_b_window.size() * 3;
+        origins.reserve(axis_component_count);
+        vectors.reserve(axis_component_count);
+        colors.reserve(axis_component_count);
+        radii.reserve(axis_component_count);
 
         for (const auto& T_w_b : result.T_w_b_window) {
           const Eigen::Vector3d t = T_w_b.translation();
@@ -312,29 +313,20 @@ int main(int argc, char** argv) {
                                                      static_cast<float>(t.y()),
                                                      static_cast<float>(t.z()));
 
-          origins.push_back(origin);
-          vectors.emplace_back(static_cast<float>(x.x()),
-                               static_cast<float>(x.y()),
-                               static_cast<float>(x.z()));
-          colors.emplace_back(kAxisXColor);
-          radii.emplace_back(
-            rerun::components::Radius::scene_units(kAxisRadius));
+          auto push_axis = [&](const Eigen::Vector3d&          axis,
+                               const rerun::components::Color& color) {
+            origins.push_back(origin);
+            vectors.emplace_back(static_cast<float>(axis.x()),
+                                 static_cast<float>(axis.y()),
+                                 static_cast<float>(axis.z()));
+            colors.emplace_back(color);
+            radii.emplace_back(
+              rerun::components::Radius::scene_units(kAxisRadius));
+          };
 
-          origins.push_back(origin);
-          vectors.emplace_back(static_cast<float>(y.x()),
-                               static_cast<float>(y.y()),
-                               static_cast<float>(y.z()));
-          colors.emplace_back(kAxisYColor);
-          radii.emplace_back(
-            rerun::components::Radius::scene_units(kAxisRadius));
-
-          origins.push_back(origin);
-          vectors.emplace_back(static_cast<float>(z.x()),
-                               static_cast<float>(z.y()),
-                               static_cast<float>(z.z()));
-          colors.emplace_back(kAxisZColor);
-          radii.emplace_back(
-            rerun::components::Radius::scene_units(kAxisRadius));
+          push_axis(x, kAxisXColor);
+          push_axis(y, kAxisYColor);
+          push_axis(z, kAxisZColor);
         }
 
         rec.log("world/body_axes",
@@ -344,7 +336,7 @@ int main(int argc, char** argv) {
                   .with_radii(radii));
       }
     }
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    std::this_thread::sleep_for(kResultPollInterval);
   }
 
   simulator.stop();

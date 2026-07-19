@@ -28,7 +28,7 @@ class CameraModelBase {
                          std::vector<Eigen::Vector3d>&  bearings,
                          std::vector<bool>&             status) = 0;
 
-  virtual bool unproject(const cv::Point2f& uv, Eigen::Vector3d& bearing_) = 0;
+  virtual bool unproject(const cv::Point2f& uv, Eigen::Vector3d& bearing) = 0;
 
  protected:
   void intrinsics(const std::array<double, 4>& intrinsics) {

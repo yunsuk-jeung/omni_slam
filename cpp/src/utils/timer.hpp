@@ -105,6 +105,8 @@ class Statistics {
     return stats;
   }
 
+  // First-seen order for report_all(); statistics()'s std::map iterates
+  // alphabetically instead.
   static std::vector<std::string>& order() {
     static std::vector<std::string> names;
     return names;
@@ -129,20 +131,25 @@ class Statistics {
       return;
     }
 
-    const auto&  e    = it->second;
-    const double mean = (e.call_count == 0) ? 0.0
-                                            : (e.total_time / e.call_count);
-    const double min  = (e.call_count == 0) ? 0.0 : e.min_time;
-    const double max  = (e.call_count == 0) ? 0.0 : e.max_time;
+    const auto& elem = it->second;
+    // No samples -> report 0 instead of the min/max sentinel init values.
+    const auto zero_if_empty = [&](double value) {
+      return elem.call_count == 0 ? 0.0 : value;
+    };
+    const double mean    = (elem.call_count == 0)
+                             ? 0.0
+                             : (elem.total_time / elem.call_count);
+    const double min_val = zero_if_empty(elem.min_time);
+    const double max_val = zero_if_empty(elem.max_time);
 
     LogI("{:<24} {:>8} {:>10.3f} {:>10.3f} {:>10.3f} {:>10.3f} {:>10.3f}",
          name,
-         e.call_count,
-         e.last_time,
+         elem.call_count,
+         elem.last_time,
          mean,
-         min,
-         max,
-         e.total_time);
+         min_val,
+         max_val,
+         elem.total_time);
   }
 };
 

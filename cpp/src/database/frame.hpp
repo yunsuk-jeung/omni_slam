@@ -43,7 +43,7 @@ class Frame {
 
   const Sophus::SE3d& twb() const { return T_w_b_; }
   Sophus::SE3d&       twb() { return T_w_b_; }
-  void                twb(const Sophus::SE3d T_wb) { T_w_b_ = T_wb; }
+  void                twb(const Sophus::SE3d T_w_b) { T_w_b_ = T_w_b; }
   Sophus::SE3d        twc(size_t i) { return T_w_b_ * T_b_cs_[i]; }
   const Sophus::SE3d& tbc(size_t i) const { return T_b_cs_[i]; }
 
@@ -65,15 +65,15 @@ class Frame {
   const bool is_keyframe() const { return is_keyframe_; }
 
   void add_observation(size_t                 cam_idx,
-                       size_t                 mp_id,
+                       uint64_t               mp_id,
                        const Eigen::Vector3d& bearing);
-  std::vector<std::unordered_map<size_t, Eigen::Vector3d>>& observations() {
+  std::vector<std::unordered_map<uint64_t, Eigen::Vector3d>>& observations() {
     return mp_id_to_bearings_;
   }
-  std::unordered_map<size_t, Eigen::Vector3d>& observation(size_t i) {
+  std::unordered_map<uint64_t, Eigen::Vector3d>& observation(size_t i) {
     return mp_id_to_bearings_[i];
   }
-  void remove_observation(const uint64_t& mp_id);
+  void remove_observation(uint64_t mp_id);
 
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
@@ -93,7 +93,7 @@ class Frame {
 
   bool is_keyframe_;
 
-  std::vector<std::unordered_map<size_t, Eigen::Vector3d>> mp_id_to_bearings_;
+  std::vector<std::unordered_map<uint64_t, Eigen::Vector3d>> mp_id_to_bearings_;
 };
 
 }  // namespace omni_slam

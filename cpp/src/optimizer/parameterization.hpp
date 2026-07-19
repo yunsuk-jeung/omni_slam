@@ -91,11 +91,12 @@ class SE3BoxplusManifold final : public ceres::Manifold {
 
 class BearingTangentManifold : public ceres::Manifold {
  public:
-  // f ∈ R^3
-  int AmbientSize() const override { return 3; }
-  //
-  // δ ∈ R^2
-  int TangentSize() const override { return 2; }
+  static constexpr int    kAmbientSize     = 3;  // f ∈ R^3
+  static constexpr int    kTangentSize     = 2;  // δ ∈ R^2
+  static constexpr double kSinThetaEpsilon = 1e-10;
+
+  int AmbientSize() const override { return kAmbientSize; }
+  int TangentSize() const override { return kTangentSize; }
 
   // ---------------------------------------------
   // Plus: f ⊞ δ = Exp(B(f)δ) f
@@ -103,7 +104,7 @@ class BearingTangentManifold : public ceres::Manifold {
   bool Plus(const double* x,
             const double* delta,
             double*       x_plus_delta) const override {
-    Eigen::Vector3d f = Eigen::Map<const Eigen::Vector3d>(x).normalized();
+    Eigen::Vector3d f = NormalizedBearing(x);
 
     // tangent basis at f
     Eigen::Matrix<double, 3, 2> B;
@@ -129,7 +130,7 @@ class BearingTangentManifold : public ceres::Manifold {
   // so Jacobian = -[f]× B
   // ---------------------------------------------
   bool PlusJacobian(const double* x, double* jacobian) const override {
-    Eigen::Vector3d f = Eigen::Map<const Eigen::Vector3d>(x).normalized();
+    Eigen::Vector3d f = NormalizedBearing(x);
 
     Eigen::Matrix<double, 3, 2> B;
     EigenUtil::tangent_basis(f, B);
@@ -143,8 +144,8 @@ class BearingTangentManifold : public ceres::Manifold {
   bool Minus(const double* y,
              const double* x,
              double*       y_minus_x) const override {
-    Eigen::Vector3d fx = Eigen::Map<const Eigen::Vector3d>(x).normalized();
-    Eigen::Vector3d fy = Eigen::Map<const Eigen::Vector3d>(y).normalized();
+    Eigen::Vector3d fx = NormalizedBearing(x);
+    Eigen::Vector3d fy = NormalizedBearing(y);
 
     // Rotation vector w such that Exp(w)*fx = fy, w ⊥ fx
     Eigen::Vector3d cross     = fx.cross(fy);
@@ -152,7 +153,7 @@ class BearingTangentManifold : public ceres::Manifold {
     double          cos_theta = fx.dot(fy);
 
     Eigen::Vector3d w;
-    if (sin_theta < 1e-10) {
+    if (sin_theta < kSinThetaEpsilon) {
       w = cross;  // theta/sin(theta) → 1 for small angles
     }
     else {
@@ -170,7 +171,7 @@ class BearingTangentManifold : public ceres::Manifold {
   }
 
   bool MinusJacobian(const double* x, double* jacobian) const override {
-    Eigen::Vector3d f = Eigen::Map<const Eigen::Vector3d>(x).normalized();
+    Eigen::Vector3d f = NormalizedBearing(x);
 
     Eigen::Matrix<double, 3, 2> B;
     EigenUtil::tangent_basis(f, B);
@@ -179,6 +180,11 @@ class BearingTangentManifold : public ceres::Manifold {
     Eigen::Map<Eigen::Matrix<double, 2, 3, Eigen::RowMajor>> J(jacobian);
     J = B.transpose() * Sophus::SO3d::hat(f);
     return true;
+  }
+
+ private:
+  static Eigen::Vector3d NormalizedBearing(const double* p) {
+    return Eigen::Map<const Eigen::Vector3d>(p).normalized();
   }
 };
 

@@ -26,9 +26,9 @@ ImuPreintegration::ImuPreintegration(uint64_t               from_frame_id,
                                      const Eigen::Vector3d& bias_gyr,
                                      const Parameters&      parameters)
   : parameters_(parameters)
+  , delta_p_(Eigen::Vector3d::Zero())
   , delta_r_()
   , delta_v_(Eigen::Vector3d::Zero())
-  , delta_p_(Eigen::Vector3d::Zero())
   , delta_t_sec_(0.0)
   , bias_acc_(bias_acc)
   , bias_gyr_(bias_gyr)
@@ -76,7 +76,7 @@ bool ImuPreintegration::integrate_measurement(const ImuData& imu0,
     return false;
   }
 
-  // Cache the raw samples so Repropagate can replay this integration.
+  // Cache the raw samples so repropagate() can replay this integration.
   // Dedupe by timestamp because the typical pairwise call pattern shares
   // the right-end sample with the next step's left-end sample.
   if (imu_measurements_.empty() || imu_measurements_.back().t_ns != imu0.t_ns) {
@@ -132,8 +132,8 @@ bool ImuPreintegration::repropagate(const Eigen::Vector3d& bias_acc,
     return false;
   }
 
-  // Move the buffer aside; Reset() will clear it. Re-integration repopulates
-  // it via IntegrateMeasurement.
+  // Move the buffer aside; reset() will clear it. Re-integration repopulates
+  // it via integrate_measurement().
   std::vector<ImuData> saved = std::move(imu_measurements_);
   reset(bias_acc, bias_gyr);
   return integrate_measurements(saved);
@@ -159,7 +159,9 @@ void ImuPreintegration::propagate_error(const Eigen::Matrix3d& R_start,
   const Eigen::Matrix3d w_hat  = Sophus::SO3d::hat(gyr_mid);
   const Eigen::Matrix3d a0_hat = Sophus::SO3d::hat(acc0_body);
   const Eigen::Matrix3d a1_hat = Sophus::SO3d::hat(acc1_body);
-  const Eigen::Matrix3d tmp    = I3 - w_hat * dt_sec;
+  // First-order (I - [w]x dt) approximation of the rotation-step Jacobian,
+  // reused in the dtheta/dv/dp blocks below.
+  const Eigen::Matrix3d rot_step_jac = I3 - w_hat * dt_sec;
 
   const double dt2 = dt_sec * dt_sec;
   const double dt3 = dt2 * dt_sec;
@@ -167,16 +169,16 @@ void ImuPreintegration::propagate_error(const Eigen::Matrix3d& R_start,
   // Error-state ordering:
   // [0..2]: dp, [3..5]: dtheta, [6..8]: dv, [9..11]: dba, [12..14]: dbg
   Eigen::Matrix15d F   = Eigen::Matrix15d::Identity();
-  F.block<3, 3>(3, 3)  = tmp;
+  F.block<3, 3>(3, 3)  = rot_step_jac;
   F.block<3, 3>(3, 12) = -I3 * dt_sec;
 
   F.block<3, 3>(6, 3) = -0.5 * R_start * a0_hat * dt_sec
-                        - 0.5 * R_next * a1_hat * tmp * dt_sec;
+                        - 0.5 * R_next * a1_hat * rot_step_jac * dt_sec;
   F.block<3, 3>(6, 9)  = -0.5 * (R_start + R_next) * dt_sec;
   F.block<3, 3>(6, 12) = 0.5 * R_next * a1_hat * dt2;
 
   F.block<3, 3>(0, 3) = -0.25 * R_start * a0_hat * dt2
-                        - 0.25 * R_next * a1_hat * tmp * dt2;
+                        - 0.25 * R_next * a1_hat * rot_step_jac * dt2;
   F.block<3, 3>(0, 6)  = I3 * dt_sec;
   F.block<3, 3>(0, 9)  = -0.25 * (R_start + R_next) * dt2;
   F.block<3, 3>(0, 12) = 0.25 * R_next * a1_hat * dt3;
@@ -204,20 +206,17 @@ void ImuPreintegration::propagate_error(const Eigen::Matrix3d& R_start,
 
   Eigen::Matrix<double, 18, 18> Q      = Eigen::Matrix<double, 18, 18>::Zero();
   const double                  inv_dt = 1.0 / dt_sec;
-  const double                  sigma_acc2 = parameters_.acc_noise_sigma
-                            * parameters_.acc_noise_sigma;
-  const double sigma_gyr2 = parameters_.gyr_noise_sigma
-                            * parameters_.gyr_noise_sigma;
-  const double sigma_ba_rw2 = parameters_.acc_bias_rw_sigma
-                              * parameters_.acc_bias_rw_sigma;
-  const double sigma_bg_rw2 = parameters_.gyr_bias_rw_sigma
-                              * parameters_.gyr_bias_rw_sigma;
-  Q.block<3, 3>(0, 0)   = I3 * 2.0 * sigma_acc2 * inv_dt;
-  Q.block<3, 3>(3, 3)   = I3 * 2.0 * sigma_gyr2 * inv_dt;
-  Q.block<3, 3>(6, 6)   = I3 * 2.0 * sigma_acc2 * inv_dt;
-  Q.block<3, 3>(9, 9)   = I3 * 2.0 * sigma_gyr2 * inv_dt;
-  Q.block<3, 3>(12, 12) = I3 * sigma_ba_rw2 * inv_dt;
-  Q.block<3, 3>(15, 15) = I3 * sigma_bg_rw2 * inv_dt;
+  const auto                    square = [](double v) { return v * v; };
+  const double sigma_acc2              = square(parameters_.acc_noise_sigma);
+  const double sigma_gyr2              = square(parameters_.gyr_noise_sigma);
+  const double sigma_ba_rw2            = square(parameters_.acc_bias_rw_sigma);
+  const double sigma_bg_rw2            = square(parameters_.gyr_bias_rw_sigma);
+  Q.block<3, 3>(0, 0)                  = I3 * 2.0 * sigma_acc2 * inv_dt;
+  Q.block<3, 3>(3, 3)                  = I3 * 2.0 * sigma_gyr2 * inv_dt;
+  Q.block<3, 3>(6, 6)                  = I3 * 2.0 * sigma_acc2 * inv_dt;
+  Q.block<3, 3>(9, 9)                  = I3 * 2.0 * sigma_gyr2 * inv_dt;
+  Q.block<3, 3>(12, 12)                = I3 * sigma_ba_rw2 * inv_dt;
+  Q.block<3, 3>(15, 15)                = I3 * sigma_bg_rw2 * inv_dt;
 
   covariance_ = F * covariance_ * F.transpose() + V * Q * V.transpose();
   covariance_ = 0.5 * (covariance_ + covariance_.transpose());
@@ -237,6 +236,8 @@ ImuPreintegration::CorrectedDelta ImuPreintegration::bias_corrected_delta(
 }
 
 Eigen::Matrix15d ImuPreintegration::information(double damping) const {
+  // Diagonal regularization keeps LDLT stable when the covariance is singular
+  // or near-singular (e.g. right after reset or with very few steps).
   Eigen::Matrix15d covariance_regularized = covariance_;
   covariance_regularized.diagonal().array() += std::max(damping, 0.0);
 

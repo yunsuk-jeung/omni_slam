@@ -55,9 +55,10 @@ void run_forward_backward_optical_flow(const std::vector<cv::Mat>& src_pyramid,
       status[i] = 0;
       continue;
     }
-    const cv::Point2f dist       = src_uvs[i] - reverse_uvs[i];
-    const float       distNormSq = dist.x * dist.x + dist.y * dist.y;
-    if (distNormSq > SVOConfig::optical_flow_dist_threshold) {
+    // Threshold is compared against the squared forward-backward error.
+    const cv::Point2f diff         = src_uvs[i] - reverse_uvs[i];
+    const float       dist_norm_sq = diff.x * diff.x + diff.y * diff.y;
+    if (dist_norm_sq > SVOConfig::optical_flow_dist_threshold) {
       status[i] = 0;
     }
   }
@@ -171,10 +172,11 @@ void OpticalFlow::detect_features(const std::shared_ptr<Frame>& curr_frame) {
   auto* curr_result = curr_frame->tracking_result_ptr();
   auto& curr_uvs    = curr_result->uvs(kLeftCam);
 
-  const int grid_rows = std::max(1, SVOConfig::feature_grid_rows);
-  const int grid_cols = std::max(1, SVOConfig::feature_grid_cols);
-  const int cell_w = std::max(1, curr_frame->image(kLeftCam).cols / grid_cols);
-  const int cell_h = std::max(1, curr_frame->image(kLeftCam).rows / grid_rows);
+  const cv::Mat&    cam_image = curr_frame->image(kLeftCam);
+  const int         grid_rows = std::max(1, SVOConfig::feature_grid_rows);
+  const int         grid_cols = std::max(1, SVOConfig::feature_grid_cols);
+  const int         cell_w    = std::max(1, cam_image.cols / grid_cols);
+  const int         cell_h    = std::max(1, cam_image.rows / grid_rows);
   std::vector<bool> cell_has_feature(grid_rows * grid_cols, false);
 
   for (const auto& uv : curr_uvs) {
@@ -190,9 +192,9 @@ void OpticalFlow::detect_features(const std::shared_ptr<Frame>& curr_frame) {
       }
       const int x0 = col * cell_w;
       const int y0 = row * cell_h;
-      const int x1 = (col == grid_cols - 1) ? curr_frame->image(kLeftCam).cols
+      const int x1 = (col == grid_cols - 1) ? cam_image.cols
                                             : (col + 1) * cell_w;
-      const int y1 = (row == grid_rows - 1) ? curr_frame->image(kLeftCam).rows
+      const int y1 = (row == grid_rows - 1) ? cam_image.rows
                                             : (row + 1) * cell_h;
       if (x1 <= x0 || y1 <= y0) {
         continue;
@@ -200,10 +202,7 @@ void OpticalFlow::detect_features(const std::shared_ptr<Frame>& curr_frame) {
 
       const cv::Rect            roi(x0, y0, x1 - x0, y1 - y0);
       std::vector<cv::KeyPoint> keypoints;
-      cv::FAST(curr_frame->image(kLeftCam)(roi),
-               keypoints,
-               SVOConfig::fast_threshold,
-               true);
+      cv::FAST(cam_image(roi), keypoints, SVOConfig::fast_threshold, true);
       if (keypoints.empty()) {
         continue;
       }

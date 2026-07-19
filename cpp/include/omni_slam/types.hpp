@@ -1,7 +1,11 @@
 #pragma once
 
+#include <array>
+#include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <memory>
+#include <vector>
 
 #include <Eigen/Dense>
 
@@ -37,7 +41,7 @@ struct FrameCamId {
     : frame_id(0)
     , cam_id(0) {}
 
-  FrameCamId(const size_t& frame_id, const size_t& cam_id)
+  FrameCamId(uint64_t frame_id, size_t cam_id)
     : frame_id(frame_id)
     , cam_id(cam_id) {}
 

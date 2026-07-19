@@ -21,10 +21,8 @@
 #include "utils/eigen_utils.hpp"
 
 namespace omni_slam {
-class TrackingResult;
 class OpticalFlow;
 class Frame;
-class MapPoint;
 class SlidingWindow;
 class VIOEstimator;
 class StereoVIO : public Odometry {
@@ -95,7 +93,7 @@ class StereoVIO : public Odometry {
   ConcurrentQueue<ImuData>      imu_queue_;
   std::vector<ImuData>          imu_data_buffer_;
   std::optional<ImuData>        last_frame_imu_;
-  ImuPreintegration::Parameters imu_parameters;
+  ImuPreintegration::Parameters imu_parameters_;
 };
 
 }  // namespace omni_slam

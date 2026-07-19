@@ -1,7 +1,6 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
-#include <limits>
 #include <optional>
 #include <unordered_map>
 #include <vector>
@@ -26,16 +25,6 @@
 namespace omni_slam {
 namespace {
 
-static std::string join_ids(const std::set<uint64_t>& ids) {
-  std::string s;
-  for (auto id : ids) {
-    if (!s.empty())
-      s += ",";
-    s += std::to_string(id);
-  }
-  return s;
-}
-
 static constexpr int      kPoseSize                   = 6;
 static constexpr int      kBiasSize                   = 3;
 static constexpr int      kBearingSize                = 3;
@@ -43,6 +32,7 @@ static constexpr int      kInertialStateDim           = 3;
 static constexpr int      kInertialStateSize          = 3 * kInertialStateDim;
 static constexpr int      kImuResidualSize            = 15;
 static constexpr uint64_t kMarginalizerInitialFrameId = 0;
+static constexpr int      kSingleFrameNumThreads      = 2;
 
 static Eigen::Matrix<double, kImuResidualSize, 1>
 make_imu_residual_sqrt_scale() {
@@ -163,36 +153,6 @@ static std::optional<ImuPreintegrationCost::LinState> make_imu_lin_state(
                                          state_j->second.v_w_b_lin(),
                                          state_i->second.bias_acc_lin(),
                                          state_i->second.bias_gyr_lin()};
-}
-
-// Debug: per-category cost of the window problem. Relies on residual blocks
-// being stored in insertion order (imu | prior | bearing).
-struct WindowCostBreakdown {
-  double imu     = 0.0;
-  double prior   = 0.0;
-  double bearing = 0.0;
-};
-
-static WindowCostBreakdown evaluate_cost_breakdown(ceres::Problem& problem,
-                                                   size_t          num_imu,
-                                                   size_t num_imu_prior) {
-  std::vector<ceres::ResidualBlockId> ids;
-  problem.GetResidualBlocks(&ids);
-
-  WindowCostBreakdown out;
-  const auto          eval = [&](size_t begin, size_t end, double& cost) {
-    if (begin >= end || end > ids.size()) {
-      return;
-    }
-    ceres::Problem::EvaluateOptions eval_options;
-    eval_options.apply_loss_function = true;
-    eval_options.residual_blocks.assign(ids.begin() + begin, ids.begin() + end);
-    problem.Evaluate(eval_options, &cost, nullptr, nullptr, nullptr);
-  };
-  eval(0, num_imu, out.imu);
-  eval(num_imu, num_imu_prior, out.prior);
-  eval(num_imu_prior, ids.size(), out.bearing);
-  return out;
 }
 
 static AddImuFactorResult add_imu_factor(
@@ -415,13 +375,6 @@ static void add_marginalization_prior_if_available(
     prior_param_blocks.push_back(blocks.bias_gyr_params[idx].data());
   }
 
-  // LogI("Prior added: frame_ids=[{}], preint_ids=[{}], blocks={},
-  // residuals={}",
-  //      join_ids(frame_ids),
-  //      join_ids(preintegration_ids),
-  //      block_sizes.size(),
-  //      prior.r_.size());
-
   ceres::CostFunction* prior_cost = new MarginalizationCost(prior);
   problem.AddResidualBlock(prior_cost, nullptr, prior_param_blocks);
 }
@@ -473,7 +426,7 @@ void VIOEstimator::optimize_single_frame(std::shared_ptr<Frame> frame,
   ceres::Solver::Options options;
   options.linear_solver_type           = ceres::DENSE_QR;
   options.minimizer_progress_to_stdout = false;
-  options.num_threads                  = 2;
+  options.num_threads                  = kSingleFrameNumThreads;
   options.max_num_iterations           = SVOConfig::single_frame_max_iterations;
 
   ceres::Solver::Summary summary;
@@ -516,7 +469,6 @@ VIOEstimator::VIOEstimator()
 VIOEstimator::~VIOEstimator() = default;
 
 void VIOEstimator::clear_prior() {
-  LogE("something is wrong");
   if (!marginalization_prior_) {
     return;
   }
@@ -556,7 +508,7 @@ void VIOEstimator::optimize_window(
   for (const auto& [frame_id, _] : frames) {
     const auto state_it = inertial_states.find(frame_id);
     if (state_it == inertial_states.end()) {
-      OMNI_ASSERT_MESSAGE(true, "inertial state missing");
+      LogW("optimize_window: inertial state missing for frame {}", frame_id);
       continue;
     }
     blocks.add_inertial_state(frame_id, state_it->second);
@@ -571,8 +523,6 @@ void VIOEstimator::optimize_window(
                    ImuCostType::kAnalytic,
                    make_imu_lin_state(window, inertial_states, preintegration));
   }
-  const size_t num_blocks_imu =
-    static_cast<size_t>(problem.NumResidualBlocks());
 
   std::unordered_map<uint64_t, size_t> mp_id_to_index;
   std::vector<Eigen::Vector3d>         bearing_params;
@@ -586,22 +536,9 @@ void VIOEstimator::optimize_window(
     inv_dist_params.push_back(sanitize_inv_dist(mp->inv_dist()));
   }
   register_map_point_blocks(problem, bearing_params, inv_dist_params);
-  // {
-  //   std::string window_ids_str;
-  //   for (const auto& fid : window->frame_ids()) {
-  //     window_ids_str += std::to_string(fid) + ",";
-  //   }
-  //   LogI("OptimizeWindow: window=[{}], prior_frames=[{}],
-  //   prior_preints=[{}]",
-  //        window_ids_str,
-  //        join_ids(marginalization_prior_->frame_ids_),
-  //        join_ids(marginalization_prior_->preintegration_ids_));
-  // }
   add_marginalization_prior_if_available(problem,
                                          *marginalization_prior_,
                                          blocks);
-  const size_t num_blocks_imu_prior =
-    static_cast<size_t>(problem.NumResidualBlocks());
 
   for (const auto& [mp_id, mp] : map_points) {
     if (mp->status() < MapPoint::Status::TRACKING) {
@@ -622,10 +559,6 @@ void VIOEstimator::optimize_window(
                                         /*robustify_host_prior=*/false);
   }
 
-  const WindowCostBreakdown cost_pre =
-    evaluate_cost_breakdown(problem, num_blocks_imu, num_blocks_imu_prior);
-  const std::vector<Eigen::Vector6d> pose_params_before = blocks.pose_params;
-
   ceres::Solver::Options options;
   options.linear_solver_type           = ceres::SPARSE_NORMAL_CHOLESKY;
   options.num_threads                  = SVOConfig::window_num_threads;
@@ -634,50 +567,6 @@ void VIOEstimator::optimize_window(
 
   ceres::Solver::Summary summary;
   ceres::Solve(options, &problem, &summary);
-
-  const WindowCostBreakdown cost_post =
-    evaluate_cost_breakdown(problem, num_blocks_imu, num_blocks_imu_prior);
-
-  // Gauge-shift detector: per-frame translation deltas of this solve. A
-  // rigid window jump shows up as mean >> spread.
-  {
-    double mean_dt = 0.0;
-    double max_dt  = 0.0;
-    double min_dt  = std::numeric_limits<double>::max();
-    for (size_t i = 0; i < blocks.pose_params.size(); ++i) {
-      const double dt =
-        (blocks.pose_params[i].head<3>() - pose_params_before[i].head<3>())
-          .norm();
-      mean_dt += dt;
-      max_dt = std::max(max_dt, dt);
-      min_dt = std::min(min_dt, dt);
-    }
-    if (!blocks.pose_params.empty()) {
-      mean_dt /= static_cast<double>(blocks.pose_params.size());
-    }
-    const uint64_t newest_id = window->frame_ids().empty()
-                                 ? 0
-                                 : *window->frame_ids().rbegin();
-    LogI("[wopt] f{} it{} | imu {:.3e}->{:.3e} prior {:.3e}->{:.3e} bear "
-         "{:.3e}->{:.3e} | dT mean {:.4f} min {:.4f} max {:.4f}",
-         newest_id,
-         summary.iterations.size(),
-         cost_pre.imu,
-         cost_post.imu,
-         cost_pre.prior,
-         cost_post.prior,
-         cost_pre.bearing,
-         cost_post.bearing,
-         mean_dt,
-         min_dt,
-         max_dt);
-    if (mean_dt > 0.02 && (max_dt - min_dt) < 0.5 * mean_dt) {
-      LogW("[wopt] RIGID WINDOW SHIFT at f{}: mean {:.4f} m, spread {:.4f} m",
-           newest_id,
-           mean_dt,
-           max_dt - min_dt);
-    }
-  }
 
   for (const auto& [frame_id, frame] : frames) {
     frame->twb(SE3BoxplusManifold::from_params(blocks.pose_param(frame_id)));
@@ -717,21 +606,6 @@ void VIOEstimator::marginalize(
       || (marginal_frame_ids.empty() && marginal_inertial_state_ids.empty())) {
     return;
   }
-
-  // LogI("=== Marginalize START ===");
-  // LogI("  marginal_frame_ids: [{}]", join_ids(marginal_frame_ids));
-  // LogI("  marginal_inertial_ids: [{}]",
-  // join_ids(marginal_inertial_state_ids)); LogI("  prior frame_ids: [{}]",
-  // join_ids(marginalization_prior_->frame_ids_)); LogI("  prior preint_ids:
-  // [{}]",
-  //      join_ids(marginalization_prior_->preintegration_ids_));
-  // {
-  //   std::string window_ids_str;
-  //   for (const auto& fid : window->frame_ids()) {
-  //     window_ids_str += std::to_string(fid) + ",";
-  //   }
-  //   LogI("  window frame_ids: [{}]", window_ids_str);
-  // }
 
   // Contract check: preintegration map key must be from_id.
   for (const auto& [from_id, preintegration] : imu_preintegrations) {
@@ -847,10 +721,6 @@ void VIOEstimator::marginalize(
   }
   register_pose_blocks(problem, blocks);
 
-  // LogI("  remain_frame_ids: [{}]", join_ids(remain_frame_ids));
-  // LogI("  marginal_inertial_ids: [{}]", join_ids(marginal_inertial_ids));
-  // LogI("  remain_inertial_ids: [{}]", join_ids(remain_inertial_ids));
-
   auto add_inertial_entry = [&](uint64_t id) {
     if (blocks.has_inertial_state(id)) {
       return;
@@ -900,54 +770,24 @@ void VIOEstimator::marginalize(
                                         /*robustify_host_prior=*/true);
   }
 
-  size_t marginal_imu_total        = 0;
-  size_t marginal_imu_added        = 0;
-  size_t marginal_imu_skip_dt      = 0;
-  size_t marginal_imu_skip_missing = 0;
-  size_t marginal_imu_skip_keep    = 0;
   for (const auto& [_, preintegration] : imu_preintegrations) {
-    ++marginal_imu_total;
     if (preintegration.delta_time_sec() <= 0.0) {
-      ++marginal_imu_skip_dt;
       continue;
     }
     if (!imu_factor_touches_marginal(preintegration)) {
-      ++marginal_imu_skip_keep;
       continue;
     }
 
     // Analytic with the FEJ linearization point: the marginalization Hessian
     // must be linearized at the same point as the window factors, otherwise
     // each marginalization injects a prior inconsistent with FEJ.
-    switch (add_imu_factor(problem,
-                           blocks,
-                           preintegration,
-                           imu_residual_sqrt_scale,
-                           ImuCostType::kAnalytic,
-                           make_imu_lin_state(window,
-                                              inertial_states,
-                                              preintegration))) {
-    case AddImuFactorResult::kAdded:
-      ++marginal_imu_added;
-      break;
-    case AddImuFactorResult::kSkippedMissingBlock:
-      ++marginal_imu_skip_missing;
-      break;
-    case AddImuFactorResult::kSkippedDt:
-      ++marginal_imu_skip_dt;
-      break;
-    }
+    add_imu_factor(problem,
+                   blocks,
+                   preintegration,
+                   imu_residual_sqrt_scale,
+                   ImuCostType::kAnalytic,
+                   make_imu_lin_state(window, inertial_states, preintegration));
   }
-  // LogI(
-  //   "Marginalize IMU factors: total={}, added={}, skip_dt={},
-  //   skip_missing={}, " "skip_keep={}, " "marginal_inertial={},
-  //   remain_inertial={}, preints={}", marginal_imu_total, marginal_imu_added,
-  //   marginal_imu_skip_dt,
-  //   marginal_imu_skip_missing,
-  //   marginal_imu_skip_keep,
-  //   marginal_inertial_ids.size(),
-  //   remain_inertial_ids.size(),
-  //   imu_preintegrations.size());
 
   // The eval-ordering / Schur-complement code below predates WindowBlocks;
   // alias its members to keep that section unchanged.
@@ -1041,13 +881,6 @@ void VIOEstimator::marginalize(
   }
   const Eigen::Index total_dim = H.cols();
   const Eigen::Index m         = total_dim - r;
-  // LogI("  Hessian: total_dim={}, m(marginal)={}, r(remain)={}, "
-  //      "remain_pose_count={}, remain_inertial_count={}",
-  //      total_dim,
-  //      m,
-  //      r,
-  //      remain_pose_count,
-  //      remain_inertial_count);
   if (m < 0) {
     clear_prior();
     return;
@@ -1074,6 +907,7 @@ void VIOEstimator::marginalize(
   Statistics::start_timer("marginalize saes");
   Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> saes(Amm);
   if (saes.info() != Eigen::Success) {
+    Statistics::stop_timer("marginalize saes");
     clear_prior();
     return;
   }
@@ -1194,17 +1028,6 @@ void VIOEstimator::marginalize(
     }
   }
 
-  // LogI("=== Marginalize END ===");
-  // LogI("  new prior frame_ids: [{}]",
-  //      join_ids(marginalization_prior_->frame_ids_));
-  // LogI("  new prior preint_ids: [{}]",
-  //      join_ids(marginalization_prior_->preintegration_ids_));
-  // LogI("  new prior J: {}x{}, r: {}, x0: {}, blocks: {}",
-  //      marginalization_prior_->J_.rows(),
-  //      marginalization_prior_->J_.cols(),
-  //      marginalization_prior_->r_.size(),
-  //      marginalization_prior_->x0_.size(),
-  //      marginalization_prior_->block_sizes_.size());
   Statistics::stop_timer("marginalize saes2");
 }
 

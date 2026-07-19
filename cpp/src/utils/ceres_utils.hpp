@@ -24,6 +24,8 @@ inline bool transpose_crs_matrix(const ceres::CRSMatrix& J,
     return false;
   }
 
+  // CSR -> CSC transpose via counting sort (histogram, prefix-sum, scatter,
+  // then shift offsets back).
   std::vector<int>    tRows(num_cols + 1, 0);
   std::vector<int>    tCols(nnz, 0);
   std::vector<double> tValues(nnz, 0);
@@ -69,7 +71,7 @@ inline bool transpose_crs_matrix(const ceres::CRSMatrix& J,
 }
 
 inline bool create_hessian_from_crs_matrix(const ceres::CRSMatrix&    crsJ,
-                                           const std::vector<double>& res,
+                                           const std::vector<double>& residuals,
                                            Eigen::MatrixXd&           H,
                                            Eigen::VectorXd&           JtR) {
   H.resize(0, 0);
@@ -78,7 +80,7 @@ inline bool create_hessian_from_crs_matrix(const ceres::CRSMatrix&    crsJ,
   if (crsJ.num_rows < 0 || crsJ.num_cols < 0) {
     return false;
   }
-  if (static_cast<int>(res.size()) != crsJ.num_rows) {
+  if (static_cast<int>(residuals.size()) != crsJ.num_rows) {
     return false;
   }
 
@@ -88,25 +90,27 @@ inline bool create_hessian_from_crs_matrix(const ceres::CRSMatrix&    crsJ,
     return false;
   }
 
-  const int numRow = crsJt.num_rows;
+  const int num_rows = crsJt.num_rows;
 
-  H.resize(numRow, numRow);
+  H.resize(num_rows, num_rows);
   H.setZero();
 
   const std::vector<int>&    rows   = crsJt.rows;
   const std::vector<int>&    cols   = crsJt.cols;
   const std::vector<double>& values = crsJt.values;
 
-  for (int i = 0; i < numRow; i++) {
+  // H = Jt*J: each entry is a sparse dot-product of rows i,j of Jt via a
+  // merge-join over ascending column indices; non-overlapping rows stay 0.
+  for (int i = 0; i < num_rows; i++) {
     int i_colIdx     = rows[i];
     int i_colIdx_end = rows[i + 1];
 
     if (i_colIdx == i_colIdx_end)
       continue;
 
-    for (int j = 0; j < numRow; j++) {
-      i_colIdx     = rows[i];
-      i_colIdx_end = rows[i + 1];
+    for (int j = 0; j < num_rows; j++) {
+      // Reset only the moving cursor; i_colIdx_end is loop-invariant.
+      i_colIdx = rows[i];
 
       double val = 0;
 
@@ -137,10 +141,10 @@ inline bool create_hessian_from_crs_matrix(const ceres::CRSMatrix&    crsJ,
     }
   }
 
-  JtR.resize(numRow);
+  JtR.resize(num_rows);
   JtR.setZero();
 
-  for (int i = 0; i < numRow; i++) {
+  for (int i = 0; i < num_rows; i++) {
     int i_colIdx     = rows[i];
     int i_colIdx_end = rows[i + 1];
 
@@ -152,7 +156,7 @@ inline bool create_hessian_from_crs_matrix(const ceres::CRSMatrix&    crsJ,
     for (int j = i_colIdx; j < i_colIdx_end; j++) {
       int col = cols[j];
 
-      val += res[col] * values[j];
+      val += residuals[col] * values[j];
     }
 
     JtR(i) = val;

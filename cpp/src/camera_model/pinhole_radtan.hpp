@@ -32,12 +32,14 @@ class PinholeRadialTangential : public CameraModelBase {
     return cv::Point2d(fx_ * n_uv.x() + cx_, fy_ * n_uv.y() + cy_);
   }
 
-  Eigen::Vector2d distort(const Eigen::Vector2d& nuv) override {
+  // Brown-Conrady (OpenCV) radial-tangential model: radial via k1,k2 plus
+  // tangential via p1,p2.
+  Eigen::Vector2d distort(const Eigen::Vector2d& n_uv) override {
     if (!has_distortion_) {
       return Eigen::Vector2d::Zero();
     }
-    const double x  = nuv.x();
-    const double y  = nuv.y();
+    const double x  = n_uv.x();
+    const double y  = n_uv.y();
     const double x2 = x * x;
     const double y2 = y * y;
     const double xy = x * y;
@@ -57,20 +59,12 @@ class PinholeRadialTangential : public CameraModelBase {
     bearings.resize(count);
     status.assign(count, true);
 
-    auto fill_bearing = [](double mx, double my, Eigen::Vector3d& out) {
-      const double r2       = mx * mx + my * my;
-      const double norm_inv = 1.0 / std::sqrt(1.0 + r2);
-      out[0]                = mx * norm_inv;
-      out[1]                = my * norm_inv;
-      out[2]                = norm_inv;
-    };
-
     if (has_distortion_) {
       std::vector<cv::Point2f> norm_uvs;
       cv::undistortPoints(uvs, norm_uvs, cv_K_, cv_D_);
       for (size_t i = 0; i < count; ++i) {
         const auto& uv = norm_uvs[i];
-        fill_bearing(uv.x, uv.y, bearings[i]);
+        normalize_bearing(uv.x, uv.y, bearings[i]);
       }
       return;
     }
@@ -79,7 +73,7 @@ class PinholeRadialTangential : public CameraModelBase {
       const auto&  uv = uvs[i];
       const double mx = (uv.x - cx_) / fx_;
       const double my = (uv.y - cy_) / fy_;
-      fill_bearing(mx, my, bearings[i]);
+      normalize_bearing(mx, my, bearings[i]);
     }
   }
 
@@ -98,22 +92,14 @@ class PinholeRadialTangential : public CameraModelBase {
       my = dst.front().y;
     }
 
-    const double r2 = mx * mx + my * my;
-
-    const double norm     = sqrt(1.0 + r2);
-    const double norm_inv = 1.0 / norm;
-
-    bearing.setZero();
-    bearing[0] = mx * norm_inv;
-    bearing[1] = my * norm_inv;
-    bearing[2] = norm_inv;
-
+    normalize_bearing(mx, my, bearing);
     return true;
   };
 
  protected:
   void distortions(const std::vector<double>& distortions) override {
-    if (distortions.size() >= 4) {
+    constexpr size_t kNumRadTanCoeffs = 4;  // k1, k2, p1, p2
+    if (distortions.size() >= kNumRadTanCoeffs) {
       cv_D_           = (cv::Mat_<double>(1, 4) << distortions[0],
                distortions[1],
                distortions[2],
@@ -130,6 +116,14 @@ class PinholeRadialTangential : public CameraModelBase {
   }
 
  private:
+  static void normalize_bearing(double mx, double my, Eigen::Vector3d& out) {
+    const double r2       = mx * mx + my * my;
+    const double norm_inv = 1.0 / std::sqrt(1.0 + r2);
+    out[0]                = mx * norm_inv;
+    out[1]                = my * norm_inv;
+    out[2]                = norm_inv;
+  }
+
   double k1_{0.0};
   double k2_{0.0};
   double p1_{0.0};

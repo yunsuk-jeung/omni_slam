@@ -1,5 +1,4 @@
 #include <atomic>
-#include <utility>
 
 #include "config/svo_config.hpp"
 #include "database/frame.hpp"
@@ -13,20 +12,17 @@ std::atomic<size_t> g_frame_id{0};
 Frame::Frame(int64_t                             timestamp_ns,
              const std::vector<cv::Mat>&         images,
              const std::vector<CameraParameter>& camera_parameters)
-  : id_(g_frame_id.fetch_add(1, std::memory_order_relaxed))
+  : kCamNum{images.size()}
+  , id_(g_frame_id.fetch_add(1, std::memory_order_relaxed))
   , timestamp_ns_(timestamp_ns)
   , images_(images)
   , image_pyramids_(images.size())
-  , kCamNum{images.size()}
   , is_keyframe_{false} {
   cams_.clear();
-  cams_.reserve(images.size());
+  cams_.reserve(camera_parameters.size());
 
   for (const auto& params : camera_parameters) {
-    auto camera = CameraModelFactory::create(params);
-    if (camera) {
-      cams_.push_back(std::move(camera));
-    }
+    cams_.push_back(CameraModelFactory::create(params));
   }
   tracking_result_ = std::make_unique<TrackingResult>(images_.size());
 
@@ -44,7 +40,7 @@ Frame::~Frame() {
 }
 
 void Frame::add_observation(size_t                 cam_idx,
-                            size_t                 mp_id,
+                            uint64_t               mp_id,
                             const Eigen::Vector3d& bearing) {
   if (cam_idx >= mp_id_to_bearings_.size()) {
     return;
@@ -52,7 +48,7 @@ void Frame::add_observation(size_t                 cam_idx,
   mp_id_to_bearings_[cam_idx][mp_id] = bearing;
 }
 
-void Frame::remove_observation(const uint64_t& mp_id) {
+void Frame::remove_observation(uint64_t mp_id) {
   for (auto& mp_id_to_bearing : mp_id_to_bearings_) {
     mp_id_to_bearing.erase(mp_id);
   }

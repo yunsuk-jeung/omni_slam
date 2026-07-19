@@ -14,6 +14,9 @@
 #include "utils/sophus_utils.hpp"
 
 namespace omni_slam {
+// Minimum camera-frame depth (z) below which a point is treated as invalid.
+constexpr double kMinValidDepth = 1e-6;
+
 inline Eigen::Matrix2d make_sqrt_information2d(double cost_scale) {
   Eigen::Matrix2d sqrt_information = Eigen::Matrix2d::Identity();
   if (std::isfinite(cost_scale) && cost_scale > 0.0) {
@@ -52,7 +55,7 @@ class PoseOnlyBearingCost final : public ceres::SizedCostFunction<2, 6> {
     Eigen::Vector3d p_c = R_c_w * (p_w_ - t_w_c);
 
     // reject invalid depth
-    if (p_c.z() <= 1e-6) {
+    if (p_c.z() <= kMinValidDepth) {
       residuals[0] = residuals[1] = 0.0;
       if (jacobians && jacobians[0]) {
         Eigen::Map<Eigen::Matrix<double, 2, 6, Eigen::RowMajor>> J(
@@ -159,7 +162,7 @@ struct PoseOnlyBearingCostAuto {
     Eigen::Matrix<T, 3, 1> p_c = T_w_c.inverse() * p_w;
 
     // depth check
-    if (p_c.z() <= T(1e-6)) {
+    if (p_c.z() <= T(kMinValidDepth)) {
       residuals[0] = T(0);
       residuals[1] = T(0);
       return true;
@@ -295,7 +298,7 @@ class BearingCost final : public ceres::SizedCostFunction<2, 6, 6, 3, 1> {
     const Eigen::Vector3d p_w      = T_w_c_host * p_c_host;
     const Eigen::Vector3d p_c_obs  = T_w_c_obs.inverse() * p_w;
 
-    if (p_c_obs.z() <= 1e-6) {
+    if (p_c_obs.z() <= kMinValidDepth) {
       residuals[0] = 0.0;
       residuals[1] = 0.0;
       zero_jacobians(jacobians);
@@ -468,7 +471,7 @@ class BearingStereoCost final : public ceres::SizedCostFunction<2, 3, 1> {
     const Sophus::SE3d    T_c_obs_c_host = T_c_obs_b * T_b_c_host_;
     const Eigen::Vector3d p_c_obs        = T_c_obs_c_host * p_c_host;
 
-    if (p_c_obs.z() <= 1e-6) {
+    if (p_c_obs.z() <= kMinValidDepth) {
       residuals[0] = 0.0;
       residuals[1] = 0.0;
       zero_jacobians(jacobians);
@@ -578,7 +581,7 @@ struct BearingStereoCostAuto {
     const Eigen::Matrix<T, 3, 1> p_c_host = b_h / inv_d;
     const Eigen::Matrix<T, 3, 1> p_c_obs  = T_c_obs_c_host * p_c_host;
 
-    if (p_c_obs.z() <= T(1e-6)) {
+    if (p_c_obs.z() <= T(kMinValidDepth)) {
       residuals[0] = T(0);
       residuals[1] = T(0);
       return true;
@@ -649,7 +652,7 @@ struct BearingCostAuto {
     const Eigen::Matrix<T, 3, 1> p_w      = T_w_c_host * p_c_host;
     const Eigen::Matrix<T, 3, 1> p_c_obs  = T_w_c_obs.inverse() * p_w;
 
-    if (p_c_obs.z() <= T(1e-6)) {
+    if (p_c_obs.z() <= T(kMinValidDepth)) {
       residuals[0] = T(0);
       residuals[1] = T(0);
       return true;
