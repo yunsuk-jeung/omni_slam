@@ -100,7 +100,8 @@ class ImuPreintegration {
                                       const Eigen::Vector3d& bias_gyr) const;
 
   static constexpr double kDefaultInformationDamping = 1e-12;
-  Eigen::Matrix15d information(double damping = kDefaultInformationDamping) const;
+  Eigen::Matrix15d        information(
+           double damping = kDefaultInformationDamping) const;
 
   const Sophus::SO3d&   delta_r() const { return delta_r_; }
   const Eigen::Vector3d delta_v() const { return delta_v_; }

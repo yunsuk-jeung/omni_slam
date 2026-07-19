@@ -316,8 +316,8 @@ int StereoVO::initialize_map_points(std::shared_ptr<Frame>& frame) {
   // (i.e. a minimum depth of ~1/3 m).
   constexpr double kMaxTriangulatedInvDist = 3.0;
 
-  int init_count             = 0;
-  int stale_candidate_count  = 0;
+  int init_count              = 0;
+  int stale_candidate_count   = 0;
   int initial_candidate_count = candidates.size();
 
   FrameCamId         frame_cam_id0{frame->id(), 0};

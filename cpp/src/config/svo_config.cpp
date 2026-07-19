@@ -3,7 +3,6 @@
 
 #include <nlohmann/json.hpp>
 
-#include "camera_model/camera_model.hpp"
 #include "config/svo_config.hpp"
 #include "omni_slam/types.hpp"
 #include "utils/logger.hpp"
@@ -148,7 +147,6 @@ void SVOConfig::parse_config(const std::string& file) {
   new_keyframe_after  = config.value("new_keyframe_after", new_keyframe_after);
   bearing_huber_const = config.value("bearing_huber_const",
                                      bearing_huber_const);
-  // "beraing_cost_scale" is an intentional fallback for a legacy misspelled key.
   bearing_cost_scale =
     config.value("bearing_cost_scale",
                  config.value("beraing_cost_scale", bearing_cost_scale));

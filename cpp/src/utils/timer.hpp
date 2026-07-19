@@ -136,9 +136,9 @@ class Statistics {
     const auto zero_if_empty = [&](double value) {
       return elem.call_count == 0 ? 0.0 : value;
     };
-    const double mean = (elem.call_count == 0)
-                          ? 0.0
-                          : (elem.total_time / elem.call_count);
+    const double mean    = (elem.call_count == 0)
+                             ? 0.0
+                             : (elem.total_time / elem.call_count);
     const double min_val = zero_if_empty(elem.min_time);
     const double max_val = zero_if_empty(elem.max_time);
 

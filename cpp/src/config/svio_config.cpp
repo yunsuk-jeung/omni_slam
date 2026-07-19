@@ -10,12 +10,9 @@
 
 namespace omni_slam {
 
-constexpr double kDefaultMarginalizerInitialBiasWeight = 100.0;
-
 size_t                SVIOConfig::max_inertial_states              = 5;
 bool                  SVIOConfig::enable_fej                       = true;
-double SVIOConfig::marginalizer_initial_bias_weight =
-  kDefaultMarginalizerInitialBiasWeight;
+double                SVIOConfig::marginalizer_initial_bias_weight = 100.0;
 double                SVIOConfig::imu_residual_scale               = 1.0;
 double                SVIOConfig::imu_position_residual_scale      = 1.0;
 double                SVIOConfig::imu_rotation_residual_scale      = 1.0;
@@ -173,10 +170,11 @@ void SVIOConfig::ParseConfig(const std::string& file) {
   gyr_noise_density        = std::max(gyr_noise_density, kMinNoiseParam);
   acc_random_walk          = std::max(acc_random_walk, kMinNoiseParam);
   gyr_random_walk          = std::max(gyr_random_walk, kMinNoiseParam);
-  imu_min_integration_dt_s = std::max(imu_min_integration_dt_s, kMinIntegrationDt);
+  imu_min_integration_dt_s = std::max(imu_min_integration_dt_s,
+                                      kMinIntegrationDt);
   if (!std::isfinite(marginalizer_initial_bias_weight)
       || marginalizer_initial_bias_weight <= 0.0) {
-    marginalizer_initial_bias_weight = kDefaultMarginalizerInitialBiasWeight;
+    marginalizer_initial_bias_weight = 100.0;
   }
   if (max_inertial_states < 1) {
     max_inertial_states = 1;

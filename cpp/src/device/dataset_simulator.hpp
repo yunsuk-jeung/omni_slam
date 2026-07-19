@@ -132,7 +132,7 @@ class DatasetSimulator final : public DeviceInterface {
   // Sleeps until the recorded inter-frame delay has elapsed, scaled by speed_
   // to support faster/slower-than-recorded playback.
   void wait_for_playback_time(std::chrono::steady_clock::time_point start_time,
-                              int64_t start_ts,
+                              int64_t                               start_ts,
                               int64_t ts_ns) const {
     const auto dt_ns = ts_ns - start_ts;
     const auto wait_ns =

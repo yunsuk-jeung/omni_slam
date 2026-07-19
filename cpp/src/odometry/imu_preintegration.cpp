@@ -206,17 +206,17 @@ void ImuPreintegration::propagate_error(const Eigen::Matrix3d& R_start,
 
   Eigen::Matrix<double, 18, 18> Q      = Eigen::Matrix<double, 18, 18>::Zero();
   const double                  inv_dt = 1.0 / dt_sec;
-  const auto   square       = [](double v) { return v * v; };
-  const double sigma_acc2   = square(parameters_.acc_noise_sigma);
-  const double sigma_gyr2   = square(parameters_.gyr_noise_sigma);
-  const double sigma_ba_rw2 = square(parameters_.acc_bias_rw_sigma);
-  const double sigma_bg_rw2 = square(parameters_.gyr_bias_rw_sigma);
-  Q.block<3, 3>(0, 0)   = I3 * 2.0 * sigma_acc2 * inv_dt;
-  Q.block<3, 3>(3, 3)   = I3 * 2.0 * sigma_gyr2 * inv_dt;
-  Q.block<3, 3>(6, 6)   = I3 * 2.0 * sigma_acc2 * inv_dt;
-  Q.block<3, 3>(9, 9)   = I3 * 2.0 * sigma_gyr2 * inv_dt;
-  Q.block<3, 3>(12, 12) = I3 * sigma_ba_rw2 * inv_dt;
-  Q.block<3, 3>(15, 15) = I3 * sigma_bg_rw2 * inv_dt;
+  const auto                    square = [](double v) { return v * v; };
+  const double sigma_acc2              = square(parameters_.acc_noise_sigma);
+  const double sigma_gyr2              = square(parameters_.gyr_noise_sigma);
+  const double sigma_ba_rw2            = square(parameters_.acc_bias_rw_sigma);
+  const double sigma_bg_rw2            = square(parameters_.gyr_bias_rw_sigma);
+  Q.block<3, 3>(0, 0)                  = I3 * 2.0 * sigma_acc2 * inv_dt;
+  Q.block<3, 3>(3, 3)                  = I3 * 2.0 * sigma_gyr2 * inv_dt;
+  Q.block<3, 3>(6, 6)                  = I3 * 2.0 * sigma_acc2 * inv_dt;
+  Q.block<3, 3>(9, 9)                  = I3 * 2.0 * sigma_gyr2 * inv_dt;
+  Q.block<3, 3>(12, 12)                = I3 * sigma_ba_rw2 * inv_dt;
+  Q.block<3, 3>(15, 15)                = I3 * sigma_bg_rw2 * inv_dt;
 
   covariance_ = F * covariance_ * F.transpose() + V * Q * V.transpose();
   covariance_ = 0.5 * (covariance_ + covariance_.transpose());

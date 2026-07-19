@@ -172,11 +172,11 @@ void OpticalFlow::detect_features(const std::shared_ptr<Frame>& curr_frame) {
   auto* curr_result = curr_frame->tracking_result_ptr();
   auto& curr_uvs    = curr_result->uvs(kLeftCam);
 
-  const cv::Mat& cam_image = curr_frame->image(kLeftCam);
-  const int grid_rows = std::max(1, SVOConfig::feature_grid_rows);
-  const int grid_cols = std::max(1, SVOConfig::feature_grid_cols);
-  const int cell_w    = std::max(1, cam_image.cols / grid_cols);
-  const int cell_h    = std::max(1, cam_image.rows / grid_rows);
+  const cv::Mat&    cam_image = curr_frame->image(kLeftCam);
+  const int         grid_rows = std::max(1, SVOConfig::feature_grid_rows);
+  const int         grid_cols = std::max(1, SVOConfig::feature_grid_cols);
+  const int         cell_w    = std::max(1, cam_image.cols / grid_cols);
+  const int         cell_h    = std::max(1, cam_image.rows / grid_rows);
   std::vector<bool> cell_has_feature(grid_rows * grid_cols, false);
 
   for (const auto& uv : curr_uvs) {
@@ -202,10 +202,7 @@ void OpticalFlow::detect_features(const std::shared_ptr<Frame>& curr_frame) {
 
       const cv::Rect            roi(x0, y0, x1 - x0, y1 - y0);
       std::vector<cv::KeyPoint> keypoints;
-      cv::FAST(cam_image(roi),
-               keypoints,
-               SVOConfig::fast_threshold,
-               true);
+      cv::FAST(cam_image(roi), keypoints, SVOConfig::fast_threshold, true);
       if (keypoints.empty()) {
         continue;
       }

@@ -640,9 +640,9 @@ void StereoVIO::select_marginal_frames(
         // Guards the reciprocal-distance sum against division by zero when two
         // keyframe positions coincide.
         constexpr double kDistEpsilon = 1e-5;
-        const uint64_t last_kf_id   = *kf_ids.rbegin();
-        uint64_t       min_score_id = std::numeric_limits<uint64_t>::max();
-        double         min_score    = std::numeric_limits<double>::max();
+        const uint64_t   last_kf_id   = *kf_ids.rbegin();
+        uint64_t         min_score_id = std::numeric_limits<uint64_t>::max();
+        double           min_score    = std::numeric_limits<double>::max();
 
         for (auto it1 = kf_ids.begin(); it1 != end_minus_inertial_states;
              ++it1) {

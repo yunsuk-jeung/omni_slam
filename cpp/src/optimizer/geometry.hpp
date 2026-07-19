@@ -32,7 +32,8 @@ class Geometry {
 
     const double w         = world_point[3];
     const double head_norm = world_point.template head<3>().norm();
-    // Degenerate: point at infinity (head_norm ~ 0) or homogeneous collapse (w ~ 0).
+    // Degenerate: point at infinity (head_norm ~ 0) or homogeneous collapse (w
+    // ~ 0).
     if (head_norm <= std::numeric_limits<double>::epsilon()
         || std::abs(w) <= std::numeric_limits<double>::epsilon()) {
       return invalid_result();
