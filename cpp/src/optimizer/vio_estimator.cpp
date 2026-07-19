@@ -1,7 +1,6 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
-#include <limits>
 #include <optional>
 #include <unordered_map>
 #include <vector>
@@ -34,12 +33,6 @@ static constexpr int      kInertialStateSize          = 3 * kInertialStateDim;
 static constexpr int      kImuResidualSize            = 15;
 static constexpr uint64_t kMarginalizerInitialFrameId = 0;
 static constexpr int      kSingleFrameNumThreads      = 2;
-
-// Rigid-window-shift (gauge drift) detector: flag when the mean per-frame
-// translation delta exceeds kGaugeShiftMeanThresholdM while its spread stays
-// below kGaugeShiftSpreadRatio of that mean.
-static constexpr double kGaugeShiftMeanThresholdM = 0.02;
-static constexpr double kGaugeShiftSpreadRatio    = 0.5;
 
 static Eigen::Matrix<double, kImuResidualSize, 1>
 make_imu_residual_sqrt_scale() {
@@ -160,36 +153,6 @@ static std::optional<ImuPreintegrationCost::LinState> make_imu_lin_state(
                                          state_j->second.v_w_b_lin(),
                                          state_i->second.bias_acc_lin(),
                                          state_i->second.bias_gyr_lin()};
-}
-
-// Debug: per-category cost of the window problem. Relies on residual blocks
-// being stored in insertion order (imu | prior | bearing).
-struct WindowCostBreakdown {
-  double imu     = 0.0;
-  double prior   = 0.0;
-  double bearing = 0.0;
-};
-
-static WindowCostBreakdown evaluate_cost_breakdown(ceres::Problem& problem,
-                                                   size_t          num_imu,
-                                                   size_t num_imu_prior) {
-  std::vector<ceres::ResidualBlockId> ids;
-  problem.GetResidualBlocks(&ids);
-
-  WindowCostBreakdown out;
-  const auto          eval = [&](size_t begin, size_t end, double& cost) {
-    if (begin >= end || end > ids.size()) {
-      return;
-    }
-    ceres::Problem::EvaluateOptions eval_options;
-    eval_options.apply_loss_function = true;
-    eval_options.residual_blocks.assign(ids.begin() + begin, ids.begin() + end);
-    problem.Evaluate(eval_options, &cost, nullptr, nullptr, nullptr);
-  };
-  eval(0, num_imu, out.imu);
-  eval(num_imu, num_imu_prior, out.prior);
-  eval(num_imu_prior, ids.size(), out.bearing);
-  return out;
 }
 
 static AddImuFactorResult add_imu_factor(
@@ -560,8 +523,6 @@ void VIOEstimator::optimize_window(
                    ImuCostType::kAnalytic,
                    make_imu_lin_state(window, inertial_states, preintegration));
   }
-  const size_t num_blocks_imu =
-    static_cast<size_t>(problem.NumResidualBlocks());
 
   std::unordered_map<uint64_t, size_t> mp_id_to_index;
   std::vector<Eigen::Vector3d>         bearing_params;
@@ -578,8 +539,6 @@ void VIOEstimator::optimize_window(
   add_marginalization_prior_if_available(problem,
                                          *marginalization_prior_,
                                          blocks);
-  const size_t num_blocks_imu_prior =
-    static_cast<size_t>(problem.NumResidualBlocks());
 
   for (const auto& [mp_id, mp] : map_points) {
     if (mp->status() < MapPoint::Status::TRACKING) {
@@ -600,10 +559,6 @@ void VIOEstimator::optimize_window(
                                         /*robustify_host_prior=*/false);
   }
 
-  const WindowCostBreakdown cost_pre =
-    evaluate_cost_breakdown(problem, num_blocks_imu, num_blocks_imu_prior);
-  const std::vector<Eigen::Vector6d> pose_params_before = blocks.pose_params;
-
   ceres::Solver::Options options;
   options.linear_solver_type           = ceres::SPARSE_NORMAL_CHOLESKY;
   options.num_threads                  = SVOConfig::window_num_threads;
@@ -612,51 +567,6 @@ void VIOEstimator::optimize_window(
 
   ceres::Solver::Summary summary;
   ceres::Solve(options, &problem, &summary);
-
-  const WindowCostBreakdown cost_post =
-    evaluate_cost_breakdown(problem, num_blocks_imu, num_blocks_imu_prior);
-
-  // Gauge-shift detector: per-frame translation deltas of this solve. A
-  // rigid window jump shows up as mean >> spread.
-  {
-    double mean_dt = 0.0;
-    double max_dt  = 0.0;
-    double min_dt  = std::numeric_limits<double>::max();
-    for (size_t i = 0; i < blocks.pose_params.size(); ++i) {
-      const double dt =
-        (blocks.pose_params[i].head<3>() - pose_params_before[i].head<3>())
-          .norm();
-      mean_dt += dt;
-      max_dt = std::max(max_dt, dt);
-      min_dt = std::min(min_dt, dt);
-    }
-    if (!blocks.pose_params.empty()) {
-      mean_dt /= static_cast<double>(blocks.pose_params.size());
-    }
-    const uint64_t newest_id = window->frame_ids().empty()
-                                 ? 0
-                                 : *window->frame_ids().rbegin();
-    LogI("[wopt] f{} it{} | imu {:.3e}->{:.3e} prior {:.3e}->{:.3e} bear "
-         "{:.3e}->{:.3e} | dT mean {:.4f} min {:.4f} max {:.4f}",
-         newest_id,
-         summary.iterations.size(),
-         cost_pre.imu,
-         cost_post.imu,
-         cost_pre.prior,
-         cost_post.prior,
-         cost_pre.bearing,
-         cost_post.bearing,
-         mean_dt,
-         min_dt,
-         max_dt);
-    if (mean_dt > kGaugeShiftMeanThresholdM
-        && (max_dt - min_dt) < kGaugeShiftSpreadRatio * mean_dt) {
-      LogW("[wopt] RIGID WINDOW SHIFT at f{}: mean {:.4f} m, spread {:.4f} m",
-           newest_id,
-           mean_dt,
-           max_dt - min_dt);
-    }
-  }
 
   for (const auto& [frame_id, frame] : frames) {
     frame->twb(SE3BoxplusManifold::from_params(blocks.pose_param(frame_id)));
