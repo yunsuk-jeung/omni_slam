@@ -3,6 +3,8 @@
 #include <array>
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
+#include <mutex>
 #include <thread>
 #include <vector>
 
@@ -35,7 +37,11 @@ class DatasetSimulator final : public DeviceInterface {
   }
 
   void stop() override {
-    terminate_ = true;
+    {
+      std::lock_guard<std::mutex> lock(wait_mutex_);
+      terminate_ = true;
+    }
+    wait_cv_.notify_all();
     if (image_thread_.joinable()) {
       image_thread_.join();
     }
@@ -129,16 +135,15 @@ class DatasetSimulator final : public DeviceInterface {
     }
   }
 
-  // Sleeps until the recorded inter-frame delay has elapsed, scaled by speed_
-  // to support faster/slower-than-recorded playback.
   void wait_for_playback_time(std::chrono::steady_clock::time_point start_time,
                               int64_t                               start_ts,
-                              int64_t ts_ns) const {
+                              int64_t                               ts_ns) {
     const auto dt_ns = ts_ns - start_ts;
     const auto wait_ns =
       static_cast<int64_t>(static_cast<double>(dt_ns) / speed_);
     const auto target = start_time + std::chrono::nanoseconds(wait_ns);
-    std::this_thread::sleep_until(target);
+    std::unique_lock<std::mutex> lock(wait_mutex_);
+    wait_cv_.wait_until(lock, target, [this] { return terminate_.load(); });
   }
 
   CameraParameter build_camera_parameter(size_t i) const {
@@ -174,10 +179,12 @@ class DatasetSimulator final : public DeviceInterface {
     return params;
   }
 
-  VioLoader&        loader_;
-  std::atomic<bool> terminate_{false};
-  std::thread       image_thread_;
-  std::thread       imu_thread_;
+  VioLoader&              loader_;
+  std::atomic<bool>       terminate_{false};
+  std::mutex              wait_mutex_;
+  std::condition_variable wait_cv_;
+  std::thread             image_thread_;
+  std::thread             imu_thread_;
 
   CameraCallback camera_callback_;
   ImuCallback    imu_callback_;
