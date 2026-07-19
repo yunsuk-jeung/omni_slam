@@ -508,7 +508,7 @@ void VIOEstimator::optimize_window(
   for (const auto& [frame_id, _] : frames) {
     const auto state_it = inertial_states.find(frame_id);
     if (state_it == inertial_states.end()) {
-      OMNI_ASSERT_MESSAGE(true, "inertial state missing");
+      LogW("optimize_window: inertial state missing for frame {}", frame_id);
       continue;
     }
     blocks.add_inertial_state(frame_id, state_it->second);
@@ -907,6 +907,7 @@ void VIOEstimator::marginalize(
   Statistics::start_timer("marginalize saes");
   Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> saes(Amm);
   if (saes.info() != Eigen::Success) {
+    Statistics::stop_timer("marginalize saes");
     clear_prior();
     return;
   }

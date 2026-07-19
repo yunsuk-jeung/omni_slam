@@ -174,7 +174,7 @@ bool StereoVO::initialize(std::shared_ptr<Frame>& frame) {
 
   new_keyframe_after_ = 0;
 
-  Logger::info("stereoVO initialized at frame {}, created_map_point",
+  Logger::info("stereoVO initialized at frame {}, created map points: {}",
                frame->id(),
                sliding_window_->map_point_count());
 

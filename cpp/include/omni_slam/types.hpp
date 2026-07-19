@@ -1,7 +1,11 @@
 #pragma once
 
+#include <array>
+#include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <memory>
+#include <vector>
 
 #include <Eigen/Dense>
 
