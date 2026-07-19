@@ -40,7 +40,7 @@ Frame::~Frame() {
 }
 
 void Frame::add_observation(size_t                 cam_idx,
-                            size_t                 mp_id,
+                            uint64_t               mp_id,
                             const Eigen::Vector3d& bearing) {
   if (cam_idx >= mp_id_to_bearings_.size()) {
     return;
@@ -48,7 +48,7 @@ void Frame::add_observation(size_t                 cam_idx,
   mp_id_to_bearings_[cam_idx][mp_id] = bearing;
 }
 
-void Frame::remove_observation(const uint64_t& mp_id) {
+void Frame::remove_observation(uint64_t mp_id) {
   for (auto& mp_id_to_bearing : mp_id_to_bearings_) {
     mp_id_to_bearing.erase(mp_id);
   }

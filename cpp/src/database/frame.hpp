@@ -65,15 +65,15 @@ class Frame {
   const bool is_keyframe() const { return is_keyframe_; }
 
   void add_observation(size_t                 cam_idx,
-                       size_t                 mp_id,
+                       uint64_t               mp_id,
                        const Eigen::Vector3d& bearing);
-  std::vector<std::unordered_map<size_t, Eigen::Vector3d>>& observations() {
+  std::vector<std::unordered_map<uint64_t, Eigen::Vector3d>>& observations() {
     return mp_id_to_bearings_;
   }
-  std::unordered_map<size_t, Eigen::Vector3d>& observation(size_t i) {
+  std::unordered_map<uint64_t, Eigen::Vector3d>& observation(size_t i) {
     return mp_id_to_bearings_[i];
   }
-  void remove_observation(const uint64_t& mp_id);
+  void remove_observation(uint64_t mp_id);
 
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
@@ -93,7 +93,7 @@ class Frame {
 
   bool is_keyframe_;
 
-  std::vector<std::unordered_map<size_t, Eigen::Vector3d>> mp_id_to_bearings_;
+  std::vector<std::unordered_map<uint64_t, Eigen::Vector3d>> mp_id_to_bearings_;
 };
 
 }  // namespace omni_slam
