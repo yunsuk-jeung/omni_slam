@@ -1,5 +1,4 @@
 #include <atomic>
-#include <utility>
 
 #include "config/svo_config.hpp"
 #include "database/frame.hpp"
@@ -20,13 +19,10 @@ Frame::Frame(int64_t                             timestamp_ns,
   , image_pyramids_(images.size())
   , is_keyframe_{false} {
   cams_.clear();
-  cams_.reserve(images.size());
+  cams_.reserve(camera_parameters.size());
 
   for (const auto& params : camera_parameters) {
-    auto camera = CameraModelFactory::create(params);
-    if (camera) {
-      cams_.push_back(std::move(camera));
-    }
+    cams_.push_back(CameraModelFactory::create(params));
   }
   tracking_result_ = std::make_unique<TrackingResult>(images_.size());
 
