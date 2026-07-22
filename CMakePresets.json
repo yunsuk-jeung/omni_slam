@@ -100,6 +100,48 @@
       }
     },
     {
+      "name": "stereo_slam_debug",
+      "inherits": "base",
+      "displayName": "Stereo SLAM (Debug)",
+      "description": "Build Stereo VIO + loop-closure SLAM pipeline in Debug mode",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "OMNI_BUILD_STEREO_VO": "OFF",
+        "OMNI_BUILD_STEREO_VIO": "ON",
+        "OMNI_BUILD_LIO": "OFF",
+        "OMNI_BUILD_LOOP": "ON",
+        "OMNI_BUILD_TESTS": "OFF"
+      }
+    },
+    {
+      "name": "stereo_slam_release",
+      "inherits": "base",
+      "displayName": "Stereo SLAM (Release)",
+      "description": "Build Stereo VIO + loop-closure SLAM pipeline in Release mode",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "OMNI_BUILD_STEREO_VO": "OFF",
+        "OMNI_BUILD_STEREO_VIO": "ON",
+        "OMNI_BUILD_LIO": "OFF",
+        "OMNI_BUILD_LOOP": "ON",
+        "OMNI_BUILD_TESTS": "OFF"
+      }
+    },
+    {
+      "name": "stereo_slam_relwithdeb",
+      "inherits": "base",
+      "displayName": "Stereo SLAM (RelWithDebInfo)",
+      "description": "Build Stereo VIO + loop-closure SLAM pipeline in RelWithDebInfo mode",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "OMNI_BUILD_STEREO_VO": "OFF",
+        "OMNI_BUILD_STEREO_VIO": "ON",
+        "OMNI_BUILD_LIO": "OFF",
+        "OMNI_BUILD_LOOP": "ON",
+        "OMNI_BUILD_TESTS": "OFF"
+      }
+    },
+    {
       "name": "lio_debug",
       "inherits": "base",
       "displayName": "LiDAR-Inertial Odometry (Debug)",
@@ -202,6 +244,18 @@
     {
       "name": "stereo_vio_relwithdeb",
       "configurePreset": "stereo_vio_relwithdeb"
+    },
+    {
+      "name": "stereo_slam_debug",
+      "configurePreset": "stereo_slam_debug"
+    },
+    {
+      "name": "stereo_slam_release",
+      "configurePreset": "stereo_slam_release"
+    },
+    {
+      "name": "stereo_slam_relwithdeb",
+      "configurePreset": "stereo_slam_relwithdeb"
     },
     {
       "name": "lio_debug",

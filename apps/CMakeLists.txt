@@ -45,3 +45,15 @@ if(OMNI_BUILD_STEREO_VIO)
     $<$<CONFIG:RelWithDebInfo>:-O2>
   )
 endif()
+
+if(OMNI_BUILD_STEREO_VIO AND OMNI_BUILD_LOOP)
+  add_executable(stereo_slam
+    ${CMAKE_SOURCE_DIR}/apps/run_slam.cpp
+  )
+  target_include_directories(stereo_slam PRIVATE ${OpenCV_INCLUDE_DIRS})
+  target_link_libraries(stereo_slam omni_utils omni_device svio ${OpenCV_LIBS} rerun_sdk)
+  target_compile_options(stereo_slam PRIVATE
+    $<$<CONFIG:Release>:-O3>
+    $<$<CONFIG:RelWithDebInfo>:-O2>
+  )
+endif()
