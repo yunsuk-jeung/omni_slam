@@ -176,7 +176,6 @@ void StereoVIO::process(std::shared_ptr<Frame>&     frame,
     break;
   }
 
-  // build result
   {
     ScopedTimer                 timer("build result");
     OdometryResult              result = build_odometry_result(frame);
@@ -299,7 +298,6 @@ void StereoVIO::track(std::shared_ptr<Frame>&     frame,
   std::shared_ptr<Frame> latest_frame;
   InertialState          predicted_inertial_state;
 
-  // IMU-based prediction from the latest frame state.
   const auto&    frame_ids = sliding_window_->frame_ids();
   const uint64_t latest_id = *frame_ids.rbegin();
   latest_frame             = sliding_window_->frame(latest_id);
@@ -357,7 +355,6 @@ void StereoVIO::track(std::shared_ptr<Frame>&     frame,
     ++new_keyframe_after_;
   }
 
-  // sliding window bundle
   {
     ScopedTimer timer("optimize_window");
     estimator_->optimize_window(this->sliding_window_.get(),
@@ -379,12 +376,10 @@ void StereoVIO::track(std::shared_ptr<Frame>&     frame,
                                state_it->second.bias_gyr);
   }
 
-  // select marginal frames
   std::set<uint64_t> marginal_frame_ids;
   std::set<uint64_t> marginal_inertial_state_ids;
   select_marginal_frames(marginal_frame_ids, marginal_inertial_state_ids);
 
-  // marginalize
   ScopedTimer timer("marginalize ");
   estimator_->marginalize(this->sliding_window_.get(),
                           marginal_frame_ids,
@@ -412,7 +407,6 @@ void StereoVIO::track(std::shared_ptr<Frame>&     frame,
     }
   }
 
-  // remove keyframe
   {
     ScopedTimer timer("remove keyframe");
     sliding_window_->remove_frames(marginal_frame_ids);
@@ -494,7 +488,6 @@ void StereoVIO::set_mapper_input_queue(ConcurrentQueue<KeyframeWithPrior>* queue
 }
 
 int StereoVIO::initialize_map_points(std::shared_ptr<Frame>& frame) {
-  // triangulate
   auto& candidates = sliding_window_->map_point_candidates();
 
   // Inverse-distance upper bound accepted for a newly triangulated point
@@ -506,7 +499,6 @@ int StereoVIO::initialize_map_points(std::shared_ptr<Frame>& frame) {
   FrameCamId         frame_cam_id0{frame->id(), 0};
   std::set<uint64_t> erase_mp_ids;
 
-  // add map points in SlidingWindow
   for (auto& [mp_id, mp] : candidates) {
     auto& frame_id_to_bearing = mp->observation();
 
@@ -587,7 +579,6 @@ void StereoVIO::select_marginal_frames(
     return inertial_states_.count(frame_id) > 0;
   };
 
-  // Phase 3: marginalize non-keyframes that have no inertial state.
   // Frames whose inertial state is being marginalized this step must wait
   // until the inertial state is actually removed before the frame can go.
   for (const auto id : frame_ids) {

@@ -3,12 +3,12 @@
 #include <algorithm>
 #include <vector>
 
-#include <opencv2/features2d.hpp>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/video/tracking.hpp>
 
 #include "config/svo_config.hpp"
 #include "database/frame.hpp"
+#include "feature_tracking/grid_detector.hpp"
 #include "feature_tracking/optical_flow.hpp"
 
 namespace omni_slam {
@@ -169,57 +169,16 @@ void OpticalFlow::track_stereo(const std::shared_ptr<Frame>& curr_frame) {
 void OpticalFlow::detect_features(const std::shared_ptr<Frame>& curr_frame) {
   constexpr size_t kLeftCam = 0;
 
-  auto* curr_result = curr_frame->tracking_result_ptr();
-  auto& curr_uvs    = curr_result->uvs(kLeftCam);
+  auto*       curr_result = curr_frame->tracking_result_ptr();
+  const auto& curr_uvs    = curr_result->uvs(kLeftCam);
 
-  const cv::Mat&    cam_image = curr_frame->image(kLeftCam);
-  const int         grid_rows = std::max(1, SVOConfig::feature_grid_rows);
-  const int         grid_cols = std::max(1, SVOConfig::feature_grid_cols);
-  const int         cell_w    = std::max(1, cam_image.cols / grid_cols);
-  const int         cell_h    = std::max(1, cam_image.rows / grid_rows);
-  std::vector<bool> cell_has_feature(grid_rows * grid_cols, false);
-
-  for (const auto& uv : curr_uvs) {
-    const int col = std::min(static_cast<int>(uv.x / cell_w), grid_cols - 1);
-    const int row = std::min(static_cast<int>(uv.y / cell_h), grid_rows - 1);
-    cell_has_feature[row * grid_cols + col] = true;
-  }
-
-  for (int row = 0; row < grid_rows; ++row) {
-    for (int col = 0; col < grid_cols; ++col) {
-      if (cell_has_feature[row * grid_cols + col]) {
-        continue;
-      }
-      const int x0 = col * cell_w;
-      const int y0 = row * cell_h;
-      const int x1 = (col == grid_cols - 1) ? cam_image.cols
-                                            : (col + 1) * cell_w;
-      const int y1 = (row == grid_rows - 1) ? cam_image.rows
-                                            : (row + 1) * cell_h;
-      if (x1 <= x0 || y1 <= y0) {
-        continue;
-      }
-
-      const cv::Rect            roi(x0, y0, x1 - x0, y1 - y0);
-      std::vector<cv::KeyPoint> keypoints;
-      cv::FAST(cam_image(roi), keypoints, SVOConfig::fast_threshold, true);
-      if (keypoints.empty()) {
-        continue;
-      }
-
-      std::nth_element(keypoints.begin(),
-                       keypoints.begin(),
-                       keypoints.end(),
-                       [](const cv::KeyPoint& a, const cv::KeyPoint& b) {
-                         return a.response > b.response;
-                       });
-      auto&       keypoint = keypoints.front();
-      cv::Point2f uv       = keypoint.pt;
-      uv.x += static_cast<float>(x0);
-      uv.y += static_cast<float>(y0);
-
-      curr_result->add_feature(kLeftCam, uv, next_feature_id_++);
-    }
+  const auto keypoints = detect_grid_features(curr_frame->image(kLeftCam),
+                                              SVOConfig::feature_grid_rows,
+                                              SVOConfig::feature_grid_cols,
+                                              SVOConfig::fast_threshold,
+                                              curr_uvs);
+  for (const auto& keypoint : keypoints) {
+    curr_result->add_feature(kLeftCam, keypoint.pt, next_feature_id_++);
   }
 }
 

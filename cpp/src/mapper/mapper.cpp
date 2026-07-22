@@ -1,5 +1,7 @@
 #include "mapper/mapper.hpp"
 
+#include "config/svo_config.hpp"
+#include "feature_tracking/grid_detector.hpp"
 #include "utils/logger.hpp"
 
 namespace omni_slam {
@@ -41,9 +43,18 @@ void Mapper::mapper_loop() {
 }
 
 void Mapper::process(const KeyframeWithPrior& input) {
-  // TODO(A): keypoint/descriptor extraction, loop detection + verification,
+  // TODO(A): descriptor extraction, loop detection + verification,
   // global BA/pose-graph with the recovered prior.
-  Logger::info("Mapper received keyframe {}", input.keyframe_id);
+  std::vector<cv::KeyPoint> keypoints;
+  if (!input.images.empty()) {
+    keypoints = detect_grid_features(input.images.front(),
+                                     SVOConfig::feature_grid_rows,
+                                     SVOConfig::feature_grid_cols,
+                                     SVOConfig::fast_threshold);
+  }
+  Logger::info("Mapper received keyframe {} ({} keypoints)",
+               input.keyframe_id,
+               keypoints.size());
 }
 
 }  // namespace omni_slam

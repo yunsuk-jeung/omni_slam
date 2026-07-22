@@ -50,6 +50,7 @@ target_compile_features(omni_camera_model INTERFACE cxx_std_20)
 
 if(OMNI_BUILD_STEREO_VO)
   add_library(svo SHARED
+    ${CMAKE_CURRENT_SOURCE_DIR}/feature_tracking/grid_detector.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/feature_tracking/optical_flow.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/config/svo_config.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/camera_model/camera_model.cpp
@@ -70,6 +71,7 @@ endif()
 
 if(OMNI_BUILD_STEREO_VIO)
   add_library(svio SHARED
+    ${CMAKE_CURRENT_SOURCE_DIR}/feature_tracking/grid_detector.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/feature_tracking/optical_flow.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/config/svo_config.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/config/svio_config.cpp
