@@ -48,11 +48,25 @@ target_link_libraries(omni_camera_model INTERFACE
 
 target_compile_features(omni_camera_model INTERFACE cxx_std_20)
 
+# Shared config library: single definition of SVOConfig statics linked by both
+# the VO and VIO pipelines.
+if(OMNI_BUILD_STEREO_VO OR OMNI_BUILD_STEREO_VIO)
+  add_library(omni_config SHARED
+    ${CMAKE_CURRENT_SOURCE_DIR}/config/svo_config.cpp
+  )
+  target_include_directories(omni_config PRIVATE ${OpenCV_INCLUDE_DIRS})
+  target_link_libraries(omni_config PUBLIC omni_utils omni_camera_model)
+  target_compile_options(omni_config PRIVATE
+    $<$<CONFIG:Release>:-O3>
+    $<$<CONFIG:RelWithDebInfo>:-O2>
+  )
+  target_compile_features(omni_config PUBLIC cxx_std_20)
+endif()
+
 if(OMNI_BUILD_STEREO_VO)
   add_library(svo SHARED
     ${CMAKE_CURRENT_SOURCE_DIR}/feature_tracking/grid_detector.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/feature_tracking/optical_flow.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/config/svo_config.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/camera_model/camera_model.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/database/frame.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/database/map_point.cpp
@@ -61,7 +75,7 @@ if(OMNI_BUILD_STEREO_VO)
     ${CMAKE_CURRENT_SOURCE_DIR}/optimizer/vo_estimator.cpp
   )
   target_include_directories(svo PRIVATE ${OpenCV_INCLUDE_DIRS})
-  target_link_libraries(svo omni_utils omni_camera_model ${OpenCV_LIBS})
+  target_link_libraries(svo omni_utils omni_camera_model omni_config ${OpenCV_LIBS})
   target_compile_options(svo PRIVATE
     $<$<CONFIG:Release>:-O3>
     $<$<CONFIG:RelWithDebInfo>:-O2>
@@ -73,7 +87,6 @@ if(OMNI_BUILD_STEREO_VIO)
   add_library(svio SHARED
     ${CMAKE_CURRENT_SOURCE_DIR}/feature_tracking/grid_detector.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/feature_tracking/optical_flow.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/config/svo_config.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/config/svio_config.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/camera_model/camera_model.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/database/frame.cpp
@@ -86,7 +99,7 @@ if(OMNI_BUILD_STEREO_VIO)
     ${CMAKE_CURRENT_SOURCE_DIR}/mapper/mapper.cpp
   )
   target_include_directories(svio PRIVATE ${OpenCV_INCLUDE_DIRS})
-  target_link_libraries(svio omni_utils omni_camera_model ${OpenCV_LIBS})
+  target_link_libraries(svio omni_utils omni_camera_model omni_config ${OpenCV_LIBS})
   target_compile_options(svio PRIVATE
     $<$<CONFIG:Release>:-O3>
     $<$<CONFIG:RelWithDebInfo>:-O2>
