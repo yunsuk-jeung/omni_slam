@@ -48,8 +48,6 @@ target_link_libraries(omni_camera_model INTERFACE
 
 target_compile_features(omni_camera_model INTERFACE cxx_std_20)
 
-# Shared config library: single definition of SVOConfig statics linked by both
-# the VO and VIO pipelines.
 if(OMNI_BUILD_STEREO_VO OR OMNI_BUILD_STEREO_VIO)
   add_library(omni_config SHARED
     ${CMAKE_CURRENT_SOURCE_DIR}/config/svo_config.cpp
