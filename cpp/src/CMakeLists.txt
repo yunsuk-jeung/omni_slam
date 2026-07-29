@@ -95,6 +95,7 @@ if(OMNI_BUILD_STEREO_VIO)
     ${CMAKE_CURRENT_SOURCE_DIR}/optimizer/vio_estimator.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/optimizer/vo_estimator.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/mapper/mapper.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/mapper/descriptor_extractor.cpp
   )
   target_include_directories(svio PRIVATE ${OpenCV_INCLUDE_DIRS})
   target_link_libraries(svio omni_utils omni_camera_model omni_config ${OpenCV_LIBS})

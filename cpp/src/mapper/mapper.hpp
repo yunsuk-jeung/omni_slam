@@ -9,6 +9,8 @@
 #include <opencv2/core.hpp>
 #include <sophus/se3.hpp>
 
+#include "mapper/descriptor_extractor.hpp"
+#include "mapper/hash_bow.hpp"
 #include "utils/concurrent_queue.hpp"
 
 namespace omni_slam {
@@ -44,6 +46,9 @@ class Mapper {
   std::thread       mapper_thread_;
 
   ConcurrentQueue<KeyframeWithPrior> input_queue_;
+
+  DescriptorExtractor      descriptor_extractor_;
+  HashBow<kDescriptorBits> hash_bow_;
 };
 
 }  // namespace omni_slam

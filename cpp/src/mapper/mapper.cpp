@@ -1,12 +1,13 @@
 #include "mapper/mapper.hpp"
 
-#include "config/svo_config.hpp"
-#include "feature_tracking/grid_detector.hpp"
 #include "utils/logger.hpp"
 
 namespace omni_slam {
+namespace {
+constexpr size_t kHashWordBits = 24;
+}  // namespace
 
-Mapper::Mapper()  = default;
+Mapper::Mapper() : hash_bow_{kHashWordBits} {}
 
 Mapper::~Mapper() {
   shutdown();
@@ -43,18 +44,24 @@ void Mapper::mapper_loop() {
 }
 
 void Mapper::process(const KeyframeWithPrior& input) {
-  // TODO(A): descriptor extraction, loop detection + verification,
-  // global BA/pose-graph with the recovered prior.
-  std::vector<cv::KeyPoint> keypoints;
-  if (!input.images.empty()) {
-    keypoints = detect_grid_features(input.images.front(),
-                                     SVOConfig::feature_grid_rows,
-                                     SVOConfig::feature_grid_cols,
-                                     SVOConfig::fast_threshold);
+  // TODO(A): loop detection + verification, global BA/pose-graph.
+  if (input.images.empty()) {
+    return;
   }
-  Logger::info("Mapper received keyframe {} ({} keypoints)",
+
+  std::vector<Eigen::Vector2d>              uvs;
+  std::vector<std::bitset<kDescriptorBits>> descriptors;
+  descriptor_extractor_.detect_and_compute(input.images.front(),
+                                           uvs,
+                                           descriptors);
+
+  HashBow<kDescriptorBits>::HashBowVector bow_vector;
+  hash_bow_.compute_bow(descriptors, bow_vector);
+  hash_bow_.add_to_database(input.keyframe_id, bow_vector);
+
+  Logger::info("Mapper added keyframe {} to database ({} descriptors)",
                input.keyframe_id,
-               keypoints.size());
+               descriptors.size());
 }
 
 }  // namespace omni_slam
