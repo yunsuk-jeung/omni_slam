@@ -444,7 +444,7 @@ VIOEstimator::VIOEstimator()
   constexpr int kInitialPriorSize = kPoseSize + 2 * kBiasSize;
   marginalization_prior_->x0_     = Eigen::VectorXd::Zero(kInitialPriorSize);
   marginalization_prior_->J_      = Eigen::MatrixXd::Zero(kInitialPriorSize,
-                                                          kInitialPriorSize);
+                                                     kInitialPriorSize);
   marginalization_prior_->J_.topLeftCorner(3u, 3u) =
     SVIOConfig::marginalizer_initial_prior_weight
     * Eigen::MatrixXd::Identity(3u, 3u);
@@ -914,8 +914,8 @@ void VIOEstimator::marginalize(
 
   constexpr double eps         = 1e-8;
   Eigen::VectorXd  inv_eigvals = (saes.eigenvalues().array() > eps)
-                                   .select(saes.eigenvalues().array().inverse(),
-                                           0.0);
+                                  .select(saes.eigenvalues().array().inverse(),
+                                          0.0);
   const Eigen::MatrixXd Amm_inv = saes.eigenvectors() * inv_eigvals.asDiagonal()
                                   * saes.eigenvectors().transpose();
 

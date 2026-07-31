@@ -147,7 +147,7 @@ void SVOConfig::parse_config(const std::string& file) {
   new_keyframe_after  = config.value("new_keyframe_after", new_keyframe_after);
   bearing_huber_const = config.value("bearing_huber_const",
                                      bearing_huber_const);
-  bearing_cost_scale = config.value("bearing_cost_scale", bearing_cost_scale);
+  bearing_cost_scale  = config.value("bearing_cost_scale", bearing_cost_scale);
   single_frame_max_iterations = config.value("single_frame_max_iterations",
                                              single_frame_max_iterations);
   window_max_iterations       = config.value("window_max_iterations",

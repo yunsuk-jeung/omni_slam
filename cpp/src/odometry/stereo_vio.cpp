@@ -463,7 +463,7 @@ float StereoVIO::update_frame_observations(std::shared_ptr<Frame>& frame) {
 
   size_t kpt_num            = frame->tracking_result_ptr()->size(0);
   float  connected_mp_ratio = kpt_num > 0 ? static_cast<float>(connected)
-                                              / static_cast<float>(kpt_num)
+                                             / static_cast<float>(kpt_num)
                                           : 1.0f;
   LogD("frame {}, connected map point ratio : {} = {} /{}",
        frame->id(),
@@ -483,7 +483,8 @@ bool StereoVIO::fetch_result(OdometryResult& out) {
   return true;
 }
 
-void StereoVIO::set_mapper_input_queue(ConcurrentQueue<KeyframeWithPrior>* queue) {
+void StereoVIO::set_mapper_input_queue(
+  ConcurrentQueue<KeyframeWithPrior>* queue) {
   mapper_input_queue_ = queue;
 }
 

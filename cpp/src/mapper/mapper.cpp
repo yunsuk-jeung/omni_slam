@@ -1,5 +1,4 @@
 #include "mapper/mapper.hpp"
-
 #include "utils/logger.hpp"
 
 namespace omni_slam {
@@ -7,7 +6,8 @@ namespace {
 constexpr size_t kHashWordBits = 24;
 }  // namespace
 
-Mapper::Mapper() : hash_bow_{kHashWordBits} {}
+Mapper::Mapper()
+  : hash_bow_{kHashWordBits} {}
 
 Mapper::~Mapper() {
   shutdown();
@@ -55,7 +55,7 @@ void Mapper::process(const KeyframeWithPrior& input) {
                                            uvs,
                                            descriptors);
 
-  HashBow<kDescriptorBits>::HashBowVector bow_vector;
+  std::vector<std::pair<uint32_t, double>> bow_vector;
   hash_bow_.compute_bow(descriptors, bow_vector);
   hash_bow_.add_to_database(input.keyframe_id, bow_vector);
 

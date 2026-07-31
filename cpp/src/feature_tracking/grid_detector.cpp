@@ -1,8 +1,8 @@
-#include "feature_tracking/grid_detector.hpp"
-
 #include <algorithm>
 
 #include <opencv2/features2d.hpp>
+
+#include "feature_tracking/grid_detector.hpp"
 
 namespace omni_slam {
 
@@ -50,8 +50,8 @@ std::vector<cv::KeyPoint> detect_grid_features(
         continue;
       }
 
-      const size_t keep =
-        std::min(static_cast<size_t>(max_per_cell), keypoints.size());
+      const size_t keep = std::min(static_cast<size_t>(max_per_cell),
+                                   keypoints.size());
       std::partial_sort(keypoints.begin(),
                         keypoints.begin() + keep,
                         keypoints.end(),
