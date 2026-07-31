@@ -1,5 +1,5 @@
+#include "feature_tracking/grid_detector.hpp"
 #include "mapper/descriptor_extractor.hpp"
-
 #include "utils/omni_assert.hpp"
 
 namespace omni_slam {
@@ -18,12 +18,19 @@ std::bitset<kDescriptorBits> to_descriptor(const cv::Mat& row) {
 
 }  // namespace
 
-DescriptorExtractor::DescriptorExtractor(size_t max_features,
-                                         DescriptorType type) {
+DescriptorExtractor::DescriptorExtractor(int            grid_rows,
+                                         int            grid_cols,
+                                         int            fast_threshold,
+                                         int            max_per_cell,
+                                         DescriptorType type)
+  : grid_rows_{grid_rows}
+  , grid_cols_{grid_cols}
+  , fast_threshold_{fast_threshold}
+  , max_per_cell_{max_per_cell} {
   switch (type) {
   case DescriptorType::kOrb:
   default:
-    impl_ = cv::ORB::create(static_cast<int>(max_features));
+    impl_ = cv::ORB::create();
     break;
   }
 }
@@ -35,9 +42,16 @@ void DescriptorExtractor::detect_and_compute(
   uvs.clear();
   descriptors.clear();
 
-  std::vector<cv::KeyPoint> keypoints;
-  cv::Mat                   descriptor_mat;
-  impl_->detectAndCompute(image, cv::noArray(), keypoints, descriptor_mat);
+  std::vector<cv::KeyPoint> keypoints = detect_grid_features(image,
+                                                             grid_rows_,
+                                                             grid_cols_,
+                                                             fast_threshold_,
+                                                             {},
+                                                             max_per_cell_);
+
+  // compute() drops border keypoints and reorders, so read uvs back afterwards.
+  cv::Mat descriptor_mat;
+  impl_->compute(image, keypoints, descriptor_mat);
 
   if (descriptor_mat.empty()) {
     return;

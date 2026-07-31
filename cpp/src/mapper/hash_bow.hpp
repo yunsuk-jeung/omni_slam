@@ -39,9 +39,6 @@ constexpr std::array<size_t, N> make_bit_permutation(uint64_t seed) {
 template <size_t N>
 class HashBow {
  public:
-  using FeatureHash   = uint32_t;
-  using HashBowVector = std::vector<std::pair<FeatureHash, double>>;
-
   struct ScoredKeyframe {
     uint64_t keyframe_id = 0;
     double   score       = 0.0;
@@ -50,19 +47,19 @@ class HashBow {
   explicit HashBow(size_t num_word_bits)
     : num_word_bits_{std::min<size_t>({num_word_bits, kMaxWordBits, N})} {}
 
-  FeatureHash compute_hash(const std::bitset<N>& descriptor) const {
-    FeatureHash hash = 0;
+  uint32_t compute_hash(const std::bitset<N>& descriptor) const {
+    uint32_t hash = 0;
     for (size_t i = 0; i < num_word_bits_; ++i) {
       if (descriptor[kBitPermutation[i]]) {
-        hash |= (FeatureHash{1} << i);
+        hash |= (uint32_t{1} << i);
       }
     }
     return hash;
   }
 
-  void compute_bow(const std::vector<std::bitset<N>>& descriptors,
-                   HashBowVector&                     bow_vector) const {
-    std::unordered_map<FeatureHash, double> term_freq;
+  void compute_bow(const std::vector<std::bitset<N>>&        descriptors,
+                   std::vector<std::pair<uint32_t, double>>& bow_vector) const {
+    std::unordered_map<uint32_t, double> term_freq;
     term_freq.reserve(descriptors.size());
     for (const auto& descriptor : descriptors) {
       term_freq[compute_hash(descriptor)] += 1.0;
@@ -81,17 +78,19 @@ class HashBow {
     }
   }
 
-  void add_to_database(uint64_t keyframe_id, const HashBowVector& bow_vector) {
+  void add_to_database(
+    uint64_t                                        keyframe_id,
+    const std::vector<std::pair<uint32_t, double>>& bow_vector) {
     for (const auto& [word, weight] : bow_vector) {
       inverted_index_[word].push_back({keyframe_id, weight});
     }
   }
 
-  void query(const HashBowVector&         bow_vector,
-             size_t                       num_results,
-             std::vector<ScoredKeyframe>& results,
-             uint64_t                     newest_allowed_id =
-               std::numeric_limits<uint64_t>::max()) const {
+  void query(
+    const std::vector<std::pair<uint32_t, double>>& bow_vector,
+    size_t                                          num_results,
+    std::vector<ScoredKeyframe>&                    results,
+    uint64_t newest_allowed_id = std::numeric_limits<uint64_t>::max()) const {
     std::unordered_map<uint64_t, double> scores;
     for (const auto& [word, weight] : bow_vector) {
       const auto it = inverted_index_.find(word);
@@ -132,13 +131,13 @@ class HashBow {
     double   weight      = 0.0;
   };
 
-  static constexpr size_t   kMaxWordBits    = 32;
+  static constexpr size_t   kMaxWordBits     = 32;
   static constexpr uint64_t kPermutationSeed = 0x9E3779B97F4A7C15ULL;
   static constexpr std::array<size_t, N> kBitPermutation =
     detail::make_bit_permutation<N>(kPermutationSeed);
 
-  size_t                                                num_word_bits_;
-  std::unordered_map<FeatureHash, std::vector<Entry>>   inverted_index_;
+  size_t                                           num_word_bits_;
+  std::unordered_map<uint32_t, std::vector<Entry>> inverted_index_;
 };
 
 }  // namespace omni_slam

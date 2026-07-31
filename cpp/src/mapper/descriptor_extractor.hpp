@@ -16,8 +16,11 @@ enum class DescriptorType { kOrb };
 
 class DescriptorExtractor {
  public:
-  explicit DescriptorExtractor(size_t         max_features = 1000,
-                               DescriptorType type         = DescriptorType::kOrb);
+  DescriptorExtractor(int            grid_rows      = 16,
+                      int            grid_cols      = 16,
+                      int            fast_threshold = 20,
+                      int            max_per_cell   = 2,
+                      DescriptorType type           = DescriptorType::kOrb);
 
   void detect_and_compute(
     const cv::Mat&                             image,
@@ -25,6 +28,10 @@ class DescriptorExtractor {
     std::vector<std::bitset<kDescriptorBits>>& descriptors) const;
 
  private:
+  int                    grid_rows_;
+  int                    grid_cols_;
+  int                    fast_threshold_;
+  int                    max_per_cell_;
   cv::Ptr<cv::Feature2D> impl_;
 };
 
