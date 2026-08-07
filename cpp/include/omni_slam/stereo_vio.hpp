@@ -25,7 +25,7 @@ class OpticalFlow;
 class Frame;
 class SlidingWindow;
 class VIOEstimator;
-struct KeyframeWithPrior;
+struct KeyframeMargData;
 class StereoVIO : public Odometry {
  public:
   enum class Status { Initializing, Tracking };
@@ -43,7 +43,7 @@ class StereoVIO : public Odometry {
 
   bool fetch_result(OdometryResult& out);
 
-  void set_mapper_input_queue(ConcurrentQueue<KeyframeWithPrior>* queue);
+  void set_mapper_input_queue(ConcurrentQueue<KeyframeMargData>* queue);
 
  private:
   void optical_flow_loop();
@@ -83,7 +83,7 @@ class StereoVIO : public Odometry {
 
   std::unique_ptr<VIOEstimator> estimator_;
 
-  ConcurrentQueue<KeyframeWithPrior>* mapper_input_queue_ = nullptr;
+  ConcurrentQueue<KeyframeMargData>* mapper_input_queue_ = nullptr;
 
   bool                    make_keyframe_;
   int                     new_keyframe_after_;

@@ -3,7 +3,6 @@
 
 #include "database/frame.hpp"
 #include "database/map_point.hpp"
-#include "feature_tracking/tracking_result.hpp"
 #include "odometry/sliding_window.hpp"
 
 namespace omni_slam {

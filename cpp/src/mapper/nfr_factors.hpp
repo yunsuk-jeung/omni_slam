@@ -20,8 +20,8 @@ namespace omni_slam {
 // keyframe. Only 2-DoF — position and yaw are gauge and left to RelPoseFactor.
 struct RollPitchFactor {
   uint64_t        keyframe_id = 0;
-  Sophus::SO3d    R_w_b_meas;                                  // measurement z
-  Eigen::Matrix2d information = Eigen::Matrix2d::Identity();   // Ω = Σ_rp^-1
+  Sophus::SO3d    R_w_b_meas;                                 // measurement z
+  Eigen::Matrix2d information = Eigen::Matrix2d::Identity();  // Ω = Σ_rp^-1
 
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 };
@@ -32,8 +32,8 @@ struct RollPitchFactor {
 struct RelPoseFactor {
   uint64_t                    keyframe_id_i = 0;
   uint64_t                    keyframe_id_j = 0;
-  Sophus::SE3d                T_i_j_meas;                       // measurement z
-  Eigen::Matrix<double, 6, 6> information =                     // Ω = Σ_ij^-1
+  Sophus::SE3d                T_i_j_meas;    // measurement z
+  Eigen::Matrix<double, 6, 6> information =  // Ω = Σ_ij^-1
     Eigen::Matrix<double, 6, 6>::Identity();
 
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW

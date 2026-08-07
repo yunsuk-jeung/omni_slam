@@ -387,21 +387,24 @@ void StereoVIO::track(std::shared_ptr<Frame>&     frame,
                           inertial_states_,
                           imu_preintegrations_);
 
-  // TODO(A/NFR): fill KeyframeWithPrior::pose_information from the marg prior.
   if (mapper_input_queue_) {
-    for (const auto& id : marginal_frame_ids) {
-      auto marginal_frame = sliding_window_->frame(id);
-      if (!marginal_frame || !marginal_frame->is_keyframe()) {
-        continue;
-      }
-      KeyframeWithPrior input;
-      input.keyframe_id    = marginal_frame->id();
-      input.timestamp_ns   = marginal_frame->timestamp_ns();
-      input.T_w_b_lin      = marginal_frame->twb_lin();
-      const size_t cam_num = marginal_frame->cam_num();
-      input.images.reserve(cam_num);
-      for (size_t i = 0; i < cam_num; ++i) {
-        input.images.push_back(marginal_frame->image(i));
+    if (const MargPosePrior* prior = estimator_->marg_pose_prior()) {
+      KeyframeMargData input;
+      input.prior = *prior;
+      for (const auto& id : marginal_frame_ids) {
+        auto marginal_frame = sliding_window_->frame(id);
+        if (!marginal_frame || !marginal_frame->is_keyframe()) {
+          continue;
+        }
+        KeyframeImages keyframe;
+        keyframe.keyframe_id  = marginal_frame->id();
+        keyframe.timestamp_ns = marginal_frame->timestamp_ns();
+        const size_t cam_num  = marginal_frame->cam_num();
+        keyframe.images.reserve(cam_num);
+        for (size_t i = 0; i < cam_num; ++i) {
+          keyframe.images.push_back(marginal_frame->image(i));
+        }
+        input.keyframes.push_back(std::move(keyframe));
       }
       mapper_input_queue_->push(std::move(input));
     }
@@ -463,7 +466,7 @@ float StereoVIO::update_frame_observations(std::shared_ptr<Frame>& frame) {
 
   size_t kpt_num            = frame->tracking_result_ptr()->size(0);
   float  connected_mp_ratio = kpt_num > 0 ? static_cast<float>(connected)
-                                             / static_cast<float>(kpt_num)
+                                              / static_cast<float>(kpt_num)
                                           : 1.0f;
   LogD("frame {}, connected map point ratio : {} = {} /{}",
        frame->id(),
@@ -484,7 +487,7 @@ bool StereoVIO::fetch_result(OdometryResult& out) {
 }
 
 void StereoVIO::set_mapper_input_queue(
-  ConcurrentQueue<KeyframeWithPrior>* queue) {
+  ConcurrentQueue<KeyframeMargData>* queue) {
   mapper_input_queue_ = queue;
 }
 

@@ -4,7 +4,6 @@
 #include <map>
 #include <memory>
 #include <set>
-#include <vector>
 
 #include <Eigen/Core>
 
@@ -15,6 +14,7 @@ namespace omni_slam {
 class Frame;
 class SlidingWindow;
 struct MarginalizationPrior;
+struct MargPosePrior;
 
 class VIOEstimator {
  public:
@@ -35,6 +35,10 @@ class VIOEstimator {
     std::map<uint64_t, InertialState>&           inertial_states,
     const std::map<uint64_t, ImuPreintegration>& imu_preintegrations);
 
+  const MargPosePrior* marg_pose_prior() const {
+    return marg_pose_prior_.get();
+  }
+
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
  private:
@@ -42,6 +46,7 @@ class VIOEstimator {
 
  private:
   std::unique_ptr<MarginalizationPrior> marginalization_prior_;
+  std::unique_ptr<MargPosePrior>        marg_pose_prior_;
 };
 
 }  // namespace omni_slam

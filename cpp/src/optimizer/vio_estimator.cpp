@@ -13,6 +13,7 @@
 #include "database/map_point.hpp"
 #include "odometry/sliding_window.hpp"
 #include "optimizer/cost_function.hpp"
+#include "optimizer/marg_pose_prior.hpp"
 #include "optimizer/marginalizer.hpp"
 #include "optimizer/parameterization.hpp"
 #include "optimizer/vio_estimator.hpp"
@@ -444,7 +445,7 @@ VIOEstimator::VIOEstimator()
   constexpr int kInitialPriorSize = kPoseSize + 2 * kBiasSize;
   marginalization_prior_->x0_     = Eigen::VectorXd::Zero(kInitialPriorSize);
   marginalization_prior_->J_      = Eigen::MatrixXd::Zero(kInitialPriorSize,
-                                                     kInitialPriorSize);
+                                                          kInitialPriorSize);
   marginalization_prior_->J_.topLeftCorner(3u, 3u) =
     SVIOConfig::marginalizer_initial_prior_weight
     * Eigen::MatrixXd::Identity(3u, 3u);
@@ -611,6 +612,8 @@ void VIOEstimator::marginalize(
     OMNI_ASSERT_MESSAGE(preintegration.from_frame_id() == from_id,
                         "preintegration key must be from_id");
   }
+
+  marg_pose_prior_.reset();
 
   const auto& prev_frame_ids = marginalization_prior_->frame_ids_;
 
@@ -872,6 +875,39 @@ void VIOEstimator::marginalize(
 
   H = 0.5 * (H + H.transpose());
 
+  {
+    auto       prior     = std::make_unique<MargPosePrior>();
+    const auto add_frame = [&](uint64_t id) {
+      if (!frame_id_to_index.contains(id)) {
+        return false;
+      }
+      auto frame = window->frame(id);
+      if (!frame) {
+        return false;
+      }
+      prior->keyframe_ids.push_back(id);
+      prior->T_w_b_lin.push_back(frame->twb_lin());
+      return true;
+    };
+
+    for (const uint64_t id : marginal_frame_ids) {
+      if (add_frame(id)) {
+        prior->keyframes_to_marg.push_back(id);
+      }
+    }
+    for (const uint64_t id : remain_frame_ids) {
+      add_frame(id);
+    }
+    // TODO(nfr): fill the pose-only joint H, b by Schur-eliminating the map
+    // point and inertial (velocity/bias) blocks out of the joint system (H,
+    // Jt_R) while keeping every pose block. Block order must match
+    // keyframe_ids. Until then H/b stay empty and the mapper only registers
+    // the poses as initial estimates (no factors recovered yet).
+    if (!prior->keyframe_ids.empty()) {
+      marg_pose_prior_ = std::move(prior);
+    }
+  }
+
   const Eigen::Index r = static_cast<Eigen::Index>(
     remain_pose_count * kPoseSize + remain_inertial_count * kInertialStateSize);
   if (r <= 0 || H.cols() < r || H.rows() < r || Jt_R.size() < r) {
@@ -914,8 +950,8 @@ void VIOEstimator::marginalize(
 
   constexpr double eps         = 1e-8;
   Eigen::VectorXd  inv_eigvals = (saes.eigenvalues().array() > eps)
-                                  .select(saes.eigenvalues().array().inverse(),
-                                          0.0);
+                                   .select(saes.eigenvalues().array().inverse(),
+                                           0.0);
   const Eigen::MatrixXd Amm_inv = saes.eigenvectors() * inv_eigvals.asDiagonal()
                                   * saes.eigenvectors().transpose();
 

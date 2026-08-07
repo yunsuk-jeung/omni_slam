@@ -5,22 +5,24 @@
 #include <thread>
 #include <vector>
 
-#include <Eigen/Dense>
 #include <opencv2/core.hpp>
-#include <sophus/se3.hpp>
 
 #include "mapper/descriptor_extractor.hpp"
 #include "mapper/hash_bow.hpp"
+#include "mapper/nfr_optimizer.hpp"
 #include "utils/concurrent_queue.hpp"
 
 namespace omni_slam {
 
-struct KeyframeWithPrior {
+struct KeyframeImages {
   uint64_t             keyframe_id  = 0;
   int64_t              timestamp_ns = 0;
   std::vector<cv::Mat> images;
-  Sophus::SE3d         T_w_b_lin;
-  Eigen::MatrixXd      pose_information;
+};
+
+struct KeyframeMargData {
+  MargPosePrior               prior;
+  std::vector<KeyframeImages> keyframes;
 
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 };
@@ -36,19 +38,20 @@ class Mapper {
   void run();
   void shutdown();
 
-  ConcurrentQueue<KeyframeWithPrior>* input_queue() { return &input_queue_; }
+  ConcurrentQueue<KeyframeMargData>* input_queue() { return &input_queue_; }
 
  private:
   void mapper_loop();
-  void process(const KeyframeWithPrior& input);
+  void process(const KeyframeMargData& input);
 
   std::atomic<bool> running_{false};
   std::thread       mapper_thread_;
 
-  ConcurrentQueue<KeyframeWithPrior> input_queue_;
+  ConcurrentQueue<KeyframeMargData> input_queue_;
 
   DescriptorExtractor      descriptor_extractor_;
   HashBow<kDescriptorBits> hash_bow_;
+  NfrOptimizer             nfr_optimizer_;
 };
 
 }  // namespace omni_slam

@@ -1,10 +1,9 @@
 #include "mapper/nfr_optimizer.hpp"
-
 #include "utils/logger.hpp"
 
 namespace omni_slam {
 
-void NfrOptimizer::add_marg_data(const MargPrior& prior) {
+void NfrOptimizer::add_marg_data(const MargPosePrior& prior) {
   // docs/nfr_mapper.md §3. Our priors arrive pose-only, so processMargData()'s
   // velocity/bias elimination (§3-A) is not needed here.
   if (!extract_nonlinear_factors(prior)) {
@@ -20,11 +19,12 @@ void NfrOptimizer::add_marg_data(const MargPrior& prior) {
   }
 }
 
-bool NfrOptimizer::extract_nonlinear_factors(const MargPrior& prior) {
+bool NfrOptimizer::extract_nonlinear_factors(const MargPosePrior& prior) {
   // docs/nfr_mapper.md §3-B:
   //   Step 1: Σ = H^-1 (bail if not full-rank).
   //   Step 2: pick anchor keyframe from keyframes_to_marg.
-  //   Step 3: recover RollPitchFactor  (J from roll_pitch_error, Σ_rp = J Σ J^T,
+  //   Step 3: recover RollPitchFactor  (J from roll_pitch_error, Σ_rp = J Σ
+  //   J^T,
   //           Ω = Σ_rp^-1) -> roll_pitch_factors_.
   //   Step 4: recover RelPoseFactor for anchor<->each other keyframe
   //           (J from rel_pose_error, Ω = (J Σ J^T)^-1) -> rel_pose_factors_.
